@@ -1,0 +1,115 @@
+# Codemagic CI/CD — build de iOS (Fase 22, C.3).
+#
+# Este archivo define QUÉ se compila y CÓMO se verifica antes de firmar.
+# Lo que NO define a propósito (a rellenar a mano en el panel de Codemagic,
+# nunca en este repo): certificados de firma, perfiles de aprovisionamiento,
+# la API key de App Store Connect, ni ningún secreto. Ver la lista al final
+# de este archivo con los pasos manuales pendientes.
+
+workflows:
+  ios-release:
+    name: iOS Release
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      groups:
+        # Grupo de variables a crear en Codemagic → Teams → <tu equipo> →
+        # Environment variables (nombre exacto del grupo: "appstore_credentials").
+        # Variables esperadas dentro del grupo, todas configuradas ahí, NUNCA
+        # en este archivo ni en el repo:
+        #   APP_STORE_CONNECT_ISSUER_ID   — App Store Connect → Users and Access → Integrations → API Keys
+        #   APP_STORE_CONNECT_KEY_IDENTIFIER
+        #   APP_STORE_CONNECT_PRIVATE_KEY — contenido del archivo .p8 de la API key
+        #   CERTIFICATE_PRIVATE_KEY       — si se firma con un certificado propio en vez de que
+        #                                    Codemagic lo genere automáticamente
+        - appstore_credentials
+      vars:
+        # Bundle identifier real, tomado de ios/Runner.xcodeproj/project.pbxproj.
+        BUNDLE_ID: "com.finanzasautomaticas.finanzasAutomaticas"
+        XCODE_WORKSPACE: "ios/Runner.xcworkspace"
+        XCODE_SCHEME: "Runner"
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+
+    scripts:
+      - name: Instalar dependencias de Flutter
+        script: flutter pub get
+
+      # Puerta de calidad: si esto falla, el workflow se detiene aquí y
+      # nunca llega a firmar ni subir un build roto.
+      - name: flutter analyze
+        script: flutter analyze
+
+      - name: flutter test
+        script: flutter test
+
+      - name: Instalar CocoaPods
+        script: |
+          find . -name "Podfile" -maxdepth 2 -execdir pod install \;
+
+      # Requiere que en Codemagic → App settings → iOS code signing esté
+      # configurado (automático con la API key de App Store Connect, o
+      # manual con certificado + perfil subidos ahí). Sin eso, este paso
+      # falla — es exactamente lo que reemplaza no tener macOS localmente.
+      - name: Configurar firma de código
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+          keychain add-certificates
+          xcode-project use-profiles
+
+      - name: Compilar el .ipa (release)
+        script: |
+          flutter build ipa --release \
+            --export-options-plist=/Users/builder/export_options.plist
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
+
+    publishing:
+      # Descomentar cuando la app ya exista en App Store Connect (ver
+      # pendientes abajo) y quieras que cada build suba automáticamente a
+      # TestFlight. Hasta entonces, deja el .ipa como artefacto y súbelo a
+      # mano la primera vez.
+      # app_store_connect:
+      #   auth: integration
+      #   submit_to_testflight: true
+      email:
+        recipients:
+          - jhersonvasquezcastillo@gmail.com
+        notify:
+          success: true
+          failure: true
+
+# ─────────────────────────────────────────────────────────────────────────
+# Pendientes manuales antes de que este workflow pueda correr de verdad
+# (ninguno se puede hacer desde este repo ni desde este entorno sin macOS):
+#
+# 1. Crear la app en App Store Connect (bundle id com.finanzasautomaticas.
+#    finanzasAutomaticas), si todavía no existe.
+# 2. Generar una API key de App Store Connect (Users and Access →
+#    Integrations → App Store Connect API → +) con rol "App Manager" o
+#    superior, y guardar Issuer ID, Key ID y el archivo .p8 en el grupo de
+#    variables "appstore_credentials" de Codemagic (no en este repo).
+# 3. En Codemagic → tu app → Code signing identities, dejar que Codemagic
+#    genere el certificado de distribución y el perfil de aprovisionamiento
+#    automáticamente usando esa misma API key (opción recomendada), o subir
+#    los tuyos si ya los tienes.
+# 4. Conectar el repo de git a Codemagic (Codemagic → Add application) para
+#    que el trigger `push` de este archivo tenga algo que escuchar.
+# 5. Confirmar `lib/config/supabase_config.dart` contra el proyecto de
+#    Supabase real antes del primer build de producción — ver
+#    INFORME_PROYECTO.md sección 8 sobre el esquema de columnas sin
+#    verificar contra `schema_finanzas_v3.sql`.
