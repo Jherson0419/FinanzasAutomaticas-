@@ -63,12 +63,22 @@ workflows:
       # falla — es exactamente lo que reemplaza no tener macOS localmente.
       - name: Configurar firma de código
         script: |
+          echo "Bundle ID usado: $BUNDLE_ID"
           keychain initialize
+          echo "--- Certificados en el keychain ANTES de fetch ---"
+          keychain list-certificates || true
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
-            --create
+            --create \
+            --strict-match-identifier
+          echo "--- Certificados DESPUÉS de fetch ---"
+          keychain list-certificates || true
           keychain add-certificates
-          xcode-project use-profiles
+          echo "--- Perfiles de aprovisionamiento disponibles ---"
+          app-store-connect list-devices --platform IOS || true
+          xcode-project use-profiles --warn-only
+          echo "--- project.pbxproj: PRODUCT_BUNDLE_IDENTIFIER por configuración ---"
+          grep -A1 "PRODUCT_BUNDLE_IDENTIFIER" ios/Runner.xcodeproj/project.pbxproj
 
       - name: Compilar el .ipa (release)
         script: |
