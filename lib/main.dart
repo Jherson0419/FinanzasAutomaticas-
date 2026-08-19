@@ -9,7 +9,7 @@ import 'presentation/state/providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+  await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);
   final prefs = await SharedPreferences.getInstance();
 
   runApp(

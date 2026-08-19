@@ -17,7 +17,7 @@ import 'presentation/state/providers.dart';
 /// Ejecutar con: flutter run -t lib/main_dev.dart
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+  await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);
 
   runApp(
     ProviderScope(

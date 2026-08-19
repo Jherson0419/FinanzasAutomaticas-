@@ -355,6 +355,45 @@ void main() {
     },
   );
 
+  testWidgets(
+    'precarga el avatar ya guardado (no el de por defecto) al abrir la '
+    'pantalla',
+    (WidgetTester tester) async {
+      await _pumpPerfilScreen(
+        tester,
+        perfil: _FakePerfilRepository(nick: 'jherson_v', avatarId: 'rayo'),
+      );
+
+      final avatarMostrado = tester
+          .widget<AvatarCirculo>(find.byType(AvatarCirculo).first)
+          .avatar;
+      expect(avatarMostrado.id, 'rayo');
+    },
+  );
+
+  testWidgets(
+    'precarga el Instagram ya guardado en el campo, sin dejarlo vacío',
+    (WidgetTester tester) async {
+      await _pumpPerfilScreen(
+        tester,
+        perfil: _FakePerfilRepository(
+          nick: 'jherson_v',
+          instagram: '@jherson.finanzas',
+        ),
+      );
+
+      expect(
+        tester
+            .widget<TextFormField>(
+              find.widgetWithText(TextFormField, 'Instagram (opcional)'),
+            )
+            .controller
+            ?.text,
+        '@jherson.finanzas',
+      );
+    },
+  );
+
   testWidgets('elegir un avatar del selector guarda el avatarId correcto', (
     WidgetTester tester,
   ) async {
