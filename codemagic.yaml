@@ -71,18 +71,20 @@ workflows:
           app-store-connect certificates list --type IOS_DISTRIBUTION
 
           echo "--- Intentando crear certificado de distribución ---"
-          app-store-connect certificates create --type IOS_DISTRIBUTION --save
+          app-store-connect certificates create --type IOS_DISTRIBUTION --save \
+            --certificate-key=@env:CERTIFICATE_PRIVATE_KEY
 
           echo "--- Certificados en el keychain tras crear ---"
           keychain list-certificates
 
-          echo "--- Perfiles existentes para este bundle ID ---"
-          app-store-connect profiles list --bundle-id-identifier "$BUNDLE_ID"
+          echo "--- Perfiles existentes en la cuenta ---"
+          app-store-connect profiles list
 
           echo "--- Intentando crear/descargar el perfil de App Store ---"
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
-            --create
+            --create \
+            --certificate-key=@env:CERTIFICATE_PRIVATE_KEY
 
           keychain add-certificates
           xcode-project use-profiles
