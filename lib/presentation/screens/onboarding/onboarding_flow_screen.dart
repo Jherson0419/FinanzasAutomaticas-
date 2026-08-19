@@ -2,16 +2,18 @@ import 'package:flutter/material.dart';
 
 import 'onboarding_cuentas_step.dart';
 import 'onboarding_deudas_step.dart';
+import 'onboarding_nick_step.dart';
 import 'onboarding_nombre_step.dart';
 import 'onboarding_resumen_step.dart';
 import 'onboarding_welcome_step.dart';
 
-/// Wizard de onboarding: un solo contenedor con 5 pasos internos
+/// Wizard de onboarding: un solo contenedor con 6 pasos internos
 /// controlados por estado local (sin rutas separadas). Se construye un solo
 /// paso a la vez (en vez de `IndexedStack`/`PageView`) para que solo exista
 /// un árbol de widgets activo por paso — evita, por ejemplo, tener varios
-/// botones "Continuar" montados a la vez. El nombre ingresado sobrevive la
-/// navegación entre pasos porque su controller vive aquí, no en el paso.
+/// botones "Continuar" montados a la vez. El nombre y el nick ingresados
+/// sobreviven la navegación entre pasos porque sus controllers viven aquí,
+/// no en el paso (Fase 31 agregó el paso de nick, entre nombre y cuentas).
 class OnboardingFlowScreen extends StatefulWidget {
   const OnboardingFlowScreen({super.key});
 
@@ -20,14 +22,16 @@ class OnboardingFlowScreen extends StatefulWidget {
 }
 
 class _OnboardingFlowScreenState extends State<OnboardingFlowScreen> {
-  static const _totalPasos = 5;
+  static const _totalPasos = 6;
 
   int _paso = 0;
   final _nombreController = TextEditingController();
+  final _nickController = TextEditingController();
 
   @override
   void dispose() {
     _nombreController.dispose();
+    _nickController.dispose();
     super.dispose();
   }
 
@@ -46,18 +50,27 @@ class _OnboardingFlowScreenState extends State<OnboardingFlowScreen> {
           onContinuar: () => _irA(2),
         );
       case 2:
-        return OnboardingCuentasStep(
+        return OnboardingNickStep(
+          controller: _nickController,
           onAtras: () => _irA(1),
           onContinuar: () => _irA(3),
         );
       case 3:
-        return OnboardingDeudasStep(
+        return OnboardingCuentasStep(
           onAtras: () => _irA(2),
           onContinuar: () => _irA(4),
         );
       case 4:
+        return OnboardingDeudasStep(
+          onAtras: () => _irA(3),
+          onContinuar: () => _irA(5),
+        );
+      case 5:
       default:
-        return OnboardingResumenStep(nombre: _nombreController.text.trim());
+        return OnboardingResumenStep(
+          nombre: _nombreController.text.trim(),
+          nick: _nickController.text.trim(),
+        );
     }
   }
 

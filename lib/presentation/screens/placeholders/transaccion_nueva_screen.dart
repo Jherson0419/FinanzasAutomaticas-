@@ -193,6 +193,14 @@ class _TransaccionNuevaScreenState
       ref.invalidate(cuentasProvider);
       ref.invalidate(resumenDashboardProvider);
       if (!mounted) return;
+      final mensajeGuardado = _editando
+          ? 'Movimiento actualizado'
+          : (_tipo == TipoTransaccion.gasto
+                ? 'Gasto guardado'
+                : 'Ingreso guardado');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(mensajeGuardado)));
       Navigator.of(context).pop();
     } catch (error) {
       if (!mounted) return;

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../domain/entities/tema_app.dart';
 import 'theme/app_theme.dart';
+import 'screens/automatizacion_screen.dart';
 import 'screens/categoria_nueva_screen.dart';
 import 'screens/consejos_financieros_screen.dart';
 import 'screens/cuenta_nueva_screen.dart';
@@ -15,23 +18,41 @@ import 'screens/placeholders/deuda_nueva_screen.dart';
 import 'screens/placeholders/transaccion_nueva_screen.dart';
 import 'screens/root_screen.dart';
 import 'screens/todos_los_movimientos_screen.dart';
+import 'state/providers.dart';
 
-class FinanzasAutomaticasApp extends StatelessWidget {
+/// Fase 31: `themeMode` sigue la preferencia guardada (`temaProvider`) en
+/// vez del `ThemeMode.dark` fijo de la Fase 19 — claro/oscuro/según el
+/// sistema, elegible desde "Mi perfil → Apariencia".
+ThemeMode _aThemeMode(TemaApp tema) {
+  switch (tema) {
+    case TemaApp.claro:
+      return ThemeMode.light;
+    case TemaApp.oscuro:
+      return ThemeMode.dark;
+    case TemaApp.sistema:
+      return ThemeMode.system;
+  }
+}
+
+class FinanzasAutomaticasApp extends ConsumerWidget {
   const FinanzasAutomaticasApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tema = ref.watch(temaProvider);
+
     return MaterialApp(
-      title: 'Finanzas Automáticas',
+      title: 'Finzo',
       debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.dark,
-      theme: appTheme(),
-      darkTheme: appTheme(),
+      themeMode: _aThemeMode(tema),
+      theme: appThemeClaro(),
+      darkTheme: appThemeOscuro(),
       initialRoute: '/',
       routes: {
         '/': (context) => const RootScreen(),
         '/cuentas': (context) => const MisCuentasScreen(),
         '/categorias': (context) => const MisCategoriasScreen(),
+        '/automatizacion': (context) => const AutomatizacionScreen(),
         '/consejos': (context) => const ConsejosFinancierosScreen(),
         '/perfil': (context) => const MiPerfilScreen(),
         '/transacciones/todas': (context) => const TodosLosMovimientosScreen(),

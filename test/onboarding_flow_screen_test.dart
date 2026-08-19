@@ -10,6 +10,9 @@ import 'package:finanzas_automaticas/domain/repositories/auth_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/categoria_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/cuenta_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/deuda_repository.dart';
+import 'package:finanzas_automaticas/domain/entities/perfil.dart';
+import 'package:finanzas_automaticas/domain/entities/tema_app.dart';
+import 'package:finanzas_automaticas/domain/repositories/perfil_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/preferencias_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/transaccion_repository.dart';
 import 'package:finanzas_automaticas/presentation/screens/root_screen.dart';
@@ -132,6 +135,10 @@ class _FakePreferenciasRepository implements PreferenciasRepository {
 
   @override
   Future<void> marcarOnboardingCompletado() async => _completado = true;
+  @override
+  Future<TemaApp> obtenerTema() async => TemaApp.oscuro;
+  @override
+  Future<void> guardarTema(TemaApp tema) async {}
 
   @override
   Future<String?> obtenerApiKeyGemini() async => _apiKeyGemini;
@@ -166,6 +173,25 @@ class _FakePreferenciasRepository implements PreferenciasRepository {
   Future<void> marcarDatosEnLaNube() async {}
   @override
   Future<void> limpiarTodo() async {}
+}
+
+class _FakePerfilRepository implements PerfilRepository {
+  String? nick;
+
+  @override
+  Future<Perfil> obtenerPerfil() async => Perfil(nick: nick);
+
+  @override
+  Future<bool> nickDisponible(String nick) async => true;
+
+  @override
+  Future<void> guardarNick(String nick) async => this.nick = nick;
+
+  @override
+  Future<void> guardarAvatarId(String avatarId) async {}
+
+  @override
+  Future<void> guardarInstagram(String? instagram) async {}
 }
 
 class _FakeAuthRepository implements AuthRepository {
@@ -206,6 +232,7 @@ void main() {
       final fakeCategorias = _FakeCategoriaRepository();
       final fakeTransacciones = _FakeTransaccionRepository();
       final fakePreferencias = _FakePreferenciasRepository();
+      final fakePerfil = _FakePerfilRepository();
 
       final overrides = [
         datosEnLaNubeProvider.overrideWithValue(false),
@@ -214,6 +241,7 @@ void main() {
         categoriaRepositoryProvider.overrideWithValue(fakeCategorias),
         transaccionRepositoryProvider.overrideWithValue(fakeTransacciones),
         preferenciasRepositoryProvider.overrideWithValue(fakePreferencias),
+        perfilRepositoryProvider.overrideWithValue(fakePerfil),
         authRepositoryProvider.overrideWithValue(_FakeAuthRepository()),
       ];
 
@@ -227,7 +255,10 @@ void main() {
       await tester.pumpAndSettle();
 
       // Paso 0: bienvenida.
-      expect(find.text('Bienvenido a Finanzas Automáticas'), findsOneWidget);
+      expect(
+        find.text('Bienvenido a Finzo: Finanzas Automáticas'),
+        findsOneWidget,
+      );
       await tester.tap(find.widgetWithText(FilledButton, 'Comenzar'));
       await tester.pumpAndSettle();
 
@@ -237,7 +268,16 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Continuar'));
       await tester.pumpAndSettle();
 
-      // Paso 2: cuentas (obligatorio agregar al menos una).
+      // Paso 2: nick (Fase 31) — el fake nunca reporta un nick como
+      // tomado, así que basta esperar a que pase el debounce.
+      await tester.enterText(find.byType(TextFormField), 'jherson_v');
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+      expect(find.text('Disponible'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Continuar'));
+      await tester.pumpAndSettle();
+
+      // Paso 3: cuentas (obligatorio agregar al menos una).
       await tester.enterText(
         find.widgetWithText(TextFormField, 'Nombre de la cuenta'),
         'Efectivo',
@@ -249,13 +289,14 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Continuar'));
       await tester.pumpAndSettle();
 
-      // Paso 3: deudas (se omite).
+      // Paso 4: deudas (se omite).
       await tester.tap(find.widgetWithText(TextButton, 'Omitir por ahora'));
       await tester.pumpAndSettle();
       expect(fakeDeudas.deudas, isEmpty);
 
-      // Paso 4: resumen.
+      // Paso 5: resumen.
       expect(find.text('Jherson'), findsOneWidget);
+      expect(find.text('@jherson_v'), findsOneWidget);
       expect(find.text('Sin deudas registradas.'), findsOneWidget);
       await tester.tap(
         find.widgetWithText(FilledButton, 'Empezar a usar la app'),
@@ -264,8 +305,12 @@ void main() {
 
       expect(await fakePreferencias.onboardingCompletado(), isTrue);
       expect(await fakePreferencias.obtenerNombre(), 'Jherson');
+      expect(fakePerfil.nick, 'jherson_v');
       expect(find.text('SALDO TOTAL'), findsOneWidget);
-      expect(find.text('Bienvenido a Finanzas Automáticas'), findsNothing);
+      expect(
+        find.text('Bienvenido a Finzo: Finanzas Automáticas'),
+        findsNothing,
+      );
 
       // --- "Relanzamiento" simulado: nuevo ProviderScope, mismos fakes. ---
       await tester.pumpWidget(
@@ -277,7 +322,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('SALDO TOTAL'), findsOneWidget);
-      expect(find.text('Bienvenido a Finanzas Automáticas'), findsNothing);
+      expect(
+        find.text('Bienvenido a Finzo: Finanzas Automáticas'),
+        findsNothing,
+      );
     },
   );
 }

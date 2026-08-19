@@ -107,7 +107,7 @@ class _MigrarDatosScreenState extends ConsumerState<MigrarDatosScreen> {
                       'conexión: cada lectura y escritura de tus datos '
                       'financieros necesita internet.',
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: textSecondary,
+                        color: context.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -132,7 +132,7 @@ class _MigrarDatosScreenState extends ConsumerState<MigrarDatosScreen> {
                   child: Text(
                     _etapaActual ?? 'Preparando...',
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: textSecondary,
+                      color: context.textSecondary,
                     ),
                   ),
                 ),
@@ -157,7 +157,7 @@ class _MigrarDatosScreenState extends ConsumerState<MigrarDatosScreen> {
                       Text(
                         mensajeDeError(_error!),
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: textSecondary,
+                          color: context.textSecondary,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -165,7 +165,7 @@ class _MigrarDatosScreenState extends ConsumerState<MigrarDatosScreen> {
                         'Tus datos locales siguen intactos — puedes '
                         'reintentar cuando quieras.',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: textSecondary,
+                          color: context.textSecondary,
                         ),
                       ),
                     ],

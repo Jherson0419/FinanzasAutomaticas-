@@ -11,22 +11,28 @@ class SectionLabel extends StatelessWidget {
     super.key,
     required this.icon,
     required this.label,
-    this.iconColor = textSecondary,
+    this.iconColor,
     this.trailing,
   });
 
   final IconData icon;
   final String label;
-  final Color iconColor;
+
+  /// `null` usa `context.textSecondary` (Fase 31: ya no puede ser un valor
+  /// por defecto constante porque depende del tema activo).
+  final Color? iconColor;
   final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 15, color: iconColor),
+        Icon(icon, size: 15, color: iconColor ?? context.textSecondary),
         const SizedBox(width: 6),
-        Text(label.toUpperCase(), style: sectionLabelTextStyle),
+        Text(
+          label.toUpperCase(),
+          style: sectionLabelTextStyle.copyWith(color: context.textMuted),
+        ),
         if (trailing != null) ...[const Spacer(), trailing!],
       ],
     );

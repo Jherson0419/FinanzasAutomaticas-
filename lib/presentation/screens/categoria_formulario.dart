@@ -105,6 +105,13 @@ class _CategoriaFormularioState extends ConsumerState<CategoriaFormulario> {
       await ref.refresh(categoriasProvider.future);
       ref.invalidate(resumenDashboardProvider);
       if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _editando ? 'Categoría actualizada' : 'Categoría creada',
+          ),
+        ),
+      );
       widget.onGuardadoExitoso(resultado);
     } catch (error) {
       if (!mounted) return;
@@ -184,12 +191,17 @@ class _CategoriaFormularioState extends ConsumerState<CategoriaFormulario> {
             const SizedBox(height: 6),
             Text(
               'No se puede cambiar: esta categoría ya tiene movimientos.',
-              style: theme.textTheme.bodySmall?.copyWith(color: textMuted),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: context.textMuted,
+              ),
             ),
           ],
         ],
         const SizedBox(height: 20),
-        Text('Ícono'.toUpperCase(), style: sectionLabelTextStyle),
+        Text(
+          'Ícono'.toUpperCase(),
+          style: sectionLabelTextStyle.copyWith(color: context.textMuted),
+        ),
         const SizedBox(height: 10),
         _SelectorIcono(
           seleccionado: _iconName,
@@ -261,16 +273,18 @@ class _IconoChip extends StatelessWidget {
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: seleccionado ? colorSuccess.withValues(alpha: 0.16) : bgCard,
+          color: seleccionado
+              ? colorSuccess.withValues(alpha: 0.16)
+              : context.bgCard,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: seleccionado ? colorSuccess : borderCard,
+            color: seleccionado ? colorSuccess : context.borderCard,
             width: seleccionado ? 1.5 : 0.5,
           ),
         ),
         child: Icon(
           iconoParaCategoria(nombre),
-          color: seleccionado ? colorSuccess : textSecondary,
+          color: seleccionado ? colorSuccess : context.textSecondary,
           size: 22,
         ),
       ),

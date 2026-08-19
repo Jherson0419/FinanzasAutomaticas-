@@ -6,6 +6,7 @@ import '../../shared/app_bottom_bar.dart';
 import '../../state/dashboard/dashboard_providers.dart';
 import '../../state/providers.dart';
 import '../../theme/app_theme.dart';
+import 'widgets/alertas_tarjetas_credito_banner.dart';
 import 'widgets/cuentas_carrusel.dart';
 import 'widgets/dashboard_empty_state.dart';
 import 'widgets/deudas_activas_section.dart';
@@ -19,6 +20,24 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Fase 25.5: cuando `capturar-transaccion` (Atajo de iOS, correo)
+    // inserta una fila nueva, este listener la ve por Supabase Realtime y
+    // refresca el dashboard solo — sin que el usuario tenga que salir y
+    // volver a entrar. La transición inicial (`AsyncLoading` → primer
+    // `AsyncData`) es solo el snapshot con el que arranca el stream, mismo
+    // dato que `resumenDashboardProvider` ya cargó por su cuenta — no
+    // cuenta como "cambio real". Solo se invalida en una transición de
+    // `AsyncData` a `AsyncData` (un evento después del primero).
+    ref.listen<AsyncValue<List<Map<String, dynamic>>>>(
+      transaccionesEnVivoProvider,
+      (previous, next) {
+        if (previous is AsyncData && next is AsyncData) {
+          ref.invalidate(resumenDashboardProvider);
+          ref.invalidate(cuentasProvider);
+        }
+      },
+    );
+
     final resumenAsync = ref.watch(resumenDashboardProvider);
     final nombreAsync = ref.watch(nombreUsuarioProvider);
     final theme = Theme.of(context);
@@ -73,7 +92,7 @@ class DashboardScreen extends ConsumerWidget {
                 ),
         ),
       ),
-      bottomNavigationBar: const AppBottomBar(),
+      bottomNavigationBar: const AppBottomBar(actual: AppBottomTab.dashboard),
     );
   }
 }
@@ -88,6 +107,8 @@ class _DashboardContent extends StatelessWidget {
     return Column(
       children: [
         const CuentasCarrusel(),
+        const SizedBox(height: 16),
+        const AlertasTarjetasCreditoBanner(),
         const SizedBox(height: 16),
         SaldoTotalCard(saldoTotalPorMoneda: resumen.saldoTotalPorMoneda),
         const SizedBox(height: 16),

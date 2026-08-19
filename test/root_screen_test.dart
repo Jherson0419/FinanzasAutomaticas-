@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:finanzas_automaticas/domain/entities/tema_app.dart';
 import 'package:finanzas_automaticas/domain/repositories/preferencias_repository.dart';
 import 'package:finanzas_automaticas/presentation/screens/dashboard/dashboard_fixtures.dart';
 import 'package:finanzas_automaticas/presentation/screens/root_screen.dart';
@@ -21,6 +22,10 @@ class _FakePreferenciasRepositorySinBiometrico
   Future<bool> onboardingCompletado() async => true;
   @override
   Future<void> marcarOnboardingCompletado() async {}
+  @override
+  Future<TemaApp> obtenerTema() async => TemaApp.oscuro;
+  @override
+  Future<void> guardarTema(TemaApp tema) async {}
   @override
   Future<String?> obtenerApiKeyGemini() async => null;
   @override
@@ -74,7 +79,7 @@ void main() {
 
     expect(find.text('Iniciar sesión'), findsWidgets);
     expect(find.text('SALDO TOTAL'), findsNothing);
-    expect(find.text('Bienvenido a Finanzas Automáticas'), findsNothing);
+    expect(find.text('Bienvenido a Finzo: Finanzas Automáticas'), findsNothing);
   });
 
   testWidgets(
@@ -98,7 +103,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Bienvenido a Finanzas Automáticas'), findsOneWidget);
+      expect(
+        find.text('Bienvenido a Finzo: Finanzas Automáticas'),
+        findsOneWidget,
+      );
       expect(find.text('SALDO TOTAL'), findsNothing);
     },
   );
@@ -128,7 +136,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('SALDO TOTAL'), findsOneWidget);
-      expect(find.text('Bienvenido a Finanzas Automáticas'), findsNothing);
+      expect(
+        find.text('Bienvenido a Finzo: Finanzas Automáticas'),
+        findsNothing,
+      );
     },
   );
 

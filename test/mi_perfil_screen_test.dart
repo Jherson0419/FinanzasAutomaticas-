@@ -12,16 +12,19 @@ import 'package:finanzas_automaticas/domain/repositories/categoria_repository.da
 import 'package:finanzas_automaticas/domain/repositories/cuenta_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/deuda_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/pago_deuda_repository.dart';
+import 'package:finanzas_automaticas/domain/entities/perfil.dart';
+import 'package:finanzas_automaticas/domain/entities/tema_app.dart';
+import 'package:finanzas_automaticas/domain/repositories/perfil_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/preferencias_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/transaccion_repository.dart';
 import 'package:finanzas_automaticas/domain/usecases/eliminar_cuenta_de_usuario.dart';
 import 'package:finanzas_automaticas/presentation/screens/mi_perfil_screen.dart';
+import 'package:finanzas_automaticas/presentation/shared/selector_avatar.dart';
 import 'package:finanzas_automaticas/presentation/state/providers.dart';
 
 class _FakePreferenciasRepository implements PreferenciasRepository {
   String? nombre;
-  String? apiKey;
-  _FakePreferenciasRepository({this.nombre, this.apiKey});
+  _FakePreferenciasRepository({this.nombre});
 
   @override
   Future<String?> obtenerNombre() async => nombre;
@@ -31,10 +34,19 @@ class _FakePreferenciasRepository implements PreferenciasRepository {
   Future<bool> onboardingCompletado() async => true;
   @override
   Future<void> marcarOnboardingCompletado() async {}
+  TemaApp temaActual = TemaApp.oscuro;
   @override
-  Future<String?> obtenerApiKeyGemini() async => apiKey;
+  Future<TemaApp> obtenerTema() async => temaActual;
   @override
-  Future<void> guardarApiKeyGemini(String apiKey) async => this.apiKey = apiKey;
+  Future<void> guardarTema(TemaApp tema) async => temaActual = tema;
+  // Fase 24: `MiPerfilScreen` ya no lee ni escribe la API key de Gemini —
+  // se mantienen estos dos overrides solo porque el puerto los sigue
+  // exigiendo (compatibilidad con `GeminiConsejosRepository`, desconectado
+  // pero no borrado).
+  @override
+  Future<String?> obtenerApiKeyGemini() async => null;
+  @override
+  Future<void> guardarApiKeyGemini(String apiKey) async {}
   @override
   Future<String?> obtenerPinHash() async => null;
   @override
@@ -55,6 +67,33 @@ class _FakePreferenciasRepository implements PreferenciasRepository {
   Future<void> limpiarTodo() async => limpiarTodoLlamado = true;
 
   bool limpiarTodoLlamado = false;
+}
+
+class _FakePerfilRepository implements PerfilRepository {
+  _FakePerfilRepository({String? nick, this.avatarId, this.instagram})
+    : _nick = nick;
+
+  String? _nick;
+  String? avatarId;
+  String? instagram;
+
+  @override
+  Future<Perfil> obtenerPerfil() async =>
+      Perfil(nick: _nick, avatarId: avatarId, instagram: instagram);
+
+  @override
+  Future<bool> nickDisponible(String nick) async => true;
+
+  @override
+  Future<void> guardarNick(String nick) async => _nick = nick;
+
+  @override
+  Future<void> guardarAvatarId(String avatarId) async =>
+      this.avatarId = avatarId;
+
+  @override
+  Future<void> guardarInstagram(String? instagram) async =>
+      this.instagram = instagram;
 }
 
 /// Repositorios financieros "vacíos" — a `MiPerfilScreen` no le importa qué
@@ -205,6 +244,8 @@ Future<_EliminarCuentaFixture> _pumpPerfilConEliminarCuenta(
     ProviderScope(
       overrides: [
         preferenciasRepositoryProvider.overrideWithValue(preferenciasRepo),
+        perfilRepositoryProvider.overrideWithValue(_FakePerfilRepository()),
+        temaProvider.overrideWithValue(TemaApp.oscuro),
         eliminarCuentaDeUsuarioProvider.overrideWithValue(
           eliminarCuentaDeUsuario,
         ),
@@ -231,27 +272,41 @@ Future<_EliminarCuentaFixture> _pumpPerfilConEliminarCuenta(
   return (authRepo: authRepo, preferenciasRepo: preferenciasRepo);
 }
 
+/// Arma el `ProviderScope` de `MiPerfilScreen` sola (sin `Navigator` extra
+/// debajo) — usado por los tests que no necesitan verificar "pop" al salir.
+Future<_FakePerfilRepository> _pumpPerfilScreen(
+  WidgetTester tester, {
+  _FakePreferenciasRepository? preferencias,
+  _FakePerfilRepository? perfil,
+}) async {
+  tester.view.physicalSize = const Size(1200, 3000);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
+  final perfilRepo = perfil ?? _FakePerfilRepository();
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        preferenciasRepositoryProvider.overrideWithValue(
+          preferencias ?? _FakePreferenciasRepository(),
+        ),
+        perfilRepositoryProvider.overrideWithValue(perfilRepo),
+        temaProvider.overrideWithValue(TemaApp.oscuro),
+      ],
+      child: const MaterialApp(home: MiPerfilScreen()),
+    ),
+  );
+  await tester.pumpAndSettle();
+  return perfilRepo;
+}
+
 void main() {
   testWidgets(
-    'precarga nombre y API key existentes, y guardarlos invoca al repositorio',
+    'precarga el nombre existente, y guardarlo invoca al repositorio',
     (WidgetTester tester) async {
-      tester.view.physicalSize = const Size(1200, 3000);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      final fake = _FakePreferenciasRepository(
-        nombre: 'Jherson',
-        apiKey: 'clave-vieja',
-      );
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [preferenciasRepositoryProvider.overrideWithValue(fake)],
-          child: const MaterialApp(home: MiPerfilScreen()),
-        ),
-      );
-      await tester.pumpAndSettle();
+      final fake = _FakePreferenciasRepository(nombre: 'Jherson');
+      await _pumpPerfilScreen(tester, preferencias: fake);
 
       expect(
         tester
@@ -262,39 +317,105 @@ void main() {
       );
 
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'API key de Gemini'),
-        'clave-nueva',
+        find.widgetWithText(TextFormField, 'Nombre'),
+        'Jherson V.',
       );
       await tester.tap(find.widgetWithText(FilledButton, 'Guardar'));
       await tester.pumpAndSettle();
 
-      expect(fake.apiKey, 'clave-nueva');
-      expect(fake.nombre, 'Jherson');
+      expect(fake.nombre, 'Jherson V.');
     },
   );
 
-  testWidgets('el campo de API key oculta el texto por defecto', (
+  testWidgets(
+    'ya no muestra el campo de API key de Gemini (Fase 24: la API key es '
+    'del distribuidor, vía Edge Function, nunca del usuario)',
+    (WidgetTester tester) async {
+      await _pumpPerfilScreen(tester);
+
+      expect(
+        find.widgetWithText(TextFormField, 'API key de Gemini'),
+        findsNothing,
+      );
+      expect(find.text('Consejos financieros con IA'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'el nick precargado se muestra de solo lectura (sin campo editable)',
+    (WidgetTester tester) async {
+      await _pumpPerfilScreen(
+        tester,
+        perfil: _FakePerfilRepository(nick: 'jherson_v'),
+      );
+
+      expect(find.text('@jherson_v'), findsOneWidget);
+      expect(find.text('El nick no se puede cambiar'), findsOneWidget);
+      expect(find.widgetWithText(TextFormField, 'Nick'), findsNothing);
+    },
+  );
+
+  testWidgets('elegir un avatar del selector guarda el avatarId correcto', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          preferenciasRepositoryProvider.overrideWithValue(
-            _FakePreferenciasRepository(),
-          ),
-        ],
-        child: const MaterialApp(home: MiPerfilScreen()),
-      ),
+    final perfilRepo = await _pumpPerfilScreen(
+      tester,
+      perfil: _FakePerfilRepository(nick: 'jherson_v'),
+    );
+
+    await tester.tap(find.byType(AvatarCirculo).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Elige tu avatar'), findsOneWidget);
+
+    // El grid tiene un `InkWell` por avatar — tocar el segundo elige el
+    // segundo `AvatarOption` del catálogo (`avataresDisponibles[1]`).
+    // Se busca dentro de `SelectorAvatarGrid` en vez de en toda la
+    // pantalla porque `MiPerfilScreen` sigue montada detrás del bottom
+    // sheet y sus propios `ListTile` también son `InkWell`.
+    await tester.tap(
+      find
+          .descendant(
+            of: find.byType(SelectorAvatarGrid),
+            matching: find.byType(InkWell),
+          )
+          .at(1),
     );
     await tester.pumpAndSettle();
 
-    final campoEditable = tester.widget<EditableText>(
-      find.descendant(
-        of: find.widgetWithText(TextFormField, 'API key de Gemini'),
-        matching: find.byType(EditableText),
-      ),
+    expect(perfilRepo.avatarId, 'cohete');
+  });
+
+  testWidgets('guardar Instagram invoca a PerfilRepository.guardarInstagram', (
+    WidgetTester tester,
+  ) async {
+    final perfilRepo = await _pumpPerfilScreen(
+      tester,
+      perfil: _FakePerfilRepository(nick: 'jherson_v'),
     );
-    expect(campoEditable.obscureText, isTrue);
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Instagram (opcional)'),
+      '@jherson.finanzas',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Guardar'));
+    await tester.pumpAndSettle();
+
+    expect(perfilRepo.instagram, '@jherson.finanzas');
+  });
+
+  testWidgets('el selector de Apariencia guarda el TemaApp elegido', (
+    WidgetTester tester,
+  ) async {
+    final preferencias = _FakePreferenciasRepository();
+    await _pumpPerfilScreen(tester, preferencias: preferencias);
+
+    expect(preferencias.temaActual, TemaApp.oscuro);
+
+    await tester.tap(find.text('Claro'));
+    await tester.pumpAndSettle();
+
+    expect(preferencias.temaActual, TemaApp.claro);
   });
 
   testWidgets(

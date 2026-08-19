@@ -5,18 +5,24 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../domain/entities/categoria.dart';
 import '../../domain/entities/cuenta.dart';
 import '../../domain/entities/deuda.dart';
+import '../../domain/entities/mensaje_consejo.dart';
 import '../../domain/entities/pago_deuda.dart';
+import '../../domain/entities/perfil.dart';
+import '../../domain/entities/tema_app.dart';
 import '../../domain/entities/transaccion.dart';
 import '../../domain/repositories/auth_repository.dart';
+import '../../domain/repositories/automatizacion_repository.dart';
 import '../../domain/repositories/categoria_repository.dart';
+import '../../domain/repositories/chat_consejos_repository.dart';
 import '../../domain/repositories/cuenta_repository.dart';
 import '../../domain/repositories/deuda_repository.dart';
 import '../../domain/repositories/pago_deuda_repository.dart';
+import '../../domain/repositories/perfil_repository.dart';
 import '../../domain/repositories/preferencias_repository.dart';
 import '../../domain/repositories/transaccion_repository.dart';
-import '../../domain/repositories/consejos_financieros_repository.dart';
 import '../../domain/usecases/actualizar_estado_mora.dart';
 import '../../domain/usecases/ajustar_saldo_cuenta.dart';
+import '../../domain/usecases/armar_resumen_para_consejos.dart';
 import '../../domain/usecases/crear_categoria.dart';
 import '../../domain/usecases/editar_categoria.dart';
 import '../../domain/usecases/editar_cuenta.dart';
@@ -28,7 +34,7 @@ import '../../domain/usecases/eliminar_cuenta_de_usuario.dart';
 import '../../domain/usecases/eliminar_deuda.dart';
 import '../../domain/usecases/eliminar_transaccion.dart';
 import '../../domain/usecases/migrar_datos_a_la_nube.dart';
-import '../../domain/usecases/obtener_consejos_financieros.dart';
+import '../../domain/usecases/obtener_alertas_tarjetas_credito.dart';
 import '../../domain/usecases/obtener_resumen_dashboard.dart';
 import '../../domain/usecases/registrar_cuenta.dart';
 import '../../domain/usecases/registrar_deuda.dart';
@@ -36,7 +42,7 @@ import '../../domain/usecases/registrar_gasto.dart';
 import '../../domain/usecases/registrar_ingreso.dart';
 import '../../domain/usecases/registrar_pago_deuda.dart';
 import '../../infrastructure/auth/supabase_auth_repository.dart';
-import '../../infrastructure/consejos/gemini_consejos_repository.dart';
+import '../../infrastructure/consejos/edge_function_consejos_repository.dart';
 import '../../infrastructure/persistence/drift/app_database.dart';
 import '../../infrastructure/persistence/drift/categoria_repository_drift.dart';
 import '../../infrastructure/persistence/drift/cuenta_repository_drift.dart';
@@ -44,10 +50,12 @@ import '../../infrastructure/persistence/drift/deuda_repository_drift.dart';
 import '../../infrastructure/persistence/drift/pago_deuda_repository_drift.dart';
 import '../../infrastructure/persistence/drift/transaccion_repository_drift.dart';
 import '../../infrastructure/persistence/preferencias_repository_shared_prefs.dart';
+import '../../infrastructure/persistence/supabase/automatizacion_repository_supabase.dart';
 import '../../infrastructure/persistence/supabase/categoria_repository_supabase.dart';
 import '../../infrastructure/persistence/supabase/cuenta_repository_supabase.dart';
 import '../../infrastructure/persistence/supabase/deuda_repository_supabase.dart';
 import '../../infrastructure/persistence/supabase/pago_deuda_repository_supabase.dart';
+import '../../infrastructure/persistence/supabase/perfil_repository_supabase.dart';
 import '../../infrastructure/persistence/supabase/transaccion_repository_supabase.dart';
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
@@ -74,6 +82,18 @@ final datosEnLaNubeProvider = Provider<bool>((ref) {
           .watch(sharedPreferencesProvider)
           .getBool(PreferenciasRepositorySharedPrefs.claveDatosEnLaNube) ??
       false;
+});
+
+/// Tema de la app (Fase 31) — lectura síncrona por el mismo motivo que
+/// `datosEnLaNubeProvider`: `MaterialApp.themeMode` no puede esperar un
+/// `Future`. Se invalida manualmente tras guardar una preferencia nueva
+/// desde "Mi perfil → Apariencia".
+final temaProvider = Provider<TemaApp>((ref) {
+  final valor = ref
+      .watch(sharedPreferencesProvider)
+      .getString(PreferenciasRepositorySharedPrefs.claveTema);
+  if (valor == null) return TemaApp.oscuro;
+  return TemaApp.values.byName(valor);
 });
 
 /// Los 5 providers de repositorios de datos financieros bifurcan aquí
@@ -176,6 +196,28 @@ final necesitaMigracionProvider = FutureProvider<bool>((ref) async {
   return false;
 });
 
+/// Fase 25.5: escucha `transacciones` en tiempo real (Supabase Realtime)
+/// para que las capturas de la Edge Function `capturar-transaccion`
+/// (Atajo de iOS, correo) aparezcan en el dashboard sin que el usuario
+/// tenga que salir y volver a entrar. Solo se activa cuando los datos ya
+/// viven en la nube — mientras estén en Drift no hay tabla remota que
+/// escuchar. Deliberadamente NO reconstruye el resumen él mismo: emite el
+/// payload crudo de cada evento, y es `DashboardScreen` quien lo escucha
+/// con `ref.listen` para invalidar `resumenDashboardProvider` — así sigue
+/// habiendo un solo lugar (`ObtenerResumenDashboard`) que sabe armarlo, y
+/// este provider es fácil de sobreescribir en tests con un stream falso.
+final transaccionesEnVivoProvider = StreamProvider<List<Map<String, dynamic>>>((
+  ref,
+) {
+  if (!ref.watch(datosEnLaNubeProvider)) return const Stream.empty();
+  final userId = Supabase.instance.client.auth.currentUser?.id;
+  if (userId == null) return const Stream.empty();
+  return Supabase.instance.client
+      .from('transacciones')
+      .stream(primaryKey: ['id'])
+      .eq('user_id', userId);
+});
+
 final obtenerResumenDashboardProvider = Provider<ObtenerResumenDashboard>((
   ref,
 ) {
@@ -225,6 +267,16 @@ final actualizarEstadoMoraProvider = Provider<ActualizarEstadoMora>((ref) {
     pagoDeudaRepository: ref.watch(pagoDeudaRepositoryProvider),
   );
 });
+
+/// Alertas de corte/pago de tarjetas de crédito (Fase 29); se invoca
+/// automáticamente al cargar el dashboard (ver
+/// `alertasTarjetasCreditoProvider` en `dashboard_providers.dart`).
+final obtenerAlertasTarjetasCreditoProvider =
+    Provider<ObtenerAlertasTarjetasCredito>((ref) {
+      return ObtenerAlertasTarjetasCredito(
+        cuentaRepository: ref.watch(cuentaRepositoryProvider),
+      );
+    });
 
 final editarTransaccionProvider = Provider<EditarTransaccion>((ref) {
   return EditarTransaccion(
@@ -298,26 +350,39 @@ final ajustarSaldoCuentaProvider = Provider<AjustarSaldoCuenta>((ref) {
   );
 });
 
-final consejosFinancierosRepositoryProvider =
-    Provider<ConsejosFinancierosRepository>((ref) {
-      return GeminiConsejosRepository(
-        preferenciasRepository: ref.watch(preferenciasRepositoryProvider),
-      );
-    });
+/// Fase 24: la API key de Gemini ya no la pone cada usuario — es del
+/// distribuidor de la app y vive solo como secreto de la Edge Function
+/// `generar-consejos`. `GeminiConsejosRepository` (Fase 17, modelo de key
+/// personal, puerto `ConsejosFinancierosRepository` de un solo turno)
+/// sigue en el repo por si se quiere volver a ese modelo más adelante,
+/// pero queda desconectado de aquí.
+///
+/// Fase 30: Consejos pasó de "un botón que genera una lista una vez" a un
+/// chat persistente — `EdgeFunctionConsejosRepository` ahora implementa
+/// `ChatConsejosRepository` en vez del puerto de un solo turno.
+final chatConsejosRepositoryProvider = Provider<ChatConsejosRepository>((ref) {
+  return EdgeFunctionConsejosRepository(Supabase.instance.client);
+});
 
-final obtenerConsejosFinancierosProvider = Provider<ObtenerConsejosFinancieros>(
-  (ref) {
-    return ObtenerConsejosFinancieros(
-      deudaRepository: ref.watch(deudaRepositoryProvider),
-      transaccionRepository: ref.watch(transaccionRepositoryProvider),
-      categoriaRepository: ref.watch(categoriaRepositoryProvider),
-      cuentaRepository: ref.watch(cuentaRepositoryProvider),
-      consejosFinancierosRepository: ref.watch(
-        consejosFinancierosRepositoryProvider,
-      ),
-    );
-  },
-);
+/// Arma el `ResumenParaConsejos` (agregado y anonimizado) usado como primer
+/// mensaje del chat cuando el usuario no tiene historial todavía.
+final armarResumenParaConsejosProvider = Provider<ArmarResumenParaConsejos>((
+  ref,
+) {
+  return ArmarResumenParaConsejos(
+    deudaRepository: ref.watch(deudaRepositoryProvider),
+    transaccionRepository: ref.watch(transaccionRepositoryProvider),
+    categoriaRepository: ref.watch(categoriaRepositoryProvider),
+    cuentaRepository: ref.watch(cuentaRepositoryProvider),
+  );
+});
+
+/// Historial del chat de consejos del usuario actual — lectura simple
+/// contra `mensajes_consejos`, mismo patrón que `cuentasProvider`/
+/// `categoriasProvider`.
+final historialConsejosProvider = FutureProvider<List<MensajeConsejo>>((ref) {
+  return ref.watch(chatConsejosRepositoryProvider).obtenerHistorial();
+});
 
 /// Catálogos usados por los formularios de registro (cuentas y categorías).
 final cuentasProvider = FutureProvider<List<Cuenta>>((ref) {
@@ -420,6 +485,34 @@ final haySesionActivaProvider = Provider<bool>((ref) {
   return ref.watch(authRepositoryProvider).haySesionActiva;
 });
 
+/// Token de webhook por usuario (Fase 25) — igual que `authRepositoryProvider`,
+/// siempre apunta a Supabase directo (no bifurca Drift/Supabase: el token
+/// solo existe una vez que hay una cuenta en la nube).
+final automatizacionRepositoryProvider = Provider<AutomatizacionRepository>((
+  ref,
+) {
+  return AutomatizacionRepositorySupabase(Supabase.instance.client);
+});
+
+/// Token actual del usuario, leído por `AutomatizacionScreen` para armar la
+/// URL del webhook. Se invalida manualmente tras "Generar nuevo enlace".
+final tokenWebhookProvider = FutureProvider<String>((ref) {
+  return ref.watch(automatizacionRepositoryProvider).obtenerTokenWebhook();
+});
+
+/// Perfil social (nick/avatar/Instagram, Fase 31) — igual que
+/// `automatizacionRepositoryProvider`, siempre apunta a Supabase directo:
+/// estos campos solo existen una vez que hay una cuenta en la nube.
+final perfilRepositoryProvider = Provider<PerfilRepository>((ref) {
+  return PerfilRepositorySupabase(Supabase.instance.client);
+});
+
+/// Perfil actual, leído por `OnboardingResumenStep` y `MiPerfilScreen`. Se
+/// invalida manualmente tras guardar el nick/avatar/Instagram.
+final perfilProvider = FutureProvider<Perfil>((ref) {
+  return ref.watch(perfilRepositoryProvider).obtenerPerfil();
+});
+
 /// Borrado de cuenta (Fase 22, requisito de Apple — Guideline 5.1.1(v)).
 /// Igual que `migrarDatosALaNubeProvider`, se construye aparte de los
 /// providers de datos financieros bifurcados de arriba porque siempre debe
@@ -469,10 +562,4 @@ final onboardingCompletadoProvider = FutureProvider<bool>((ref) {
 /// Nombre guardado por el usuario, leído por el encabezado del dashboard.
 final nombreUsuarioProvider = FutureProvider<String?>((ref) {
   return ref.watch(preferenciasRepositoryProvider).obtenerNombre();
-});
-
-/// API key de Gemini guardada por el usuario, leída por `MiPerfilScreen` y
-/// usada por `GeminiConsejosRepository` para llamar a la API.
-final apiKeyGeminiProvider = FutureProvider<String?>((ref) {
-  return ref.watch(preferenciasRepositoryProvider).obtenerApiKeyGemini();
 });

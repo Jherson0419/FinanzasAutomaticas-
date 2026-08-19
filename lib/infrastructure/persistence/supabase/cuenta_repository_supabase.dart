@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../domain/entities/cuenta.dart';
 import '../../../domain/repositories/cuenta_repository.dart';
+import 'enum_mapeo_supabase.dart';
 import 'supabase_errores.dart';
 
 /// Adapter de `CuentaRepository` sobre la tabla `cuentas` de Supabase
@@ -77,9 +78,12 @@ class CuentaRepositorySupabase implements CuentaRepository {
       'id': cuenta.id,
       'user_id': _userId,
       'nombre': cuenta.nombre,
-      'tipo': cuenta.tipo.name,
-      'moneda': cuenta.moneda.name,
+      'tipo': tipoCuentaAFila(cuenta.tipo),
+      'moneda': monedaAFila(cuenta.moneda),
       'saldo_actual': cuenta.saldoActual,
+      'linea_credito': cuenta.lineaCredito,
+      'dia_corte': cuenta.diaCorte,
+      'dia_pago': cuenta.diaPago,
     };
   }
 
@@ -88,9 +92,12 @@ class CuentaRepositorySupabase implements CuentaRepository {
     return Cuenta(
       id: fila['id'] as String,
       nombre: fila['nombre'] as String,
-      tipo: TipoCuenta.values.byName(fila['tipo'] as String),
-      moneda: Moneda.values.byName(fila['moneda'] as String),
+      tipo: tipoCuentaDeFila(fila['tipo'] as String),
+      moneda: monedaDeFila(fila['moneda'] as String),
       saldoActual: (fila['saldo_actual'] as num).toDouble(),
+      lineaCredito: (fila['linea_credito'] as num?)?.toDouble(),
+      diaCorte: fila['dia_corte'] as int?,
+      diaPago: fila['dia_pago'] as int?,
     );
   }
 }

@@ -247,10 +247,16 @@ void main() {
       expect(boton.onPressed, isNotNull);
 
       await tester.tap(find.byType(FilledButton));
-      await tester.pumpAndSettle();
+      // Sin `pumpAndSettle` todavía — dejaría avanzar también el
+      // auto-cierre del SnackBar antes de poder comprobar que apareció.
+      await tester.pump();
+      await tester.pump();
 
       expect(fakeDeudas.deudas['deuda-3']!.estado, EstadoDeuda.pagada);
       expect(fakeDeudas.deudas['deuda-3']!.montoPagado, 500);
+      expect(find.text('Pago registrado'), findsOneWidget);
+
+      await tester.pumpAndSettle();
     },
   );
 
@@ -335,13 +341,19 @@ void main() {
       expect(boton.onPressed, isNotNull);
 
       await tester.tap(find.byType(FilledButton));
-      await tester.pumpAndSettle();
+      // Sin `pumpAndSettle` todavía — dejaría avanzar también el
+      // auto-cierre del SnackBar antes de poder comprobar que apareció.
+      await tester.pump();
+      await tester.pump();
 
       expect(fakePagos.pagos.single.cuentaId, isNull);
       expect(
         fakeCuentas.cuentas['cta-usd']!.saldoActual,
         _cuentaUsdFixture.saldoActual,
       );
+      expect(find.text('Pago registrado'), findsOneWidget);
+
+      await tester.pumpAndSettle();
     },
   );
 }

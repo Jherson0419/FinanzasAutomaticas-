@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../domain/entities/cuenta.dart';
 import '../../../domain/entities/transaccion.dart';
 import '../../../domain/repositories/transaccion_repository.dart';
+import 'enum_mapeo_supabase.dart';
 import 'supabase_errores.dart';
 
 /// Adapter de `TransaccionRepository` sobre la tabla `transacciones` de
@@ -141,13 +141,13 @@ class TransaccionRepositorySupabase implements TransaccionRepository {
       'cuenta_id': transaccion.cuentaId,
       'categoria_id': transaccion.categoriaId,
       'monto': transaccion.monto,
-      'moneda': transaccion.moneda.name,
-      'tipo': transaccion.tipo.name,
+      'moneda': monedaAFila(transaccion.moneda),
+      'tipo': tipoTransaccionAFila(transaccion.tipo),
       'concepto': transaccion.concepto,
-      'metodo_pago': transaccion.metodoPago.name,
+      'metodo_pago': metodoPagoAFila(transaccion.metodoPago),
       'es_recurrente': transaccion.esRecurrente,
       'comprobante_url': transaccion.comprobanteUrl,
-      'fuente_captura': transaccion.fuenteCaptura.name,
+      'fuente_captura': fuenteCapturaAFila(transaccion.fuenteCaptura),
       'data_raw': transaccion.dataRaw,
       'fecha': transaccion.fecha.toIso8601String(),
     };
@@ -160,15 +160,13 @@ class TransaccionRepositorySupabase implements TransaccionRepository {
       cuentaId: fila['cuenta_id'] as String,
       categoriaId: fila['categoria_id'] as String,
       monto: (fila['monto'] as num).toDouble(),
-      moneda: Moneda.values.byName(fila['moneda'] as String),
-      tipo: TipoTransaccion.values.byName(fila['tipo'] as String),
+      moneda: monedaDeFila(fila['moneda'] as String),
+      tipo: tipoTransaccionDeFila(fila['tipo'] as String),
       concepto: fila['concepto'] as String,
-      metodoPago: MetodoPago.values.byName(fila['metodo_pago'] as String),
+      metodoPago: metodoPagoDeFila(fila['metodo_pago'] as String),
       esRecurrente: fila['es_recurrente'] as bool,
       comprobanteUrl: fila['comprobante_url'] as String?,
-      fuenteCaptura: FuenteCaptura.values.byName(
-        fila['fuente_captura'] as String,
-      ),
+      fuenteCaptura: fuenteCapturaDeFila(fila['fuente_captura'] as String),
       dataRaw: fila['data_raw'] as String?,
       fecha: DateTime.parse(fila['fecha'] as String),
     );

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_theme.dart';
+import '../theme/app_theme.dart' show AppColorTokensContext;
 
 /// Tarjeta de contenido estándar (Fase 19.2): fondo `bgCard`, borde
 /// `borderCard` de 0.5px, `borderRadius` de 14. Reemplaza el
@@ -21,9 +21,9 @@ class AppCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: bgCard,
+        color: context.bgCard,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderCard, width: 0.5),
+        border: Border.all(color: context.borderCard, width: 0.5),
       ),
       child: Padding(padding: padding, child: child),
     );

@@ -1,8 +1,17 @@
+import '../entities/tema_app.dart';
+
 abstract class PreferenciasRepository {
   Future<String?> obtenerNombre();
   Future<void> guardarNombre(String nombre);
   Future<bool> onboardingCompletado();
   Future<void> marcarOnboardingCompletado();
+
+  /// Tema de la app (Fase 31): claro/oscuro/según el sistema. 100% local —
+  /// a diferencia del nick/avatar/Instagram (Fase 31 también, pero esos
+  /// viven en `usuarios` de Supabase vía `PerfilRepository`), esto no tiene
+  /// ningún motivo para estar en la nube.
+  Future<TemaApp> obtenerTema();
+  Future<void> guardarTema(TemaApp tema);
 
   /// API key de Gemini usada por `ObtenerConsejosFinancieros` — se guarda
   /// solo localmente, nunca se envía a nada que no sea la API de Gemini.

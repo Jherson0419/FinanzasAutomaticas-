@@ -1,40 +1,35 @@
 import '../entities/cuenta.dart';
 import '../entities/transaccion.dart';
 import '../repositories/categoria_repository.dart';
-import '../repositories/consejos_financieros_repository.dart';
 import '../repositories/cuenta_repository.dart';
 import '../repositories/deuda_repository.dart';
 import '../repositories/transaccion_repository.dart';
 import 'dto/resumen_para_consejos.dart';
 
 /// Arma un resumen financiero agregado y anonimizado (mismo patrón de
-/// agregación que `ObtenerResumenDashboard`) y le pide consejos a
-/// `ConsejosFinancierosRepository`.
-class ObtenerConsejosFinancieros {
+/// agregación que `ObtenerResumenDashboard`) para el primer mensaje del
+/// chat de consejos financieros (Fase 30). Antes de esta fase esta misma
+/// lógica vivía en `ObtenerConsejosFinancieros`, que además llamaba a
+/// Gemini directo (un solo turno, sin historial) — ese caso de uso
+/// desapareció junto con el flujo de "Generar consejos" de un botón único;
+/// esta clase es exactamente su método `_armarResumen()` extraído.
+class ArmarResumenParaConsejos {
   final DeudaRepository _deudaRepository;
   final TransaccionRepository _transaccionRepository;
   final CategoriaRepository _categoriaRepository;
   final CuentaRepository _cuentaRepository;
-  final ConsejosFinancierosRepository _consejosFinancierosRepository;
 
-  ObtenerConsejosFinancieros({
+  ArmarResumenParaConsejos({
     required DeudaRepository deudaRepository,
     required TransaccionRepository transaccionRepository,
     required CategoriaRepository categoriaRepository,
     required CuentaRepository cuentaRepository,
-    required ConsejosFinancierosRepository consejosFinancierosRepository,
   }) : _deudaRepository = deudaRepository,
        _transaccionRepository = transaccionRepository,
        _categoriaRepository = categoriaRepository,
-       _cuentaRepository = cuentaRepository,
-       _consejosFinancierosRepository = consejosFinancierosRepository;
+       _cuentaRepository = cuentaRepository;
 
-  Future<List<String>> call() async {
-    final resumen = await _armarResumen();
-    return _consejosFinancierosRepository.generarConsejos(resumen);
-  }
-
-  Future<ResumenParaConsejos> _armarResumen() async {
+  Future<ResumenParaConsejos> call() async {
     final ahora = DateTime.now();
     final inicioMes = DateTime(ahora.year, ahora.month, 1);
     final finMes = DateTime(

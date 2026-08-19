@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:finanzas_automaticas/domain/entities/cuenta.dart';
+import 'package:finanzas_automaticas/domain/entities/tema_app.dart';
 import 'package:finanzas_automaticas/domain/repositories/preferencias_repository.dart';
 import 'package:finanzas_automaticas/infrastructure/persistence/drift/app_database.dart';
 import 'package:finanzas_automaticas/infrastructure/persistence/drift/cuenta_repository_drift.dart';
@@ -28,6 +29,10 @@ class _FakePreferenciasRepository implements PreferenciasRepository {
   Future<bool> onboardingCompletado() async => false;
   @override
   Future<void> marcarOnboardingCompletado() async {}
+  @override
+  Future<TemaApp> obtenerTema() async => TemaApp.oscuro;
+  @override
+  Future<void> guardarTema(TemaApp tema) async {}
   @override
   Future<String?> obtenerApiKeyGemini() async => null;
   @override

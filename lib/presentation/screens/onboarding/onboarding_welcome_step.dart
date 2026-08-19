@@ -22,7 +22,7 @@ class OnboardingWelcomeStep extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           Text(
-            'Bienvenido a Finanzas Automáticas',
+            'Bienvenido a Finzo: Finanzas Automáticas',
             textAlign: TextAlign.center,
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,

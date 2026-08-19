@@ -102,7 +102,7 @@ class _SeccionCategorias extends StatelessWidget {
           for (final categoria in predeterminadas)
             _FilaCategoria(categoria: categoria),
           if (propias.isNotEmpty) ...[
-            const Divider(height: 24, color: borderCard),
+            Divider(height: 24, color: context.borderCard),
             for (final categoria in propias)
               _FilaCategoria(categoria: categoria),
           ],
@@ -148,14 +148,14 @@ class _FilaCategoria extends ConsumerWidget {
           children: [
             Icon(
               iconoParaCategoria(categoria.iconName),
-              color: textSecondary,
+              color: context.textSecondary,
               size: 20,
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(categoria.nombre, style: theme.textTheme.bodyMedium),
             ),
-            const Icon(Icons.lock_outline, color: textMuted, size: 16),
+            Icon(Icons.lock_outline, color: context.textMuted, size: 16),
           ],
         ),
       );

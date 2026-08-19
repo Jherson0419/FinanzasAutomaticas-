@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../domain/entities/cuenta.dart';
 import '../../../domain/entities/deuda.dart';
 import '../../../domain/repositories/deuda_repository.dart';
+import 'enum_mapeo_supabase.dart';
 import 'supabase_errores.dart';
 
 /// Adapter de `DeudaRepository` sobre la tabla `deudas` de Supabase
@@ -34,8 +34,8 @@ class DeudaRepositorySupabase implements DeudaRepository {
           .select()
           .eq('user_id', _userId)
           .inFilter('estado', [
-            EstadoDeuda.activa.name,
-            EstadoDeuda.enMora.name,
+            estadoDeudaAFila(EstadoDeuda.activa),
+            estadoDeudaAFila(EstadoDeuda.enMora),
           ]);
       return filas.map(aDominio).toList();
     });
@@ -85,21 +85,25 @@ class DeudaRepositorySupabase implements DeudaRepository {
       'id': deuda.id,
       'user_id': _userId,
       'nombre_deuda': deuda.nombreDeuda,
-      'tipo_deuda': deuda.tipoDeuda.name,
-      'tipo_acreedor': deuda.tipoAcreedor.name,
+      'tipo_deuda': tipoDeudaAFila(deuda.tipoDeuda),
+      'tipo_acreedor': tipoAcreedorAFila(deuda.tipoAcreedor),
       'nombre_acreedor': deuda.nombreAcreedor,
-      'moneda': deuda.moneda.name,
+      'moneda': monedaAFila(deuda.moneda),
       'monto_total': deuda.montoTotal,
       'monto_pagado': deuda.montoPagado,
       'tiene_interes': deuda.tieneInteres,
       'tasa_interes': deuda.tasaInteres,
-      'tipo_tasa': deuda.tipoTasa?.name,
-      'estructura_pago': deuda.estructuraPago.name,
+      'tipo_tasa': deuda.tipoTasa == null
+          ? null
+          : tipoTasaAFila(deuda.tipoTasa!),
+      'estructura_pago': estructuraPagoAFila(deuda.estructuraPago),
       'numero_cuotas_total': deuda.numeroCuotasTotal,
       'numero_cuotas_pagadas': deuda.numeroCuotasPagadas,
       'monto_cuota': deuda.montoCuota,
       'pago_minimo': deuda.pagoMinimo,
-      'periodicidad_cuotas': deuda.periodicidadCuotas?.name,
+      'periodicidad_cuotas': deuda.periodicidadCuotas == null
+          ? null
+          : periodicidadCuotaAFila(deuda.periodicidadCuotas!),
       'interes_total': deuda.interesTotal,
       'fecha_inicio': deuda.fechaInicio.toIso8601String(),
       'fecha_vencimiento_final': deuda.fechaVencimientoFinal?.toIso8601String(),
@@ -108,7 +112,7 @@ class DeudaRepositorySupabase implements DeudaRepository {
       'en_mora': deuda.enMora,
       'dias_mora': deuda.diasMora,
       'tasa_interes_moratorio': deuda.tasaInteresMoratorio,
-      'estado': deuda.estado.name,
+      'estado': estadoDeudaAFila(deuda.estado),
       'notas': deuda.notas,
     };
   }
@@ -118,29 +122,25 @@ class DeudaRepositorySupabase implements DeudaRepository {
     return Deuda(
       id: fila['id'] as String,
       nombreDeuda: fila['nombre_deuda'] as String,
-      tipoDeuda: TipoDeuda.values.byName(fila['tipo_deuda'] as String),
-      tipoAcreedor: TipoAcreedor.values.byName(fila['tipo_acreedor'] as String),
+      tipoDeuda: tipoDeudaDeFila(fila['tipo_deuda'] as String),
+      tipoAcreedor: tipoAcreedorDeFila(fila['tipo_acreedor'] as String),
       nombreAcreedor: fila['nombre_acreedor'] as String,
-      moneda: Moneda.values.byName(fila['moneda'] as String),
+      moneda: monedaDeFila(fila['moneda'] as String),
       montoTotal: (fila['monto_total'] as num).toDouble(),
       montoPagado: (fila['monto_pagado'] as num).toDouble(),
       tieneInteres: fila['tiene_interes'] as bool,
       tasaInteres: (fila['tasa_interes'] as num?)?.toDouble(),
       tipoTasa: fila['tipo_tasa'] == null
           ? null
-          : TipoTasa.values.byName(fila['tipo_tasa'] as String),
-      estructuraPago: EstructuraPago.values.byName(
-        fila['estructura_pago'] as String,
-      ),
+          : tipoTasaDeFila(fila['tipo_tasa'] as String),
+      estructuraPago: estructuraPagoDeFila(fila['estructura_pago'] as String),
       numeroCuotasTotal: fila['numero_cuotas_total'] as int?,
       numeroCuotasPagadas: fila['numero_cuotas_pagadas'] as int?,
       montoCuota: (fila['monto_cuota'] as num?)?.toDouble(),
       pagoMinimo: (fila['pago_minimo'] as num?)?.toDouble(),
       periodicidadCuotas: fila['periodicidad_cuotas'] == null
           ? null
-          : PeriodicidadCuota.values.byName(
-              fila['periodicidad_cuotas'] as String,
-            ),
+          : periodicidadCuotaDeFila(fila['periodicidad_cuotas'] as String),
       interesTotal: (fila['interes_total'] as num?)?.toDouble(),
       fechaInicio: DateTime.parse(fila['fecha_inicio'] as String),
       fechaVencimientoFinal: fila['fecha_vencimiento_final'] == null
@@ -154,7 +154,7 @@ class DeudaRepositorySupabase implements DeudaRepository {
       diasMora: fila['dias_mora'] as int?,
       tasaInteresMoratorio: (fila['tasa_interes_moratorio'] as num?)
           ?.toDouble(),
-      estado: EstadoDeuda.values.byName(fila['estado'] as String),
+      estado: estadoDeudaDeFila(fila['estado'] as String),
       notas: fila['notas'] as String?,
     );
   }

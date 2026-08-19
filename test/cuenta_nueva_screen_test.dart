@@ -71,10 +71,19 @@ void main() {
     expect(boton.onPressed, isNotNull);
 
     await tester.tap(find.byType(FilledButton));
-    await tester.pumpAndSettle();
+    // Dos pumps (sin `pumpAndSettle` todavía): uno procesa el tap y
+    // dispara `_guardar()`, el otro deja que el `await` al repositorio se
+    // resuelva. `pumpAndSettle` demasiado pronto haría avanzar también la
+    // animación de auto-cierre del SnackBar, y ya no quedaría nada que
+    // encontrar con `find.text`.
+    await tester.pump();
+    await tester.pump();
 
     expect(fake.cuentas.length, 1);
     expect(fake.cuentas.values.first.nombre, 'Efectivo diario');
     expect(fake.cuentas.values.first.saldoActual, 0);
+    expect(find.text('Cuenta creada'), findsOneWidget);
+
+    await tester.pumpAndSettle();
   });
 }

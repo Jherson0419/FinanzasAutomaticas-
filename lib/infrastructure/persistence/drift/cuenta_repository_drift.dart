@@ -1,3 +1,5 @@
+import 'package:drift/drift.dart';
+
 import '../../../domain/entities/cuenta.dart';
 import '../../../domain/repositories/cuenta_repository.dart';
 import 'app_database.dart';
@@ -43,6 +45,9 @@ class CuentaRepositoryDrift implements CuentaRepository {
       tipo: TipoCuenta.values.byName(row.tipo),
       moneda: Moneda.values.byName(row.moneda),
       saldoActual: row.saldoActual,
+      lineaCredito: row.lineaCredito,
+      diaCorte: row.diaCorte,
+      diaPago: row.diaPago,
     );
   }
 
@@ -53,6 +58,9 @@ class CuentaRepositoryDrift implements CuentaRepository {
       tipo: cuenta.tipo.name,
       moneda: cuenta.moneda.name,
       saldoActual: cuenta.saldoActual,
+      lineaCredito: Value(cuenta.lineaCredito),
+      diaCorte: Value(cuenta.diaCorte),
+      diaPago: Value(cuenta.diaPago),
     );
   }
 }

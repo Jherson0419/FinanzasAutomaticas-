@@ -55,8 +55,50 @@ class $CuentasTable extends Cuentas with TableInfo<$CuentasTable, CuentaRow> {
     type: DriftSqlType.double,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _lineaCreditoMeta = const VerificationMeta(
+    'lineaCredito',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, nombre, tipo, moneda, saldoActual];
+  late final GeneratedColumn<double> lineaCredito = GeneratedColumn<double>(
+    'linea_credito',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _diaCorteMeta = const VerificationMeta(
+    'diaCorte',
+  );
+  @override
+  late final GeneratedColumn<int> diaCorte = GeneratedColumn<int>(
+    'dia_corte',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _diaPagoMeta = const VerificationMeta(
+    'diaPago',
+  );
+  @override
+  late final GeneratedColumn<int> diaPago = GeneratedColumn<int>(
+    'dia_pago',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    nombre,
+    tipo,
+    moneda,
+    saldoActual,
+    lineaCredito,
+    diaCorte,
+    diaPago,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -109,6 +151,27 @@ class $CuentasTable extends Cuentas with TableInfo<$CuentasTable, CuentaRow> {
     } else if (isInserting) {
       context.missing(_saldoActualMeta);
     }
+    if (data.containsKey('linea_credito')) {
+      context.handle(
+        _lineaCreditoMeta,
+        lineaCredito.isAcceptableOrUnknown(
+          data['linea_credito']!,
+          _lineaCreditoMeta,
+        ),
+      );
+    }
+    if (data.containsKey('dia_corte')) {
+      context.handle(
+        _diaCorteMeta,
+        diaCorte.isAcceptableOrUnknown(data['dia_corte']!, _diaCorteMeta),
+      );
+    }
+    if (data.containsKey('dia_pago')) {
+      context.handle(
+        _diaPagoMeta,
+        diaPago.isAcceptableOrUnknown(data['dia_pago']!, _diaPagoMeta),
+      );
+    }
     return context;
   }
 
@@ -138,6 +201,18 @@ class $CuentasTable extends Cuentas with TableInfo<$CuentasTable, CuentaRow> {
         DriftSqlType.double,
         data['${effectivePrefix}saldo_actual'],
       )!,
+      lineaCredito: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}linea_credito'],
+      ),
+      diaCorte: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}dia_corte'],
+      ),
+      diaPago: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}dia_pago'],
+      ),
     );
   }
 
@@ -153,12 +228,18 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
   final String tipo;
   final String moneda;
   final double saldoActual;
+  final double? lineaCredito;
+  final int? diaCorte;
+  final int? diaPago;
   const CuentaRow({
     required this.id,
     required this.nombre,
     required this.tipo,
     required this.moneda,
     required this.saldoActual,
+    this.lineaCredito,
+    this.diaCorte,
+    this.diaPago,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -168,6 +249,15 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
     map['tipo'] = Variable<String>(tipo);
     map['moneda'] = Variable<String>(moneda);
     map['saldo_actual'] = Variable<double>(saldoActual);
+    if (!nullToAbsent || lineaCredito != null) {
+      map['linea_credito'] = Variable<double>(lineaCredito);
+    }
+    if (!nullToAbsent || diaCorte != null) {
+      map['dia_corte'] = Variable<int>(diaCorte);
+    }
+    if (!nullToAbsent || diaPago != null) {
+      map['dia_pago'] = Variable<int>(diaPago);
+    }
     return map;
   }
 
@@ -178,6 +268,15 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
       tipo: Value(tipo),
       moneda: Value(moneda),
       saldoActual: Value(saldoActual),
+      lineaCredito: lineaCredito == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lineaCredito),
+      diaCorte: diaCorte == null && nullToAbsent
+          ? const Value.absent()
+          : Value(diaCorte),
+      diaPago: diaPago == null && nullToAbsent
+          ? const Value.absent()
+          : Value(diaPago),
     );
   }
 
@@ -192,6 +291,9 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
       tipo: serializer.fromJson<String>(json['tipo']),
       moneda: serializer.fromJson<String>(json['moneda']),
       saldoActual: serializer.fromJson<double>(json['saldoActual']),
+      lineaCredito: serializer.fromJson<double?>(json['lineaCredito']),
+      diaCorte: serializer.fromJson<int?>(json['diaCorte']),
+      diaPago: serializer.fromJson<int?>(json['diaPago']),
     );
   }
   @override
@@ -203,6 +305,9 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
       'tipo': serializer.toJson<String>(tipo),
       'moneda': serializer.toJson<String>(moneda),
       'saldoActual': serializer.toJson<double>(saldoActual),
+      'lineaCredito': serializer.toJson<double?>(lineaCredito),
+      'diaCorte': serializer.toJson<int?>(diaCorte),
+      'diaPago': serializer.toJson<int?>(diaPago),
     };
   }
 
@@ -212,12 +317,18 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
     String? tipo,
     String? moneda,
     double? saldoActual,
+    Value<double?> lineaCredito = const Value.absent(),
+    Value<int?> diaCorte = const Value.absent(),
+    Value<int?> diaPago = const Value.absent(),
   }) => CuentaRow(
     id: id ?? this.id,
     nombre: nombre ?? this.nombre,
     tipo: tipo ?? this.tipo,
     moneda: moneda ?? this.moneda,
     saldoActual: saldoActual ?? this.saldoActual,
+    lineaCredito: lineaCredito.present ? lineaCredito.value : this.lineaCredito,
+    diaCorte: diaCorte.present ? diaCorte.value : this.diaCorte,
+    diaPago: diaPago.present ? diaPago.value : this.diaPago,
   );
   CuentaRow copyWithCompanion(CuentasCompanion data) {
     return CuentaRow(
@@ -228,6 +339,11 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
       saldoActual: data.saldoActual.present
           ? data.saldoActual.value
           : this.saldoActual,
+      lineaCredito: data.lineaCredito.present
+          ? data.lineaCredito.value
+          : this.lineaCredito,
+      diaCorte: data.diaCorte.present ? data.diaCorte.value : this.diaCorte,
+      diaPago: data.diaPago.present ? data.diaPago.value : this.diaPago,
     );
   }
 
@@ -238,13 +354,25 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
           ..write('nombre: $nombre, ')
           ..write('tipo: $tipo, ')
           ..write('moneda: $moneda, ')
-          ..write('saldoActual: $saldoActual')
+          ..write('saldoActual: $saldoActual, ')
+          ..write('lineaCredito: $lineaCredito, ')
+          ..write('diaCorte: $diaCorte, ')
+          ..write('diaPago: $diaPago')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, nombre, tipo, moneda, saldoActual);
+  int get hashCode => Object.hash(
+    id,
+    nombre,
+    tipo,
+    moneda,
+    saldoActual,
+    lineaCredito,
+    diaCorte,
+    diaPago,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -253,7 +381,10 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
           other.nombre == this.nombre &&
           other.tipo == this.tipo &&
           other.moneda == this.moneda &&
-          other.saldoActual == this.saldoActual);
+          other.saldoActual == this.saldoActual &&
+          other.lineaCredito == this.lineaCredito &&
+          other.diaCorte == this.diaCorte &&
+          other.diaPago == this.diaPago);
 }
 
 class CuentasCompanion extends UpdateCompanion<CuentaRow> {
@@ -262,6 +393,9 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
   final Value<String> tipo;
   final Value<String> moneda;
   final Value<double> saldoActual;
+  final Value<double?> lineaCredito;
+  final Value<int?> diaCorte;
+  final Value<int?> diaPago;
   final Value<int> rowid;
   const CuentasCompanion({
     this.id = const Value.absent(),
@@ -269,6 +403,9 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
     this.tipo = const Value.absent(),
     this.moneda = const Value.absent(),
     this.saldoActual = const Value.absent(),
+    this.lineaCredito = const Value.absent(),
+    this.diaCorte = const Value.absent(),
+    this.diaPago = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CuentasCompanion.insert({
@@ -277,6 +414,9 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
     required String tipo,
     required String moneda,
     required double saldoActual,
+    this.lineaCredito = const Value.absent(),
+    this.diaCorte = const Value.absent(),
+    this.diaPago = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        nombre = Value(nombre),
@@ -289,6 +429,9 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
     Expression<String>? tipo,
     Expression<String>? moneda,
     Expression<double>? saldoActual,
+    Expression<double>? lineaCredito,
+    Expression<int>? diaCorte,
+    Expression<int>? diaPago,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -297,6 +440,9 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
       if (tipo != null) 'tipo': tipo,
       if (moneda != null) 'moneda': moneda,
       if (saldoActual != null) 'saldo_actual': saldoActual,
+      if (lineaCredito != null) 'linea_credito': lineaCredito,
+      if (diaCorte != null) 'dia_corte': diaCorte,
+      if (diaPago != null) 'dia_pago': diaPago,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -307,6 +453,9 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
     Value<String>? tipo,
     Value<String>? moneda,
     Value<double>? saldoActual,
+    Value<double?>? lineaCredito,
+    Value<int?>? diaCorte,
+    Value<int?>? diaPago,
     Value<int>? rowid,
   }) {
     return CuentasCompanion(
@@ -315,6 +464,9 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
       tipo: tipo ?? this.tipo,
       moneda: moneda ?? this.moneda,
       saldoActual: saldoActual ?? this.saldoActual,
+      lineaCredito: lineaCredito ?? this.lineaCredito,
+      diaCorte: diaCorte ?? this.diaCorte,
+      diaPago: diaPago ?? this.diaPago,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -337,6 +489,15 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
     if (saldoActual.present) {
       map['saldo_actual'] = Variable<double>(saldoActual.value);
     }
+    if (lineaCredito.present) {
+      map['linea_credito'] = Variable<double>(lineaCredito.value);
+    }
+    if (diaCorte.present) {
+      map['dia_corte'] = Variable<int>(diaCorte.value);
+    }
+    if (diaPago.present) {
+      map['dia_pago'] = Variable<int>(diaPago.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -351,6 +512,9 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
           ..write('tipo: $tipo, ')
           ..write('moneda: $moneda, ')
           ..write('saldoActual: $saldoActual, ')
+          ..write('lineaCredito: $lineaCredito, ')
+          ..write('diaCorte: $diaCorte, ')
+          ..write('diaPago: $diaPago, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3604,6 +3768,9 @@ typedef $$CuentasTableCreateCompanionBuilder =
       required String tipo,
       required String moneda,
       required double saldoActual,
+      Value<double?> lineaCredito,
+      Value<int?> diaCorte,
+      Value<int?> diaPago,
       Value<int> rowid,
     });
 typedef $$CuentasTableUpdateCompanionBuilder =
@@ -3613,6 +3780,9 @@ typedef $$CuentasTableUpdateCompanionBuilder =
       Value<String> tipo,
       Value<String> moneda,
       Value<double> saldoActual,
+      Value<double?> lineaCredito,
+      Value<int?> diaCorte,
+      Value<int?> diaPago,
       Value<int> rowid,
     });
 
@@ -3647,6 +3817,21 @@ class $$CuentasTableFilterComposer
 
   ColumnFilters<double> get saldoActual => $composableBuilder(
     column: $table.saldoActual,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get lineaCredito => $composableBuilder(
+    column: $table.lineaCredito,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get diaCorte => $composableBuilder(
+    column: $table.diaCorte,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get diaPago => $composableBuilder(
+    column: $table.diaPago,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -3684,6 +3869,21 @@ class $$CuentasTableOrderingComposer
     column: $table.saldoActual,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<double> get lineaCredito => $composableBuilder(
+    column: $table.lineaCredito,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get diaCorte => $composableBuilder(
+    column: $table.diaCorte,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get diaPago => $composableBuilder(
+    column: $table.diaPago,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$CuentasTableAnnotationComposer
@@ -3711,6 +3911,17 @@ class $$CuentasTableAnnotationComposer
     column: $table.saldoActual,
     builder: (column) => column,
   );
+
+  GeneratedColumn<double> get lineaCredito => $composableBuilder(
+    column: $table.lineaCredito,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get diaCorte =>
+      $composableBuilder(column: $table.diaCorte, builder: (column) => column);
+
+  GeneratedColumn<int> get diaPago =>
+      $composableBuilder(column: $table.diaPago, builder: (column) => column);
 }
 
 class $$CuentasTableTableManager
@@ -3746,6 +3957,9 @@ class $$CuentasTableTableManager
                 Value<String> tipo = const Value.absent(),
                 Value<String> moneda = const Value.absent(),
                 Value<double> saldoActual = const Value.absent(),
+                Value<double?> lineaCredito = const Value.absent(),
+                Value<int?> diaCorte = const Value.absent(),
+                Value<int?> diaPago = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CuentasCompanion(
                 id: id,
@@ -3753,6 +3967,9 @@ class $$CuentasTableTableManager
                 tipo: tipo,
                 moneda: moneda,
                 saldoActual: saldoActual,
+                lineaCredito: lineaCredito,
+                diaCorte: diaCorte,
+                diaPago: diaPago,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -3762,6 +3979,9 @@ class $$CuentasTableTableManager
                 required String tipo,
                 required String moneda,
                 required double saldoActual,
+                Value<double?> lineaCredito = const Value.absent(),
+                Value<int?> diaCorte = const Value.absent(),
+                Value<int?> diaPago = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CuentasCompanion.insert(
                 id: id,
@@ -3769,6 +3989,9 @@ class $$CuentasTableTableManager
                 tipo: tipo,
                 moneda: moneda,
                 saldoActual: saldoActual,
+                lineaCredito: lineaCredito,
+                diaCorte: diaCorte,
+                diaPago: diaPago,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

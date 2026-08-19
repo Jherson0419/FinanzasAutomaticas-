@@ -59,15 +59,20 @@ dev_dependencies:
   build_runner: ^2.15.1
   flutter_launcher_icons: ^0.14.4
 
-# Ícono de la app (Fase 22, C.2): fondo bgPage (0xFF0D1210) + barras
-# ascendentes en colorSuccess (0xFF5DCAA5), coherente con el sistema de
-# diseño oscuro de la Fase 19 (`lib/presentation/theme/app_theme.dart`).
-# Para regenerar los assets tras cambiar `assets/icon/icon.png`:
+# Ícono de la app (Fase 35, reemplaza al de la Fase 22): logo nuevo de
+# Finzo — círculo con anillo orbital en colorSuccess (0xFF5DCAA5) sobre
+# fondo bgPage (0xFF0D1210), coherente con el sistema de diseño oscuro de
+# la Fase 19 (`lib/presentation/theme/app_theme.dart`). `assets/icon/icono.png`
+# (2048×2048, RGB sin canal alfa — verificado, así que `remove_alpha_ios`
+# es defensivo, no correctivo) reemplaza a `assets/icon/icon.png` (Fase
+# 22, sin usar desde esta fase). Sin ícono adaptativo de Android todavía:
+# haría falta un `icono_foreground.png` sin fondo, que no existe aún.
+# Para regenerar los assets tras cambiar `assets/icon/icono.png`:
 #   dart run flutter_launcher_icons
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/icon/icon.png"
+  image_path: "assets/icon/icono.png"
   remove_alpha_ios: true
 
 # For information on the generic Dart part of this file, see the

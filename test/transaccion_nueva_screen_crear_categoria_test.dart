@@ -118,6 +118,12 @@ void main() {
         matching: find.widgetWithText(FilledButton, 'Guardar'),
       );
       await tester.tap(guardarModal);
+      // Sin `pumpAndSettle` todavía — dejaría avanzar también el
+      // auto-cierre del SnackBar antes de poder comprobar que apareció.
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Categoría creada'), findsOneWidget);
+
       await tester.pumpAndSettle();
 
       // La categoría se creó y quedó seleccionada en el dropdown.

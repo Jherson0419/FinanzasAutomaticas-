@@ -8,9 +8,14 @@ import 'deuda_lista_item.dart';
 
 /// Paso final: resumen + botón que cierra el onboarding.
 class OnboardingResumenStep extends ConsumerStatefulWidget {
-  const OnboardingResumenStep({super.key, required this.nombre});
+  const OnboardingResumenStep({
+    super.key,
+    required this.nombre,
+    required this.nick,
+  });
 
   final String nombre;
+  final String nick;
 
   @override
   ConsumerState<OnboardingResumenStep> createState() =>
@@ -25,12 +30,14 @@ class _OnboardingResumenStepState extends ConsumerState<OnboardingResumenStep> {
     try {
       final preferencias = ref.read(preferenciasRepositoryProvider);
       await preferencias.guardarNombre(widget.nombre);
+      await ref.read(perfilRepositoryProvider).guardarNick(widget.nick);
       await preferencias.marcarOnboardingCompletado();
 
       ref.invalidate(cuentasProvider);
       ref.invalidate(resumenDashboardProvider);
       ref.invalidate(onboardingCompletadoProvider);
       ref.invalidate(nombreUsuarioProvider);
+      ref.invalidate(perfilProvider);
 
       if (!mounted) return;
       Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
@@ -73,6 +80,10 @@ class _OnboardingResumenStepState extends ConsumerState<OnboardingResumenStep> {
           Text('Nombre', style: theme.textTheme.titleSmall),
           const SizedBox(height: 4),
           Text(widget.nombre, style: theme.textTheme.bodyLarge),
+          const SizedBox(height: 24),
+          Text('Nick', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 4),
+          Text('@${widget.nick}', style: theme.textTheme.bodyLarge),
           const SizedBox(height: 24),
           Text('Cuentas', style: theme.textTheme.titleSmall),
           const SizedBox(height: 8),

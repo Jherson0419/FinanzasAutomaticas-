@@ -1,8 +1,8 @@
-# Informe del proyecto — Finanzas Automáticas
+# Informe del proyecto — Finzo
 
 > Auditoría de solo lectura del estado real del repositorio (`lib/`, `test/`, `pubspec.yaml`, `ios/`, `CONTEXTO.md`) realizada desde cero el 2026-08-17, recorriendo los ~111 archivos `.dart` de `lib/` y los 45 de `test/` directamente con Read/Grep, sin dar por buena ninguna afirmación del `INFORME_PROYECTO.md` anterior ni de `CONTEXTO.md` que no se pudiera verificar contra el código. Ningún archivo de código fue modificado para producir este informe.
 >
-> **Resultado real de las herramientas en este momento:** `flutter analyze` → 2 issues, ambos `info` (deprecación de `anonKey` en `main.dart:12` y `main_dev.dart:19`), cero errores/warnings. `flutter test` → 45 archivos, **140 tests, 140 en verde, 0 fallos**.
+> **Resultado real de las herramientas en este momento:** `flutter analyze` → 2 issues, ambos `info` (deprecación de `anonKey` en `main.dart:12` y `main_dev.dart:19`), cero errores/warnings. `flutter test` → **235 tests, 235 en verde, 0 fallos** (Fase 29 — línea de crédito, día de corte/pago y alertas para cuentas tipo `credito` —, Fase 30 — Consejos financieros como chat persistente en vez de un botón de un solo turno — y Fase 31 — nick único desde el onboarding, avatar/Instagram, tema claro/oscuro/sistema y textura en las tarjetas wallet — junto con varios archivos de fases anteriores no reflejados en el conteo original de este informe).
 >
 > **Hallazgo más urgente de esta auditoría (relevante para el envío a revisión de Apple en 2 días):** no existe ningún flujo de eliminación de cuenta de usuario (borrado de datos + cuenta de auth). Ver la sección 7(a) y la sección 8 — es Guideline 5.1.1(v) de Apple y, tal como está hoy el código, la app la incumple sin ambigüedad.
 
@@ -10,7 +10,7 @@
 
 ## 1. Resumen ejecutivo
 
-Finanzas Automáticas es hoy una app Flutter de finanzas personales con **backend real en producción (Supabase)**, no una app local. El flujo completo: el usuario inicia sesión con correo/contraseña (Supabase Auth), opcionalmente configura un bloqueo local (PIN de 4 dígitos hasheado y/o Face ID/huella), completa un onboarding obligatorio de 5 pasos (bienvenida, nombre, al menos una cuenta, deudas opcionales, resumen), y llega a un dashboard oscuro con acordeones (saldo total, ingresos/gastos del mes, gasto por categoría, deudas activas, movimientos recientes), una barra inferior fija (Gasto / Deuda / Consejos / Perfil) y un carrusel de tarjetas de cuenta a tamaño real. Puede registrar gastos/ingresos, deudas (con cronograma de cuotas e interés automático o pago libre), pagos de deuda (incluyendo pagos retroactivos que no tocan el saldo), ajustar el saldo de una cuenta sin sobrescribirlo, crear categorías propias además de las predeterminadas, y pedir consejos financieros a Gemini bajo demanda.
+Finzo (nombre visible completo: "Finzo: Finanzas Automaticas", ver `CONTEXTO.md` §3 "Bundle ID y nombre de la app") es hoy una app Flutter de finanzas personales con **backend real en producción (Supabase)**, no una app local. El flujo completo: el usuario inicia sesión con correo/contraseña (Supabase Auth), opcionalmente configura un bloqueo local (PIN de 4 dígitos hasheado y/o Face ID/huella), completa un onboarding obligatorio de 5 pasos (bienvenida, nombre, al menos una cuenta, deudas opcionales, resumen), y llega a un dashboard oscuro con acordeones (saldo total, ingresos/gastos del mes, gasto por categoría, deudas activas, movimientos recientes), una barra inferior fija (Gasto / Deuda / Consejos / Perfil) y un carrusel de tarjetas de cuenta a tamaño real. Puede registrar gastos/ingresos, deudas (con cronograma de cuotas e interés automático o pago libre), pagos de deuda (incluyendo pagos retroactivos que no tocan el saldo), ajustar el saldo de una cuenta sin sobrescribirlo, crear categorías propias además de las predeterminadas, y pedir consejos financieros a Gemini bajo demanda.
 
 **Estado real de producción — Supabase, confirmado por lectura directa del código, no solo por lo que dice `CONTEXTO.md`:** los 5 providers de repositorios de datos financieros (`cuentaRepositoryProvider`, `categoriaRepositoryProvider`, `transaccionRepositoryProvider`, `deudaRepositoryProvider`, `pagoDeudaRepositoryProvider`, todos en `lib/presentation/state/providers.dart:83-111`) bifurcan entre un adapter Drift y un adapter Supabase según la preferencia local `datos_en_la_nube`. Existen los 5 adapters Supabase completos en `lib/infrastructure/persistence/supabase/` (uno por puerto, todos con manejo de errores envuelto en `StateError` vía `conManejoDeErroresSupabase`), un caso de uso de migración (`MigrarDatosALaNube`) que sube todo preservando IDs y verifica conteos antes de borrar lo local, y una pantalla (`MigrarDatosScreen`) que `RootScreen` muestra automáticamente cuando detecta datos Drift sin migrar. Los adapters Drift siguen existiendo y se siguen usando como origen de la migración y como almacenamiento hasta que un dispositivo migra — la arquitectura de puertos y adapters hace este reemplazo transparente para los casos de uso, exactamente como describe `CONTEXTO.md` §3.
 
@@ -53,19 +53,24 @@ main.dart
               │
               ├─ onboardingCompletado == false
               │   └─ OnboardingFlowScreen (screens/onboarding/onboarding_flow_screen.dart)
-              │       [contenedor con estado local `_paso` 0-4, sin rutas propias]
+              │       [contenedor con estado local `_paso` 0-5, sin rutas propias — Fase 31 agregó
+              │        el paso de nick, antes eran 5 pasos (0-4)]
               │       │
               │       ├─ Paso 0 · onboarding_welcome_step.dart → "Comenzar" (sin "Atrás")
               │       ├─ Paso 1 · onboarding_nombre_step.dart → "Continuar" deshabilitado si vacío
-              │       ├─ Paso 2 · onboarding_cuentas_step.dart
+              │       ├─ Paso 2 · onboarding_nick_step.dart (Fase 31)
+              │       │     valida disponibilidad en vivo (debounce) vía PerfilRepository.nickDisponible
+              │       │     "Continuar" deshabilitado hasta que el nick esté validado como disponible
+              │       ├─ Paso 3 · onboarding_cuentas_step.dart
               │       │     embebe CuentaFormulario → RegistrarCuenta → CuentaRepository
               │       │     "Continuar" deshabilitado si 0 cuentas
-              │       ├─ Paso 3 · onboarding_deudas_step.dart
+              │       ├─ Paso 4 · onboarding_deudas_step.dart
               │       │     embebe DeudaFormulario → RegistrarDeuda → DeudaRepository
               │       │     "Continuar" / "Omitir por ahora" siempre habilitados
-              │       └─ Paso 4 · onboarding_resumen_step.dart
+              │       └─ Paso 5 · onboarding_resumen_step.dart
               │             "Empezar a usar la app" → PreferenciasRepository.guardarNombre() +
-              │               marcarOnboardingCompletado() → pushNamedAndRemoveUntil('/', false)
+              │               PerfilRepository.guardarNick() (Fase 31) + marcarOnboardingCompletado()
+              │               → pushNamedAndRemoveUntil('/', false)
               │
               └─ onboardingCompletado == true
                   └─ DashboardScreen (screens/dashboard/dashboard_screen.dart)
@@ -113,13 +118,17 @@ CuentaNuevaScreen en modo edición ('/cuentas/nueva' con cuentaId) — rol centr
   "Ver movimientos de esta cuenta" → '/cuentas/movimientos' → MovimientosCuentaScreen
   "Eliminar cuenta" (rojo, al final) → EliminarCuenta
 
-MiPerfilScreen ('/perfil'):
-  nombre (PreferenciasRepository.guardarNombre) y API key de Gemini
-    (PreferenciasRepository.guardarApiKeyGemini), ambos solo en este dispositivo
-  "Mis categorías" → '/categorias'
+MiPerfilScreen ('/perfil') — actualizado tras las Fases 22/24/25/31, la versión
+anterior de este diagrama estaba desactualizada en los 4 puntos siguientes:
+  avatar (PerfilRepository.guardarAvatarId) + nick de solo lectura + nombre
+    (PreferenciasRepository.guardarNombre) + Instagram (PerfilRepository.guardarInstagram) —
+    nick/avatar/Instagram en Supabase (`usuarios`), nombre 100% local (Fase 31)
+  Apariencia: TemaApp claro/oscuro/sistema (PreferenciasRepository.guardarTema, Fase 31)
+  "Mis categorías" → '/categorias' | "Automatización" → '/automatizacion' (Fase 25)
   "Cerrar sesión" (con confirmación) → AuthRepository.cerrarSesion() → popUntil(primera ruta)
     → RootScreen reactivamente muestra LoginScreen; NO borra ningún dato (ni local ni de Supabase)
-  NO HAY botón de "Eliminar cuenta"/"Eliminar mi cuenta" — ver §7(a)
+  "Eliminar mi cuenta" (Fase 22) → EliminarCuentaDeUsuario + PreferenciasRepository.limpiarTodo()
+  NO HAY campo de API key de Gemini desde la Fase 24 (la API key es del distribuidor, vía Edge Function)
 ```
 
 ### Detalle por pantalla
@@ -130,7 +139,7 @@ MiPerfilScreen ('/perfil'):
 | 2 | `lib/main_dev.dart` | entry point alterno (`-t lib/main_dev.dart`) | ninguno (overrides con fixtures, salta login/bloqueo) | `FinanzasAutomaticasApp` |
 | 3 | `lib/presentation/app.dart` | define `MaterialApp` | ninguno | ruta `/` |
 | 4 | `lib/presentation/screens/root_screen.dart` | `/` | ninguno propio (lee 5 providers de puerta) | `LoginScreen`, `MigrarDatosScreen`, `ConfigurarBloqueoScreen`, `DesbloqueoScreen`, `OnboardingFlowScreen` o `DashboardScreen` |
-| 5 | `onboarding_flow_screen.dart` + 5 pasos | — (interno) | `RegistrarCuenta` (paso 2), `RegistrarDeuda` (paso 3) | `RootScreen` al terminar |
+| 5 | `onboarding_flow_screen.dart` + 6 pasos (Fase 31 agregó el paso de nick) | — (interno) | `RegistrarCuenta` (paso 3), `RegistrarDeuda` (paso 4), `PerfilRepository.nickDisponible`/`.guardarNick` (pasos 2 y 5) | `RootScreen` al terminar |
 | 6 | `dashboard_screen.dart` | `/` (onboarding completo) | `ObtenerResumenDashboard` (+ `ActualizarEstadoMora` automático) | `MisCuentasScreen`, `CuentaNuevaScreen`, `PagoDeudaNuevoScreen`, `TransaccionNuevaScreen`, `DeudaNuevaScreen`, `ConsejosFinancierosScreen`, `MiPerfilScreen`, `TodosLosMovimientosScreen` |
 | 7 | `mis_cuentas_screen.dart` | `/cuentas` | ninguno (lee `cuentasProvider`) | `CuentaNuevaScreen` |
 | 8 | `cuenta_nueva_screen.dart` + `cuenta_formulario.dart` | `/cuentas/nueva` (arg. `cuentaId`) | `RegistrarCuenta` \| `EditarCuenta` \| `EliminarCuenta` \| `AjustarSaldoCuenta` (modal) | pop |
@@ -141,10 +150,10 @@ MiPerfilScreen ('/perfil'):
 | 13 | `movimientos_cuenta_screen.dart` | `/cuentas/movimientos` (arg. `cuentaId`) | ninguno propio | `TransaccionNuevaScreen` (edición) |
 | 14 | `todos_los_movimientos_screen.dart` | `/transacciones/todas` | ninguno propio (`TransaccionRepository.obtenerTodas`) | `TransaccionNuevaScreen` (edición) |
 | 15 | `historial_pagos_deuda_screen.dart` | `/deudas/historial` (arg. `deudaId`) | ninguno propio | — |
-| 16 | `consejos_financieros_screen.dart` | `/consejos` | `ObtenerConsejosFinancieros` (solo al tocar el botón) | `MiPerfilScreen` (si falta API key) |
+| 16 | `consejos_financieros_screen.dart` | `/consejos` | `ArmarResumenParaConsejos` + `ChatConsejosRepository.enviarMensaje` (automático al entrar si no hay historial) / `ChatConsejosRepository.obtenerHistorial` (Fase 30, chat persistente) | — |
 | 17 | `mis_categorias_screen.dart` | `/categorias` | `EliminarCategoria` | `categoria_nueva_screen.dart` |
 | 18 | `categoria_nueva_screen.dart` + `categoria_formulario.dart` | `/categorias/nueva` (arg. `categoriaId`) | `CrearCategoria` \| `EditarCategoria` | pop |
-| 19 | `mi_perfil_screen.dart` | `/perfil` | ninguno propio (`PreferenciasRepository`/`AuthRepository` directo) | `/categorias`; "Cerrar sesión" → `popUntil` primera ruta |
+| 19 | `mi_perfil_screen.dart` | `/perfil` | ninguno propio (`PreferenciasRepository`/`PerfilRepository`/`AuthRepository` directo, Fase 31 agregó `PerfilRepository`) | `/categorias`, `/automatizacion`; "Cerrar sesión" → `popUntil` primera ruta |
 | 20 | `login_screen.dart` | sin ruta con nombre | ninguno propio (`AuthRepository.iniciarSesion`) | `CrearCuentaScreen` |
 | 21 | `crear_cuenta_screen.dart` | empujada desde `LoginScreen` | ninguno propio (`AuthRepository.crearCuenta`) | pop → `LoginScreen` |
 | 22 | `configurar_bloqueo_screen.dart` | sin ruta con nombre | ninguno propio (`PreferenciasRepository` directo, `local_auth` para detectar biometría) | reactivo vía `RootScreen` |
@@ -159,11 +168,14 @@ Nota de nomenclatura vigente: `transaccion_nueva_screen.dart` y `deuda_nueva_scr
 
 | Entidad | Campos en código (`domain/entities/*`) | ¿Coincide con `CONTEXTO.md` §2? |
 |---|---|---|
-| `Cuenta` | id, nombre, tipo, moneda, saldoActual (5) | Sí, idéntico |
+| `Cuenta` | id, nombre, tipo, moneda, saldoActual, lineaCredito, diaCorte, diaPago (8, Fase 29) | Sí, idéntico |
 | `Categoria` | id, nombre, tipo, iconName, **esPredeterminada** (5) | **No exactamente** — `CONTEXTO.md` §2 solo lista 4 campos (id, nombre, tipo, iconName); `esPredeterminada` (agregado en la Fase 20, presente en `categoria.dart:12` y en la tabla Drift `Categorias.esPredeterminada`) nunca aparece en la lista estructurada de campos, solo se menciona narrativamente ("Existen categorías predeterminadas... y el usuario puede crear las propias"). Es un campo real del dominio sin entrada formal en el modelo de datos documentado. |
 | `Transaccion` | id, cuentaId, categoriaId, monto, moneda, tipo, concepto, metodoPago, esRecurrente, comprobanteUrl, fuenteCaptura, dataRaw, fecha (13) | Sí, idéntico |
 | `Deuda` | 27 campos incl. `notas`, `periodicidadCuotas`, `interesTotal` | Sí — los campos base y los de la Fase 14 (`periodicidadCuotas`, `interesTotal`) están documentados en secciones separadas de `CONTEXTO.md` §2, coinciden |
 | `PagoDeuda` | id, deudaId, cuentaId (nullable), montoPagado, montoCapital, montoInteres, fechaPago, numeroCuota (8) | Sí, incl. la nota de que `cuentaId` es opcional para pagos retroactivos |
+| `MensajeConsejo` (Fase 30) | id, rol (`usuario`\|`asistente`), contenido, fecha (4) | Sí, idéntico — documentado en `CONTEXTO.md` §3 "Consejos financieros con IA" en vez de §2 (mismo patrón que `Deuda`/`PagoDeuda`, entidades cuyo detalle vive en la sección de la fase que las introdujo) |
+| `Perfil` (Fase 31) | nick, avatarId, instagram, todos `String?` (3) | Sí, idéntico — documentado en `CONTEXTO.md` §3 "Perfil enriquecido..." en vez de §2, mismo patrón que `MensajeConsejo` |
+| `TemaApp` (Fase 31, enum) | `claro` \| `oscuro` \| `sistema` | Sí — vive en el dominio a propósito (no es `ThemeMode` de Flutter) para no importar Flutter en `domain/`; `presentation/app.dart` lo traduce |
 
 Enums verificados uno por uno contra el código (`TipoCuenta`, `Moneda`, `MetodoPago`, `FuenteCaptura`, `TipoDeuda`, `TipoAcreedor`, `TipoTasa`, `EstructuraPago`, `EstadoDeuda`, `PeriodicidadCuota`): **todos coinciden** en valores y — donde importa — en orden.
 
@@ -175,7 +187,7 @@ Enums verificados uno por uno contra el código (`TipoCuenta`, `Moneda`, `Metodo
 
 ## 4. Casos de uso y qué UI los consume
 
-19 clases en `domain/usecases/` (excluyendo DTOs en `dto/`):
+21 clases en `domain/usecases/` (excluyendo DTOs en `dto/`) — la tabla de abajo lista 20 (histórico de este informe: nunca incluyó `EliminarCuentaDeUsuario`, Fase 22, documentado aparte en la sección 7a). Fase 29 sumó `ObtenerAlertasTarjetasCredito`; Fase 30 quitó `ObtenerConsejosFinancieros` y sumó `ArmarResumenParaConsejos` en su lugar (mismo total):
 
 | Caso de uso | Pantalla(s) que lo invoca | Repositorios que toca |
 |---|---|---|
@@ -196,10 +208,11 @@ Enums verificados uno por uno contra el código (`TipoCuenta`, `Moneda`, `Metodo
 | `CrearCategoria` | `categoria_formulario.dart` (crear, incl. modo rápido embebido en `transaccion_nueva_screen.dart`) | `CategoriaRepository` |
 | `EditarCategoria` | `categoria_formulario.dart` (editar) | `CategoriaRepository`, `TransaccionRepository` |
 | `EliminarCategoria` | `mis_categorias_screen.dart` (ícono eliminar por fila) | `CategoriaRepository`, `TransaccionRepository` |
-| `ObtenerConsejosFinancieros` | `consejos_financieros_screen.dart` | `DeudaRepository`, `TransaccionRepository`, `CategoriaRepository`, `CuentaRepository`, `ConsejosFinancierosRepository` |
+| `ArmarResumenParaConsejos` (Fase 30, reemplaza a `ObtenerConsejosFinancieros`) | `consejos_financieros_screen.dart` (solo cuando no hay historial todavía) | `DeudaRepository`, `TransaccionRepository`, `CategoriaRepository`, `CuentaRepository` |
+| `ObtenerAlertasTarjetasCredito` (Fase 29) | automático en `alertasTarjetasCreditoProvider` (`dashboard_providers.dart`, consumido por `AlertasTarjetasCreditoBanner`) — no hay UI que lo invoque directo | `CuentaRepository` |
 | `MigrarDatosALaNube` | `migrar_datos_screen.dart` (botón "Subir mis datos"/"Reintentar") | los 5 repositorios financieros, instanciados dos veces cada uno (Drift explícito como origen, Supabase explícito como destino) |
 
-**Los 19 casos de uso tienen consumidor de UI real — no se encontró ningún caso de uso muerto.**
+**Los casos de uso de la tabla tienen consumidor de UI real — no se encontró ningún caso de uso muerto.**
 
 **Cambio respecto al informe anterior: ya no hay ningún método de repositorio sin consumidor en producción.** Se verificó uno por uno:
 
@@ -227,7 +240,7 @@ Verificación contra `CONTEXTO.md` §3.
 
 ### `presentation/` — ¿accede a `infrastructure/` saltándose `domain/`?
 
-Solo **`lib/presentation/state/providers.dart`** importa `infrastructure/` (los 5 pares de adapters Drift/Supabase + el adapter de `shared_preferences` + `SupabaseAuthRepository` + `GeminiConsejosRepository`) — es el composition root de Riverpod, necesario. Ningún widget ni pantalla importa `infrastructure/` directamente (verificado con `grep` sobre todo `lib/presentation/`, un solo archivo coincide). **No hay violación de esta regla.**
+Solo **`lib/presentation/state/providers.dart`** importa `infrastructure/` (los 5 pares de adapters Drift/Supabase + el adapter de `shared_preferences` + `SupabaseAuthRepository` + `EdgeFunctionConsejosRepository` + `PerfilRepositorySupabase`, Fase 31) — es el composition root de Riverpod, necesario. `GeminiConsejosRepository` (Fase 17) sigue sin importarse desde aquí — confirmado por lectura directa, coincide con lo que dice `CONTEXTO.md`. Ningún widget ni pantalla importa `infrastructure/` directamente (verificado con `grep` sobre todo `lib/presentation/`, un solo archivo coincide). **No hay violación de esta regla.**
 
 ### Adapters de Supabase — columnas asumidas, sin forma de verificarlas contra un esquema real
 
@@ -285,9 +298,11 @@ Igual que en la auditoría anterior: varias lecturas van directo de un provider 
 | `onboarding_deudas_step_test.dart` | "Omitir por ahora" avanza sin crear ninguna deuda |
 | `onboarding_flow_screen_test.dart` | Recorrido completo del wizard; un "relanzamiento" simulado ya no muestra el onboarding |
 | `preferencias_repository_test.dart` | Guarda/lee API key de Gemini, PIN hash, bloqueo biométrico y bloqueo omitido, todos independientes entre sí |
-| `obtener_consejos_financieros_test.dart` | `ResumenParaConsejos` agrega correctamente y verifica que NO contiene identificadores de deuda/acreedor/cuenta |
+| `armar_resumen_para_consejos_test.dart` (Fase 30, reemplaza a `obtener_consejos_financieros_test.dart`) | `ResumenParaConsejos` agrega correctamente y verifica que NO contiene identificadores de deuda/acreedor/cuenta — mismo criterio de anonimización, ahora para el primer mensaje del chat |
+| `edge_function_consejos_repository_test.dart` (Fase 30) | 429 → `LimiteDiarioConsejosError`; el body de `enviarMensaje` manda `mensaje`/`esPrimerMensaje`/`resumen` correctamente (con y sin resumen); error≠429 y fallo de red dan mensajes genéricos sin exponer detalles crudos; `aDominio` mapea `rol`/`contenido`/`created_at` de una fila de `mensajes_consejos` |
+| `consejos_financieros_screen_test.dart` (Fase 30, chat) | Sin historial arma el resumen y envía el primer mensaje solo, sin acción del usuario; con historial existente NO lo reenvía; un mensaje de seguimiento se agrega al chat; el límite diario se muestra como burbuja de sistema sin romper la pantalla |
 | `gemini_consejos_repository_test.dart` | Sin API key lanza error sin llamar a la red; parsea 200; 403 da mensaje sobre la API key; fallo de red no expone la excepción cruda |
-| `mi_perfil_screen_test.dart` | Precarga nombre y API key; guardarlos invoca al repositorio; campo de API key oculto por defecto |
+| `mi_perfil_screen_test.dart` (reescrito en la Fase 31) | Precarga nombre; guardar nombre/Instagram invoca a los repositorios; el nick se muestra de solo lectura sin campo editable; elegir un avatar del selector guarda el `avatarId` correcto; el selector de Apariencia guarda el `TemaApp` elegido; flujo de "Eliminar mi cuenta" (éxito y error) |
 | `todos_los_movimientos_screen_test.dart` | Usa `obtenerTodas()`, no `obtenerPorCuenta`/`obtenerRecientes`; estado vacío |
 | `dashboard_acordeon_test.dart` | `DeudasActivasSection`/`MovimientosRecientesSection` expanden/colapsan sin ocultar el encabezado |
 | `pin_hash_test.dart` | Mismo PIN → mismo hash; PINs distintos → hashes distintos; el hash nunca es el PIN en texto plano |
@@ -297,6 +312,15 @@ Igual que en la auditoría anterior: varias lecturas van directo de un provider 
 | `desbloqueo_screen_test.dart` | PIN incorrecto muestra error y no desbloquea; PIN correcto desbloquea (probado de punta a punta vía `RootScreen`); "Usar mi correo y contraseña" cierra sesión |
 | `categoria_usecases_test.dart` | `CrearCategoria` siempre crea con `esPredeterminada: false`; `EditarCategoria`/`EliminarCategoria` rechazan tocar una predeterminada; elimina una propia sin movimientos |
 | `categoria_formulario_test.dart` | El selector de ícono cambia el ícono elegido antes de guardar |
+| `proxima_fecha_dia_mes_test.dart` (Fase 29) | `proximaFecha` cae este mes o el siguiente según si el día ya pasó; respeta fin de mes; cruza de año |
+| `registrar_editar_cuenta_credito_test.dart` (Fase 29) | `RegistrarCuenta`/`EditarCuenta` exigen `lineaCredito`/`diaCorte`/`diaPago` solo para tipo `credito`, rechazan esos campos para otros tipos, y `EditarCuenta` los anula al cambiar de `credito` a otro tipo |
+| `obtener_alertas_tarjetas_credito_test.dart` (Fase 29) | Alerta a 3 días o menos de corte/pago, no antes; 0 días también alerta; una tarjeta con corte y pago próximos genera 2 alertas |
+| `wallet_account_card_test.dart` (Fase 29) | Cuenta de crédito con saldo negativo muestra "Usado X de Y" + barra de progreso; cuentas no-crédito siguen mostrando el saldo plano |
+| `cuenta_formulario_credito_test.dart` (Fase 29) | Los 3 campos de crédito solo aparecen al elegir tipo Crédito; "Guardar" sigue deshabilitado hasta llenarlos |
+| `onboarding_nick_step_test.dart` (Fase 31) | "Continuar" deshabilitado mientras verifica; nick tomado muestra "Ya está en uso" y bloquea; nick disponible muestra "Disponible" y habilita; formato inválido no llega a consultar al repositorio; escribir varias letras seguidas solo dispara UNA verificación (debounce) |
+| `perfil_repository_supabase_test.dart` (Fase 31) | `aDominio` mapea nick/avatar_id/instagram (con y sin nulos); `traducirErrorGuardarNick` traduce un conflicto de unicidad (23505) a `NickNoDisponibleError`, y cualquier otro error a uno genérico |
+| `app_theme_mode_test.dart` (Fase 31) | `TemaApp.claro`/`.oscuro`/`.sistema` producen el `ThemeMode` correcto en `MaterialApp`; el tema claro y el oscuro tienen fondos de página distintos (con luminancia mayor en el claro) |
+| `wallet_account_card_test.dart` (ampliado en la Fase 31) | La textura decorativa (`CustomPaint`/`ExcludeSemantics`) no tapa el texto ni queda expuesta a lectores de pantalla (verificado con `tester.getSemantics`) |
 
 ### Partes del flujo de usuario sin ningún test
 
@@ -304,7 +328,7 @@ Igual que en la auditoría anterior: varias lecturas van directo de un provider 
 - **`MigrarDatosScreen` (Fase 21) no tiene ningún test a nivel de widget** — existe cobertura sólida de la lógica pura (`migrar_datos_a_la_nube_test.dart`, `necesita_migracion_provider_test.dart`, `providers_bifurcacion_test.dart`), pero ningún test monta la pantalla real y toca "Subir mis datos" para verificar el diálogo de confirmación, el estado de progreso por etapas, o el flujo de reintento tras un error — el único componente de la migración que queda sin probar es exactamente la UI que el usuario ve.
 - **Guardado real de `RegistrarGasto`/`RegistrarIngreso`/`RegistrarDeuda`/`RegistrarPagoDeuda` desde el botón "Guardar" de sus pantallas**: los tests de esas pantallas cubren habilitación de campos, no el guardado real end-to-end (eso sí está cubierto a nivel de caso de uso puro con repos fake en `registrar_deuda_test.dart`/`registrar_pago_deuda_test.dart`, pero no como interacción de UI).
 - **Navegación real desde el dashboard**: tap en la tarjeta "+" del carrusel, ícono "Registrar pago" por fila de deuda, y los 4 botones del `bottomNavigationBar` — ninguno se prueba con un tap real que dispare `Navigator.pushNamed`.
-- **`app.dart` / tabla de rutas real y `onGenerateRoute`**: ningún test monta `FinanzasAutomaticasApp` completo; todos montan la pantalla bajo prueba en un `MaterialApp` propio.
+- **`app.dart` / tabla de rutas real y `onGenerateRoute`**: casi ningún test monta `FinanzasAutomaticasApp` completo (todos montan la pantalla bajo prueba en un `MaterialApp` propio) — la única excepción es `app_theme_mode_test.dart` (Fase 31), que monta la app completa pero solo para verificar `MaterialApp.themeMode`/`theme`/`darkTheme`, no la tabla de rutas ni `onGenerateRoute` en sí.
 - **`ObtenerResumenDashboard` como unidad**: no hay un test que lo invoque directo contra repos fake y verifique sus cálculos (`deudasEnMoraCount`, `deudasPorVencerEstaSemanaCount`, agregación por moneda) de forma aislada.
 - **Ramas de error (`AsyncError`)**: `DashboardScreen`, `RootScreen`, `MisCuentasScreen` tienen manejo de error en código, pero ningún test fuerza que un repositorio falle para verificarlo.
 - **Nada prueba contra un proyecto de Supabase real** — es coherente con ser tests unitarios/widget, pero significa que la corrección del esquema de columnas asumido (§5) no tiene ninguna red de seguridad automatizada.
@@ -338,7 +362,7 @@ Confirmado por lectura directa: el archivo tiene `supabaseUrl = 'https://oyoxbvl
 
 - **`ios/Runner/Info.plist` no declara ningún `NSFaceIDUsageDescription`** (ni ninguna otra clave de uso de permisos: no hay `NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`, etc.). El archivo solo tiene las claves mínimas que genera `flutter create` (nombre, orientaciones, storyboard). Sin embargo, la app **sí invoca biometría en tiempo de ejecución**: `configurar_bloqueo_screen.dart` llama `LocalAuthentication().canCheckBiometrics` y ofrece activar "Face ID / huella", y `desbloqueo_screen.dart` llama `_localAuth.authenticate(...)` con `biometricOnly: true` automáticamente al abrir la pantalla si el bloqueo biométrico está activo. **En iOS, invocar Face ID sin `NSFaceIDUsageDescription` en `Info.plist` hace que la app crashee** en el momento en que se intenta usar — no es un error silencioso, es un crash. Esto es tanto un bug funcional (la app se cae en un dispositivo real si el usuario activa el bloqueo biométrico) como un motivo de rechazo directo en revisión de Apple.
 - No se encontró ningún archivo `codemagic.yaml` ni configuración de Codemagic en el repositorio (`find . -iname "codemagic*"` sin resultados) — si el build/deploy a TestFlight depende de Codemagic, esa configuración no vive en este repositorio o no existe todavía.
-- El resto de `ios/Runner/` (bundle id vía `$(PRODUCT_BUNDLE_IDENTIFIER)`, `AppIcon.appiconset` con los tamaños estándar completos, `LaunchScreen.storyboard`) tiene la forma estándar de un proyecto Flutter recién generado, sin señales de personalización adicional más allá de `CFBundleDisplayName = "Finanzas Automaticas"`.
+- El resto de `ios/Runner/` (bundle id vía `$(PRODUCT_BUNDLE_IDENTIFIER)`, `AppIcon.appiconset` con los tamaños estándar completos, `LaunchScreen.storyboard`) tiene la forma estándar de un proyecto Flutter recién generado, sin señales de personalización adicional más allá de `CFBundleDisplayName = "Finanzas Automaticas"` — este hallazgo describe el estado de una auditoría anterior; desde la Fase 27, el bundle id es `com.finzoapp.movil` y `CFBundleDisplayName = "Finzo"` (ver `CONTEXTO.md` §3 "Bundle ID y nombre de la app").
 
 ### Huecos funcionales heredados de fases anteriores (siguen vigentes salvo que se indique lo contrario)
 
@@ -362,7 +386,7 @@ Auditoría exhaustiva y sin suavizar — esto se usa para decidir qué corregir 
 ### Riesgos de seguridad/configuración
 
 - ⚠️ **`lib/config/supabase_config.dart` tiene una URL de proyecto y una `anonKey`/`publishableKey` con formato real escritas en texto plano en el código fuente**, con un comentario que todavía dice que son placeholders (desactualizado). Una `anon`/`publishable key` de Supabase está diseñada para ser pública (protegida por RLS, no es un secreto de servidor), así que esto no es en sí mismo una vulnerabilidad grave — pero si esta URL/key corresponden a un proyecto real de desarrollo/producción, conviene confirmar que las políticas RLS estén activas y correctas antes de asumir que los datos están protegidos, y considerar si el proyecto apuntado es el que realmente se quiere usar en producción o si es un proyecto de pruebas que no debería quedar hardcodeado permanentemente.
-- ⚠️ **El esquema de columnas de Supabase usado por los 5 adapters (`infrastructure/persistence/supabase/`) sigue sin poder verificarse contra un `schema_finanzas_v3.sql` real** — ese archivo no existe en el repositorio. A diferencia de la auditoría anterior (donde las credenciales eran placeholder y por lo tanto esto era un riesgo teórico), ahora que hay credenciales con forma real, cualquier discrepancia entre el mapeo snake_case asumido y el esquema real hace fallar cada operación con un mensaje genérico ("No se pudo guardar, intenta de nuevo."), sin indicar la causa real ni en la UI ni en logs accesibles al usuario (solo `debugPrint`, que no llega a producción). Antes de confiar en que Supabase funciona de verdad, hay que confirmarlo contra el proyecto real.
+- ~~**El esquema de columnas de Supabase usado por los 5 adapters (`infrastructure/persistence/supabase/`) sigue sin poder verificarse contra un `schema_finanzas_v3.sql` real** — ese archivo no existe en el repositorio... cualquier discrepancia entre el mapeo snake_case asumido y el esquema real hace fallar cada operación...~~ — **el riesgo teórico se confirmó como bug real y se corrigió en la Fase 26 (2026-08-18).** No fue un problema de nombres de columna (esos sí coincidían) sino de *valores*: varios adapters mandaban el `.name` del enum de Dart tal cual (`Moneda.pen.name` → `"pen"`, `TipoDeuda.tarjetaCredito.name` → `"tarjetaCredito"`, `EstadoDeuda.enMora.name` → `"enMora"`) contra columnas con `CHECK` que exigen otro formato (`"PEN"` en mayúsculas; `"tarjeta_credito"`/`"en_mora"` en snake_case) — confirmado consultando el esquema real del proyecto Supabase enlazado (`supabase db query --linked` contra `pg_constraint`, no asumido). Crear una cuenta fallaba en el acto con `violates check constraint "cuentas_moneda_check"`; `DeudaRepositorySupabase.obtenerActivas()` nunca habría devuelto ninguna deuda en mora, silenciosamente, porque filtraba por `'enMora'` en vez de `'en_mora'`. Se verificó que no quedó ningún dato a medias en Supabase (`cuentas`/`deudas`/`transacciones`/`pagos_deuda` en 0 filas — Postgres rechaza el `INSERT` completo ante un `CHECK` violado, no hay filas huérfanas que limpiar). Corrección: `infrastructure/persistence/supabase/enum_mapeo_supabase.dart`, funciones de conversión explícitas para los 12 enums que tocan columnas de Supabase (los 5 adapters ya no usan `.name`/`.values.byName` contra la base de datos), con test exhaustivo por enum y valor (`test/enum_mapeo_supabase_test.dart`, `test/supabase_adapters_mapeo_test.dart`). Nota aparte: la Edge Function `capturar-transaccion` (Fase 25) tenía el mismo bug de forma independiente (TypeScript, no comparte código con los adapters Dart) — también corregida en la Fase 26, y su valor `fuente_captura: 'webhook_atajo'` sigue bloqueado hasta correr el `ALTER TABLE` pendiente (nunca se agregó al `CHECK` real; ver el reporte de la Fase 26).
 
 ### Deuda de arquitectura (vigente, sin cambios de fondo respecto a la auditoría anterior)
 

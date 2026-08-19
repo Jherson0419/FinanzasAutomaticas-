@@ -6,6 +6,13 @@ plugins {
 }
 
 android {
+    // Nota (Fase 27): a propósito NO se tocó — cambiarlo exige mover
+    // `android/app/src/main/kotlin/com/finanzasautomaticas/finanzas_automaticas/
+    // MainActivity.kt` a un directorio que calce con el nuevo namespace (si no,
+    // `android:name=".MainActivity"` del manifest deja de resolver), el mismo
+    // tipo de renombre de paquete interno que el encargo pidió evitar para
+    // Dart. `applicationId` (abajo) es el identificador de cara a la Play
+    // Store/el dispositivo — ese sí se actualizó.
     namespace = "com.finanzasautomaticas.finanzas_automaticas"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
@@ -20,8 +27,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.finanzasautomaticas.finanzas_automaticas"
+        applicationId = "com.finzoapp.movil"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

@@ -11,6 +11,10 @@ class Cuentas extends Table {
   TextColumn get tipo => text()();
   TextColumn get moneda => text()();
   RealColumn get saldoActual => real()();
+  // Solo aplican a tipo == credito (Fase 29) — ver `Cuenta` en domain/.
+  RealColumn get lineaCredito => real().nullable()();
+  IntColumn get diaCorte => integer().nullable()();
+  IntColumn get diaPago => integer().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -104,7 +108,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.connection);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -145,6 +149,13 @@ class AppDatabase extends _$AppDatabase {
         await update(
           categorias,
         ).write(const CategoriasCompanion(esPredeterminada: Value(true)));
+      }
+      if (from < 6) {
+        // Línea de crédito / día de corte / día de pago (Fase 29) —
+        // nullable, `null` para cuentas que no son de tipo `credito`.
+        await m.addColumn(cuentas, cuentas.lineaCredito);
+        await m.addColumn(cuentas, cuentas.diaCorte);
+        await m.addColumn(cuentas, cuentas.diaPago);
       }
     },
   );

@@ -39,6 +39,9 @@ class CuentaFormulario extends ConsumerStatefulWidget {
 class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
   final _nombreController = TextEditingController();
   final _saldoController = TextEditingController(text: '0');
+  final _lineaCreditoController = TextEditingController();
+  final _diaCorteController = TextEditingController();
+  final _diaPagoController = TextEditingController();
 
   TipoCuenta _tipo = TipoCuenta.efectivo;
   Moneda _moneda = Moneda.pen;
@@ -48,18 +51,39 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
 
   bool get _editando => widget.cuentaId != null;
 
+  bool get _esCredito => _tipo == TipoCuenta.credito;
+
   @override
   void dispose() {
     _nombreController.dispose();
     _saldoController.dispose();
+    _lineaCreditoController.dispose();
+    _diaCorteController.dispose();
+    _diaPagoController.dispose();
     super.dispose();
   }
 
   double? _parseDouble(String texto) =>
       double.tryParse(texto.trim().replaceAll(',', '.'));
 
+  int? _parseDiaDelMes(String texto) {
+    final dia = int.tryParse(texto.trim());
+    if (dia == null || dia < 1 || dia > 31) return null;
+    return dia;
+  }
+
+  bool get _camposDeCreditoValidos {
+    if (!_esCredito) return true;
+    final lineaCredito = _parseDouble(_lineaCreditoController.text);
+    if (lineaCredito == null || lineaCredito <= 0) return false;
+    if (_parseDiaDelMes(_diaCorteController.text) == null) return false;
+    if (_parseDiaDelMes(_diaPagoController.text) == null) return false;
+    return true;
+  }
+
   bool get _esValido {
     if (_nombreController.text.trim().isEmpty) return false;
+    if (!_camposDeCreditoValidos) return false;
     if (_editando) return true;
     return _parseDouble(_saldoController.text) != null;
   }
@@ -70,6 +94,10 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
     _nombreController.text = cuenta.nombre;
     _tipo = cuenta.tipo;
     _moneda = cuenta.moneda;
+    _lineaCreditoController.text =
+        cuenta.lineaCredito?.toStringAsFixed(2) ?? '';
+    _diaCorteController.text = cuenta.diaCorte?.toString() ?? '';
+    _diaPagoController.text = cuenta.diaPago?.toString() ?? '';
   }
 
   Future<void> _guardar() async {
@@ -77,12 +105,25 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
 
     setState(() => _guardando = true);
     try {
+      final lineaCredito = _esCredito
+          ? _parseDouble(_lineaCreditoController.text)
+          : null;
+      final diaCorte = _esCredito
+          ? _parseDiaDelMes(_diaCorteController.text)
+          : null;
+      final diaPago = _esCredito
+          ? _parseDiaDelMes(_diaPagoController.text)
+          : null;
+
       if (_editando) {
         await ref.read(editarCuentaProvider)(
           cuentaId: widget.cuentaId!,
           nombre: _nombreController.text.trim(),
           tipo: _tipo,
           moneda: _moneda,
+          lineaCredito: lineaCredito,
+          diaCorte: diaCorte,
+          diaPago: diaPago,
         );
         ref.invalidate(cuentaPorIdProvider(widget.cuentaId!));
       } else {
@@ -91,19 +132,31 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
           tipo: _tipo,
           moneda: _moneda,
           saldoInicial: _parseDouble(_saldoController.text)!,
+          lineaCredito: lineaCredito,
+          diaCorte: diaCorte,
+          diaPago: diaPago,
         );
       }
       ref.invalidate(cuentasProvider);
       ref.invalidate(resumenDashboardProvider);
+      ref.invalidate(alertasTarjetasCreditoProvider);
       if (!mounted) return;
       if (!_editando) {
         _nombreController.clear();
         _saldoController.text = '0';
+        _lineaCreditoController.clear();
+        _diaCorteController.clear();
+        _diaPagoController.clear();
         setState(() {
           _tipo = TipoCuenta.efectivo;
           _moneda = Moneda.pen;
         });
       }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_editando ? 'Cambios guardados' : 'Cuenta creada'),
+        ),
+      );
       widget.onGuardadoExitoso();
     } catch (error) {
       if (!mounted) return;
@@ -213,6 +266,7 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
           ],
           onChanged: (valor) => setState(() => _tipo = valor ?? _tipo),
         ),
+        _construirCamposCredito(theme),
         const SizedBox(height: 16),
         DropdownButtonFormField<Moneda>(
           initialValue: _moneda,
@@ -319,6 +373,69 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
     );
   }
 
+  /// Campos exclusivos de cuentas tipo crédito (línea, día de corte, día de
+  /// pago), con transición animada — mismo patrón que los campos
+  /// condicionales de `deuda_formulario.dart` (`AnimatedSize`). En modo
+  /// edición se pueden editar aunque la cuenta ya tenga movimientos: a
+  /// diferencia de la moneda, no afectan el saldo histórico.
+  Widget _construirCamposCredito(ThemeData theme) {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+      alignment: Alignment.topCenter,
+      child: !_esCredito
+          ? const SizedBox(width: double.infinity)
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _lineaCreditoController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'Línea de crédito',
+                    prefixText: '${simboloMoneda(_moneda)} ',
+                    border: const OutlineInputBorder(),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _diaCorteController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Día de corte',
+                          hintText: '1-31',
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (_) => setState(() {}),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _diaPagoController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Día de pago',
+                          hintText: '1-31',
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (_) => setState(() {}),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+    );
+  }
+
   Widget _construirCamposCreacion(BuildContext context) {
     final theme = Theme.of(context);
 
@@ -346,6 +463,7 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
           ],
           onChanged: (valor) => setState(() => _tipo = valor ?? _tipo),
         ),
+        _construirCamposCredito(theme),
         const SizedBox(height: 16),
         DropdownButtonFormField<Moneda>(
           initialValue: _moneda,
@@ -429,6 +547,9 @@ class _ModalAjusteSaldoState extends ConsumerState<_ModalAjusteSaldo> {
       ref.invalidate(transaccionesPorCuentaProvider(widget.cuenta.id));
       ref.invalidate(resumenDashboardProvider);
       if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Saldo ajustado')));
       Navigator.of(context).pop();
     } catch (error) {
       if (!mounted) return;

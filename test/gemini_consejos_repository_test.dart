@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 import 'package:finanzas_automaticas/domain/repositories/consejos_financieros_repository.dart';
+import 'package:finanzas_automaticas/domain/entities/tema_app.dart';
 import 'package:finanzas_automaticas/domain/repositories/preferencias_repository.dart';
 import 'package:finanzas_automaticas/domain/usecases/dto/resumen_para_consejos.dart';
 import 'package:finanzas_automaticas/infrastructure/consejos/gemini_consejos_repository.dart';
@@ -25,6 +26,10 @@ class _FakePreferenciasRepository implements PreferenciasRepository {
   Future<bool> onboardingCompletado() async => true;
   @override
   Future<void> marcarOnboardingCompletado() async {}
+  @override
+  Future<TemaApp> obtenerTema() async => TemaApp.oscuro;
+  @override
+  Future<void> guardarTema(TemaApp tema) async {}
   @override
   Future<String?> obtenerPinHash() async => null;
   @override

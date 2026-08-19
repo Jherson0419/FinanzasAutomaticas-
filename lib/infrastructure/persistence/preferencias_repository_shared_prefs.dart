@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../domain/entities/tema_app.dart';
 import '../../domain/repositories/preferencias_repository.dart';
 
 /// Adapter de `PreferenciasRepository` sobre `shared_preferences`.
@@ -12,6 +13,11 @@ class PreferenciasRepositorySharedPrefs implements PreferenciasRepository {
   static const _clavePinHash = 'pin_hash';
   static const _claveBloqueoBiometricoActivo = 'bloqueo_biometrico_activo';
   static const _claveBloqueoOmitido = 'bloqueo_omitido';
+
+  /// Pública a propósito (Fase 31): `providers.dart` necesita leer este
+  /// mismo valor de forma síncrona (mismo motivo que `claveDatosEnLaNube`,
+  /// Fase 21 — `MaterialApp.themeMode` no puede esperar un `Future`).
+  static const claveTema = 'tema_app';
 
   /// Pública a propósito (Fase 21): `providers.dart` necesita leer este
   /// mismo valor de forma síncrona (los providers de repositorios de datos
@@ -29,6 +35,21 @@ class PreferenciasRepositorySharedPrefs implements PreferenciasRepository {
   @override
   Future<void> guardarNombre(String nombre) async {
     await _prefs.setString(_claveNombre, nombre);
+  }
+
+  /// `TemaApp.oscuro` por defecto — mismo look que tenía la app antes de
+  /// la Fase 31 (oscuro permanente), para no cambiarle el tema a nadie que
+  /// actualice sin haber elegido nada todavía.
+  @override
+  Future<TemaApp> obtenerTema() async {
+    final valor = _prefs.getString(claveTema);
+    if (valor == null) return TemaApp.oscuro;
+    return TemaApp.values.byName(valor);
+  }
+
+  @override
+  Future<void> guardarTema(TemaApp tema) async {
+    await _prefs.setString(claveTema, tema.name);
   }
 
   @override
@@ -93,5 +114,6 @@ class PreferenciasRepositorySharedPrefs implements PreferenciasRepository {
     await _prefs.remove(_claveBloqueoBiometricoActivo);
     await _prefs.remove(_claveBloqueoOmitido);
     await _prefs.remove(claveDatosEnLaNube);
+    await _prefs.remove(claveTema);
   }
 }

@@ -95,11 +95,17 @@ void main() {
     await tester.pump();
 
     await tester.tap(find.widgetWithText(FilledButton, 'Guardar'));
-    await tester.pumpAndSettle();
+    // Sin `pumpAndSettle` todavía — dejaría avanzar también el auto-cierre
+    // del SnackBar antes de poder comprobar que apareció.
+    await tester.pump();
+    await tester.pump();
 
     expect(fakeCategorias.categorias, hasLength(1));
     final creada = fakeCategorias.categorias.values.single;
     expect(creada.nombre, 'Mascotas');
     expect(creada.iconName, 'movie');
+    expect(find.text('Categoría creada'), findsOneWidget);
+
+    await tester.pumpAndSettle();
   });
 }

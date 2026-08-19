@@ -173,7 +173,10 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.tap(find.widgetWithText(FilledButton, 'Confirmar ajuste'));
-      await tester.pumpAndSettle();
+      // Sin `pumpAndSettle` todavía — dejaría avanzar también el
+      // auto-cierre del SnackBar antes de poder comprobar que apareció.
+      await tester.pump();
+      await tester.pump();
 
       expect(fakeTransacciones.transacciones, hasLength(1));
       final creada = fakeTransacciones.transacciones.single;
@@ -181,6 +184,9 @@ void main() {
       expect(creada.monto, 150);
       expect(creada.fuenteCaptura, FuenteCaptura.ajuste);
       expect(fakeCuentas.cuentas['cta-1']!.saldoActual, 250);
+      expect(find.text('Saldo ajustado'), findsOneWidget);
+
+      await tester.pumpAndSettle();
 
       // El modal se cierra solo y vuelve a la pantalla de edición.
       expect(find.text('Ajustar saldo'), findsNothing);

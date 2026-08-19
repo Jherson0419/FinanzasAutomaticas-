@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../domain/entities/categoria.dart';
 import '../../../domain/repositories/categoria_repository.dart';
+import 'enum_mapeo_supabase.dart';
 import 'supabase_errores.dart';
 
 /// Adapter de `CategoriaRepository` sobre la tabla `categorias` de
@@ -82,7 +83,7 @@ class CategoriaRepositorySupabase implements CategoriaRepository {
       'id': categoria.id,
       'user_id': _userId,
       'nombre': categoria.nombre,
-      'tipo': categoria.tipo.name,
+      'tipo': tipoCategoriaAFila(categoria.tipo),
       'icon_name': categoria.iconName,
       'es_predeterminada': categoria.esPredeterminada,
     };
@@ -93,7 +94,7 @@ class CategoriaRepositorySupabase implements CategoriaRepository {
     return Categoria(
       id: fila['id'] as String,
       nombre: fila['nombre'] as String,
-      tipo: TipoCategoria.values.byName(fila['tipo'] as String),
+      tipo: tipoCategoriaDeFila(fila['tipo'] as String),
       iconName: fila['icon_name'] as String,
       esPredeterminada: fila['es_predeterminada'] as bool,
     );

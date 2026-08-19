@@ -1,15 +1,28 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../domain/entities/perfil.dart';
+import '../../domain/entities/tema_app.dart';
 import '../shared/app_bottom_bar.dart';
+import '../shared/avatares.dart';
 import '../shared/dialogos_eliminar.dart';
 import '../shared/mensajes_error.dart';
+import '../shared/selector_avatar.dart';
 import '../state/providers.dart';
 import '../theme/app_theme.dart';
 
-/// Ajustes de perfil: nombre del usuario y la API key de Gemini usada por
-/// `consejos_financieros_screen.dart`. Ambos se guardan solo en este
-/// dispositivo vía `PreferenciasRepository` (`shared_preferences`).
+/// Ajustes de perfil: nombre e Instagram (Fase 31) del usuario, guardados
+/// solo en este dispositivo vía `PreferenciasRepository`
+/// (`shared_preferences`) para el nombre, y en `usuarios` (Supabase) vía
+/// `PerfilRepository` para Instagram/avatar — el nick, en cambio, es de
+/// solo lectura aquí (decisión de la Fase 31, ver `_construirCampos`).
+///
+/// Fase 24: ya no pide una API key de Gemini — `consejos_financieros_
+/// screen.dart` usa la Edge Function `generar-consejos`, con una API key
+/// del distribuidor de la app que nunca llega a este dispositivo.
 class MiPerfilScreen extends ConsumerStatefulWidget {
   const MiPerfilScreen({super.key});
 
@@ -19,25 +32,25 @@ class MiPerfilScreen extends ConsumerStatefulWidget {
 
 class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
   final _nombreController = TextEditingController();
-  final _apiKeyController = TextEditingController();
-  bool _apiKeyVisible = false;
+  final _instagramController = TextEditingController();
   bool _guardando = false;
   bool _cerrandoSesion = false;
   bool _eliminandoCuenta = false;
+  bool _cambiandoAvatar = false;
   bool _valoresPrecargados = false;
 
   @override
   void dispose() {
     _nombreController.dispose();
-    _apiKeyController.dispose();
+    _instagramController.dispose();
     super.dispose();
   }
 
-  void _precargar(String? nombre, String? apiKey) {
+  void _precargar(String? nombre, Perfil perfil) {
     if (_valoresPrecargados) return;
     _valoresPrecargados = true;
     _nombreController.text = nombre ?? '';
-    _apiKeyController.text = apiKey ?? '';
+    _instagramController.text = perfil.instagram ?? '';
   }
 
   Future<void> _guardar() async {
@@ -45,9 +58,12 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
     try {
       final preferencias = ref.read(preferenciasRepositoryProvider);
       await preferencias.guardarNombre(_nombreController.text.trim());
-      await preferencias.guardarApiKeyGemini(_apiKeyController.text.trim());
+      final instagram = _instagramController.text.trim();
+      await ref
+          .read(perfilRepositoryProvider)
+          .guardarInstagram(instagram.isEmpty ? null : instagram);
       ref.invalidate(nombreUsuarioProvider);
-      ref.invalidate(apiKeyGeminiProvider);
+      ref.invalidate(perfilProvider);
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -59,6 +75,40 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
       );
     } finally {
       if (mounted) setState(() => _guardando = false);
+    }
+  }
+
+  Future<void> _cambiarAvatar(String? avatarActual) async {
+    final elegido = await abrirSelectorAvatar(
+      context,
+      avatarActual: avatarActual,
+    );
+    if (elegido == null || elegido == avatarActual) return;
+    if (!mounted) return;
+
+    setState(() => _cambiandoAvatar = true);
+    try {
+      await ref.read(perfilRepositoryProvider).guardarAvatarId(elegido);
+      ref.invalidate(perfilProvider);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo guardar: ${mensajeDeError(error)}')),
+      );
+    } finally {
+      if (mounted) setState(() => _cambiandoAvatar = false);
+    }
+  }
+
+  Future<void> _cambiarTema(TemaApp tema) async {
+    try {
+      await ref.read(preferenciasRepositoryProvider).guardarTema(tema);
+      ref.invalidate(temaProvider);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo guardar: ${mensajeDeError(error)}')),
+      );
     }
   }
 
@@ -101,22 +151,43 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
   /// de inmediato — reintentar es seguro: el caso de uso solo borra lo
   /// que todavía exista, así que un segundo intento nunca falla por
   /// encontrar registros ya borrados.
+  ///
+  /// Fase 23.2 — `EliminarCuentaDeUsuario.call` acepta `onProgreso(etapa)`
+  /// con 6 mensajes descriptivos; se conecta a un diálogo de progreso no
+  /// descartable (mismo espíritu que `MigrarDatosScreen`, que muestra la
+  /// etapa actual de una operación igual de larga en vez de un spinner
+  /// genérico) en lugar de solo deshabilitar el botón.
   Future<void> _eliminarCuenta() async {
     final confirmado = await confirmarEliminarCuenta(context);
     if (!confirmado) return;
     if (!mounted) return;
 
+    final etapaActual = ValueNotifier<String>('Preparando...');
     setState(() => _eliminandoCuenta = true);
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) =>
+            _DialogoProgresoEliminarCuenta(etapaActual: etapaActual),
+      ),
+    );
+
     try {
-      await ref.read(eliminarCuentaDeUsuarioProvider).call();
+      await ref
+          .read(eliminarCuentaDeUsuarioProvider)
+          .call(onProgreso: (etapa) => etapaActual.value = etapa);
       await ref.read(preferenciasRepositoryProvider).limpiarTodo();
       ref.invalidate(haySesionActivaProvider);
       if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(); // cierra el diálogo
       Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (error) {
       if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(); // cierra el diálogo
       await mostrarErrorEliminar(context, error);
     } finally {
+      etapaActual.dispose();
       if (mounted) setState(() => _eliminandoCuenta = false);
     }
   }
@@ -124,7 +195,7 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
   @override
   Widget build(BuildContext context) {
     final nombreAsync = ref.watch(nombreUsuarioProvider);
-    final apiKeyAsync = ref.watch(apiKeyGeminiProvider);
+    final perfilAsync = ref.watch(perfilProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Mi perfil')),
@@ -134,13 +205,13 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, stackTrace) =>
               Center(child: Text('No se pudo cargar el perfil.\n$error')),
-          data: (nombre) => apiKeyAsync.when(
+          data: (nombre) => perfilAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (error, stackTrace) =>
                 Center(child: Text('No se pudo cargar el perfil.\n$error')),
-            data: (apiKey) {
-              _precargar(nombre, apiKey);
-              return _construirCampos(context);
+            data: (perfil) {
+              _precargar(nombre, perfil);
+              return _construirCampos(context, perfil);
             },
           ),
         ),
@@ -148,12 +219,69 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
     );
   }
 
-  Widget _construirCampos(BuildContext context) {
+  Widget _construirCampos(BuildContext context, Perfil perfil) {
     final theme = Theme.of(context);
+    final avatar = avatarPorId(perfil.avatarId);
+    final tema = ref.watch(temaProvider);
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        Center(
+          child: GestureDetector(
+            onTap: _cambiandoAvatar
+                ? null
+                : () => _cambiarAvatar(perfil.avatarId),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                AvatarCirculo(avatar: avatar, tamano: 88),
+                if (_cambiandoAvatar)
+                  const CircularProgressIndicator(color: Colors.white)
+                else
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: context.bgCard,
+                        border: Border.all(color: context.borderCard),
+                      ),
+                      child: Icon(
+                        Icons.edit,
+                        size: 14,
+                        color: context.textSecondary,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Center(
+          child: Text(
+            perfil.nick != null ? '@${perfil.nick}' : 'Sin nick',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        if (perfil.nick != null)
+          Center(
+            child: Text(
+              // El nick es de solo lectura después del onboarding — así un
+              // futuro sistema social siempre puede encontrar a alguien por
+              // el mismo nick que usó desde el principio (ver Fase 31).
+              'El nick no se puede cambiar',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: context.textMuted,
+              ),
+            ),
+          ),
+        const SizedBox(height: 28),
         TextFormField(
           controller: _nombreController,
           decoration: const InputDecoration(
@@ -161,30 +289,13 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
             border: OutlineInputBorder(),
           ),
         ),
-        const SizedBox(height: 28),
-        Text('Consejos financieros con IA', style: theme.textTheme.titleSmall),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         TextFormField(
-          controller: _apiKeyController,
-          obscureText: !_apiKeyVisible,
-          decoration: InputDecoration(
-            labelText: 'API key de Gemini',
-            border: const OutlineInputBorder(),
-            suffixIcon: IconButton(
-              tooltip: _apiKeyVisible ? 'Ocultar' : 'Mostrar',
-              icon: Icon(
-                _apiKeyVisible ? Icons.visibility_off : Icons.visibility,
-              ),
-              onPressed: () => setState(() => _apiKeyVisible = !_apiKeyVisible),
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Se guarda solo en este dispositivo. Consíguela gratis en '
-          'ai.google.dev.',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+          controller: _instagramController,
+          decoration: const InputDecoration(
+            labelText: 'Instagram (opcional)',
+            hintText: '@usuario',
+            border: OutlineInputBorder(),
           ),
         ),
         const SizedBox(height: 28),
@@ -203,12 +314,45 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
         ),
         const SizedBox(height: 32),
         const Divider(),
+        const SizedBox(height: 16),
+        Text('Apariencia', style: theme.textTheme.titleSmall),
+        const SizedBox(height: 12),
+        SegmentedButton<TemaApp>(
+          segments: const [
+            ButtonSegment(
+              value: TemaApp.claro,
+              label: Text('Claro'),
+              icon: Icon(Icons.light_mode_outlined),
+            ),
+            ButtonSegment(
+              value: TemaApp.oscuro,
+              label: Text('Oscuro'),
+              icon: Icon(Icons.dark_mode_outlined),
+            ),
+            ButtonSegment(
+              value: TemaApp.sistema,
+              label: Text('Sistema'),
+              icon: Icon(Icons.brightness_auto_outlined),
+            ),
+          ],
+          selected: {tema},
+          onSelectionChanged: (seleccion) => _cambiarTema(seleccion.first),
+        ),
+        const SizedBox(height: 32),
+        const Divider(),
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.category_outlined),
           title: const Text('Mis categorías'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).pushNamed('/categorias'),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.bolt_outlined),
+          title: const Text('Automatización'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).pushNamed('/automatizacion'),
         ),
         const Divider(),
         const SizedBox(height: 16),
@@ -245,22 +389,59 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
         FilledButton.icon(
           style: FilledButton.styleFrom(
             backgroundColor: colorDanger,
-            foregroundColor: bgPage,
+            foregroundColor: colorSobreEstado,
           ),
           onPressed: _eliminandoCuenta ? null : _eliminarCuenta,
           icon: _eliminandoCuenta
-              ? SizedBox(
+              ? const SizedBox(
                   width: 18,
                   height: 18,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: bgPage,
+                    color: colorSobreEstado,
                   ),
                 )
               : const Icon(Icons.delete_forever),
           label: const Text('Eliminar mi cuenta'),
         ),
       ],
+    );
+  }
+}
+
+/// Progreso de `EliminarCuentaDeUsuario` (Fase 23.2) — no descartable
+/// (`PopScope(canPop: false)`, sin botón de cerrar): es una operación
+/// destructiva e idempotente por diseño, así que no tiene sentido dejar
+/// cancelarla a mitad de camino; el progreso es solo informativo.
+class _DialogoProgresoEliminarCuenta extends StatelessWidget {
+  const _DialogoProgresoEliminarCuenta({required this.etapaActual});
+
+  final ValueListenable<String> etapaActual;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      child: AlertDialog(
+        title: const Text('Eliminando tu cuenta'),
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: ValueListenableBuilder<String>(
+                valueListenable: etapaActual,
+                builder: (context, etapa, _) => Text(etapa),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

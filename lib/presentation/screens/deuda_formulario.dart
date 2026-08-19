@@ -256,6 +256,11 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
       ref.invalidate(resumenDashboardProvider);
       if (!mounted) return;
       if (!_editando) _reiniciar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_editando ? 'Deuda actualizada' : 'Deuda registrada'),
+        ),
+      );
       widget.onGuardadoExitoso();
     } catch (error) {
       if (!mounted) return;

@@ -157,4 +157,37 @@ void main() {
       expect(fakeDeudas.deudas.containsKey('deuda-1'), isTrue);
     },
   );
+
+  testWidgets(
+    'guardar cambios en modo edición muestra el SnackBar "Deuda actualizada"',
+    (WidgetTester tester) async {
+      final deuda = _deudaFixture();
+      final fakeDeudas = _FakeDeudaRepository({'deuda-1': deuda});
+      await _pumpScreen(
+        tester,
+        fakeDeudas: fakeDeudas,
+        fakePagos: _FakePagoDeudaRepository([]),
+      );
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Nombre de la deuda'),
+        'Préstamo personal (renegociado)',
+      );
+      await tester.pump();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Guardar cambios'));
+      // Sin `pumpAndSettle` todavía — dejaría avanzar también el
+      // auto-cierre del SnackBar antes de poder comprobar que apareció.
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        fakeDeudas.deudas['deuda-1']!.nombreDeuda,
+        'Préstamo personal (renegociado)',
+      );
+      expect(find.text('Deuda actualizada'), findsOneWidget);
+
+      await tester.pumpAndSettle();
+    },
+  );
 }

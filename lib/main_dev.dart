@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config/supabase_config.dart';
+import 'domain/entities/tema_app.dart';
 import 'presentation/app.dart';
 import 'presentation/screens/dashboard/dashboard_fixtures.dart';
 import 'presentation/state/dashboard/dashboard_providers.dart';
@@ -28,6 +29,11 @@ Future<void> main() async {
         haySesionActivaProvider.overrideWith((ref) => true),
         bloqueoConfiguradoProvider.overrideWith((ref) async => false),
         bloqueoOmitidoProvider.overrideWith((ref) async => true),
+        // `temaProvider` (Fase 31) lee `sharedPreferencesProvider`, que
+        // este entry point de desarrollo no inicializa — se fija en
+        // oscuro (el look de siempre) en vez de instanciar
+        // `SharedPreferences` real solo para esto.
+        temaProvider.overrideWithValue(TemaApp.oscuro),
       ],
       child: const FinanzasAutomaticasApp(),
     ),

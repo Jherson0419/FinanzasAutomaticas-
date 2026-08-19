@@ -172,6 +172,9 @@ class _PagoDeudaNuevoScreenState extends ConsumerState<PagoDeudaNuevoScreen> {
       ref.invalidate(deudaPorIdProvider(deuda.id));
       ref.invalidate(pagosPorDeudaProvider(deuda.id));
       if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Pago registrado')));
       Navigator.of(context).pop();
     } catch (error) {
       if (!mounted) return;
