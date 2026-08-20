@@ -55,12 +55,11 @@ workflows:
 
       - name: Instalar CocoaPods
         script: |
+          set -e
           cd ios
-          echo "--- Contenido de Podfile.lock antes de instalar ---"
-          cat Podfile.lock 2>/dev/null || echo "(no existe Podfile.lock)"
           pod install --repo-update --verbose
           echo "--- Pods instalados ---"
-          ls -la Pods/ 2>/dev/null | head -30
+          ls -la Pods/
 
       # Requiere que en Codemagic → App settings → iOS code signing esté
       # configurado (automático con la API key de App Store Connect, o
