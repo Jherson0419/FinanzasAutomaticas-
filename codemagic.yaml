@@ -53,49 +53,31 @@ workflows:
       - name: flutter test
         script: flutter test
 
-      # Fase 49: desde que la Fase 37 reemplazó `flutter build ipa` por
+      # Fase 49/50: desde que la Fase 37 reemplazó `flutter build ipa` por
       # `xcode-project build-ipa` (herramienta nativa de Codemagic que llama
       # a `xcodebuild` directo), el pipeline dejó de pasar por
       # `buildXcodeProject()` de Flutter — y con eso, por TODAS sus
       # migraciones de `project.pbxproj`, incluida
       # `SwiftPackageManagerIntegrationMigration` (la que agrega la
       # referencia al paquete local `FlutterGeneratedPluginSwiftPackage`).
-      # Con Swift Package Manager habilitado en el toolchain de Codemagic,
-      # CocoaPods se salta a propósito cualquier plugin que tenga
-      # `Package.swift` (ver `flutter_install_plugin_pods` en
-      # `podhelper.rb`) — entre ellos `app_links` desde su versión 6.4.0 —
-      # esperando que Xcode lo enlace vía SPM. Sin esta migración, ese
-      # enlace nunca se creó: ni CocoaPods ni SPM terminaban instalando el
-      # módulo. `flutter build ios --config-only` corre exactamente esa
-      # migración (y su propio `pod install` interno) sin llegar a
-      # archivar — por diseño, pensado para pipelines de CI/CD como este
-      # (ver `--help` del propio comando).
-      - name: Integrar Swift Package Manager (plugins sin instalar vía CocoaPods)
-        script: |
-          set -e
-          flutter build ios --config-only --release
-          echo "--- ¿project.pbxproj quedó con la referencia a FlutterGeneratedPluginSwiftPackage? ---"
-          grep -c "FlutterGeneratedPluginSwiftPackage" ios/Runner.xcodeproj/project.pbxproj || echo "0 — la migración no se aplicó, revisar el log de arriba"
-
-      - name: Instalar CocoaPods
+      # Todos los plugins de iOS de este proyecto son Swift Packages —
+      # Flutter mismo confirmó en el log de la Fase 49 que el `Podfile` ya
+      # no tiene ninguna razón de existir y que la migración a Swift
+      # Package Manager debía hacerse manualmente. Fase 50: se retira
+      # CocoaPods del todo — `pod deintegrate` limpia cualquier integración
+      # vieja del `.xcodeproj` (referencias a Pods.xcodeproj, build phases,
+      # etc.), y `flutter build ios --config-only` corre la migración de
+      # SPM sin llegar a archivar (con `--no-codesign` porque este paso va
+      # antes de "Configurar firma de código" en el pipeline).
+      - name: Integrar Swift Package Manager
         script: |
           set -e
           cd ios
-          echo "--- Limpiando estado previo de CocoaPods antes de instalar ---"
-          rm -f Podfile.lock
-          rm -rf Pods
-          rm -rf ~/Library/Caches/CocoaPods
-
-          echo "--- Contenido real de .flutter-plugins-dependencies en Codemagic ---"
-          cat ../.flutter-plugins-dependencies
-          echo "--- Buscando app_links específicamente ---"
-          grep -A 5 '"app_links"' ../.flutter-plugins-dependencies || echo "app_links NO aparece en el archivo"
-          echo "--- Versión de app_links en pubspec.lock ---"
-          grep -A 3 '^  app_links:' ../pubspec.lock || echo "app_links no encontrado en pubspec.lock"
-
-          pod install --repo-update --verbose
-          echo "--- Pods instalados ---"
-          ls -la Pods/
+          pod deintegrate || true
+          cd ..
+          flutter build ios --config-only --release --no-codesign
+          echo "--- ¿project.pbxproj quedó con la referencia a FlutterGeneratedPluginSwiftPackage? ---"
+          grep -c "FlutterGeneratedPluginSwiftPackage" ios/Runner.xcodeproj/project.pbxproj || echo "0 — la migración no se aplicó, revisar el log de arriba"
 
       # Requiere que en Codemagic → App settings → iOS code signing esté
       # configurado (automático con la API key de App Store Connect, o
