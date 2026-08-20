@@ -1,7 +1,9 @@
-# Fijado explícito a 13.0 (Fase 42) — coincide con IPHONEOS_DEPLOYMENT_TARGET
-# en las 3 configuraciones (Debug/Release/Profile) de
-# ios/Runner.xcodeproj/project.pbxproj.
-platform :ios, '13.0'
+# Fijado explícito (Fase 42: 13.0; subido a 15.0 en la Fase 43 — CocoaPods
+# rechazaba el pod `Flutter` con un deployment target más bajo que el que
+# exige la versión de Flutter `stable` usada en Codemagic) — coincide con
+# IPHONEOS_DEPLOYMENT_TARGET en las 3 configuraciones (Debug/Release/Profile)
+# de ios/Runner.xcodeproj/project.pbxproj.
+platform :ios, '15.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
