@@ -57,6 +57,10 @@ workflows:
         script: |
           set -e
           cd ios
+          echo "--- Limpiando estado previo de CocoaPods antes de instalar ---"
+          rm -f Podfile.lock
+          rm -rf Pods
+          rm -rf ~/Library/Caches/CocoaPods
           pod install --repo-update --verbose
           echo "--- Pods instalados ---"
           ls -la Pods/
