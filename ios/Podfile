@@ -1,8 +1,8 @@
-# Fijado explícito (Fase 42: 13.0; subido a 15.0 en la Fase 43 — CocoaPods
-# rechazaba el pod `Flutter` con un deployment target más bajo que el que
-# exige la versión de Flutter `stable` usada en Codemagic) — coincide con
-# IPHONEOS_DEPLOYMENT_TARGET en las 3 configuraciones (Debug/Release/Profile)
-# de ios/Runner.xcodeproj/project.pbxproj.
+# Descomentado y fijado a 15.0 (Fase 43 — CocoaPods rechazaba el pod
+# `Flutter` con un deployment target más bajo que el que exige la versión
+# de Flutter `stable` de Codemagic); coincide con IPHONEOS_DEPLOYMENT_TARGET
+# en las 3 configuraciones (Debug/Release/Profile) de
+# ios/Runner.xcodeproj/project.pbxproj.
 platform :ios, '15.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
@@ -27,6 +27,9 @@ def flutter_root
   raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
 end
 
+# Ruta verificada contra el SDK de Flutter instalado en esta máquina
+# (packages/flutter_tools/bin/podhelper.rb) — es la misma que usa la
+# plantilla oficial (packages/flutter_tools/templates/cocoapods/Podfile-ios).
 require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
 
 flutter_ios_podfile_setup
