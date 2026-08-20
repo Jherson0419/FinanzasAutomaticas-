@@ -61,6 +61,14 @@ workflows:
           rm -f Podfile.lock
           rm -rf Pods
           rm -rf ~/Library/Caches/CocoaPods
+
+          echo "--- Contenido real de .flutter-plugins-dependencies en Codemagic ---"
+          cat ../.flutter-plugins-dependencies
+          echo "--- Buscando app_links específicamente ---"
+          grep -A 5 '"app_links"' ../.flutter-plugins-dependencies || echo "app_links NO aparece en el archivo"
+          echo "--- Versión de app_links en pubspec.lock ---"
+          grep -A 3 '^  app_links:' ../pubspec.lock || echo "app_links no encontrado en pubspec.lock"
+
           pod install --repo-update --verbose
           echo "--- Pods instalados ---"
           ls -la Pods/
