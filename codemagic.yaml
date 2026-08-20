@@ -53,6 +53,30 @@ workflows:
       - name: flutter test
         script: flutter test
 
+      # Fase 49: desde que la Fase 37 reemplazó `flutter build ipa` por
+      # `xcode-project build-ipa` (herramienta nativa de Codemagic que llama
+      # a `xcodebuild` directo), el pipeline dejó de pasar por
+      # `buildXcodeProject()` de Flutter — y con eso, por TODAS sus
+      # migraciones de `project.pbxproj`, incluida
+      # `SwiftPackageManagerIntegrationMigration` (la que agrega la
+      # referencia al paquete local `FlutterGeneratedPluginSwiftPackage`).
+      # Con Swift Package Manager habilitado en el toolchain de Codemagic,
+      # CocoaPods se salta a propósito cualquier plugin que tenga
+      # `Package.swift` (ver `flutter_install_plugin_pods` en
+      # `podhelper.rb`) — entre ellos `app_links` desde su versión 6.4.0 —
+      # esperando que Xcode lo enlace vía SPM. Sin esta migración, ese
+      # enlace nunca se creó: ni CocoaPods ni SPM terminaban instalando el
+      # módulo. `flutter build ios --config-only` corre exactamente esa
+      # migración (y su propio `pod install` interno) sin llegar a
+      # archivar — por diseño, pensado para pipelines de CI/CD como este
+      # (ver `--help` del propio comando).
+      - name: Integrar Swift Package Manager (plugins sin instalar vía CocoaPods)
+        script: |
+          set -e
+          flutter build ios --config-only --release
+          echo "--- ¿project.pbxproj quedó con la referencia a FlutterGeneratedPluginSwiftPackage? ---"
+          grep -c "FlutterGeneratedPluginSwiftPackage" ios/Runner.xcodeproj/project.pbxproj || echo "0 — la migración no se aplicó, revisar el log de arriba"
+
       - name: Instalar CocoaPods
         script: |
           set -e
