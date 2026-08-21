@@ -89,6 +89,35 @@ workflows:
           echo "Bundle ID usado: $BUNDLE_ID"
           keychain initialize
 
+          # Fase 61: cada build de Codemagic corre en una máquina efímera —
+          # `certificates create` genera un certificado de distribución
+          # NUEVO en cada corrida (aunque use la misma
+          # CERTIFICATE_PRIVATE_KEY), y el perfil de aprovisionamiento no
+          # siempre queda emparejado con ese certificado recién creado
+          # (huérfano, o apuntando a uno anterior) — la causa raíz de
+          # "doesn't include signing certificate" en las Fases 40 y 51.
+          # Revocar y borrar TODO antes de crear garantiza que cada build
+          # arranca sin nada previo con lo que pueda chocar: el par que
+          # generan `certificates create`/`fetch-signing-files --create`
+          # queda siempre 100% nuevo y consistente entre sí.
+          echo "--- Verificando que jq esté disponible ---"
+          command -v jq >/dev/null 2>&1 || brew install jq
+
+          echo "--- Revocando certificados de distribución existentes ---"
+          app-store-connect certificates list --type IOS_DISTRIBUTION --json | \
+            jq -r '.[].id' | while read -r cert_id; do
+              echo "Revocando certificado: $cert_id"
+              app-store-connect certificates revoke "$cert_id" || true
+            done
+
+          echo "--- Eliminando perfiles de App Store existentes para este bundle ---"
+          app-store-connect profiles list --json | \
+            jq -r --arg bundle "$BUNDLE_ID" '.[] | select(.attributes.bundleId == $bundle) | .id' | \
+            while read -r profile_id; do
+              echo "Eliminando perfil: $profile_id"
+              app-store-connect profiles delete "$profile_id" || true
+            done
+
           echo "--- Certificados de distribución existentes en la cuenta ---"
           app-store-connect certificates list --type IOS_DISTRIBUTION
 
