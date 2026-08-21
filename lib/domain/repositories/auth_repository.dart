@@ -12,6 +12,16 @@ abstract class AuthRepository {
 
   Future<void> crearCuenta({required String email, required String password});
 
+  /// Login con Google (Fase 56) — abre el flujo OAuth en el navegador
+  /// externo del dispositivo; la sesión no queda activa al terminar este
+  /// método (solo se abrió el navegador), sino más tarde, cuando Supabase
+  /// redirige de vuelta a la app por el mismo deep link
+  /// `finzo://login-callback` que ya escucha `supabase_flutter` desde la
+  /// Fase 54 (`SupabaseAuth`, interno del paquete) — `haySesionActivaProvider`
+  /// ya es reactivo a ese momento (Fase 54), así que ninguna pantalla tiene
+  /// que esperar el resultado de este método a mano.
+  Future<void> iniciarSesionConGoogle();
+
   Future<void> cerrarSesion();
 
   /// Borra permanentemente la cuenta de autenticación del usuario actual

@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:finanzas_automaticas/domain/entities/cuenta.dart';
 import 'package:finanzas_automaticas/domain/entities/mensaje_consejo.dart';
 import 'package:finanzas_automaticas/domain/repositories/consejos_financieros_repository.dart';
 import 'package:finanzas_automaticas/domain/usecases/dto/resumen_para_consejos.dart';
@@ -72,6 +73,54 @@ void main() {
         expect(bodyCapturado!['esPrimerMensaje'], isTrue);
         expect(bodyCapturado!['resumen'], isNotNull);
         expect(bodyCapturado!['mensaje'], '');
+      },
+    );
+
+    test(
+      'Fase 60: incluye tarjetasCredito (usado/línea/disponible) en el '
+      'resumen mandado, nunca mezclado con saldoTotalPorMoneda',
+      () async {
+        Map<String, dynamic>? bodyCapturado;
+        final client = MockClient((request) async {
+          bodyCapturado = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response(
+            '{"respuesta":"Hola."}',
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        });
+        final repo = EdgeFunctionConsejosRepository(_clienteConHttp(client));
+        const resumenConTarjeta = ResumenParaConsejos(
+          deudasActivas: [],
+          ingresosPorCategoriaMes: [],
+          gastosPorCategoriaMes: [],
+          saldoTotalPorMoneda: {Moneda.pen: 500},
+          tarjetasCredito: [
+            TarjetaCreditoParaConsejos(
+              montoUsado: 800,
+              lineaTotal: 2000,
+              creditoDisponible: 1200,
+              moneda: Moneda.pen,
+            ),
+          ],
+        );
+
+        await repo.enviarMensaje(
+          mensaje: '',
+          esPrimerMensaje: true,
+          resumen: resumenConTarjeta,
+        );
+
+        final resumenJson =
+            bodyCapturado!['resumen'] as Map<String, dynamic>;
+        expect(resumenJson['saldoTotalPorMoneda'], {'pen': 500});
+        final tarjetas = resumenJson['tarjetasCredito'] as List<dynamic>;
+        expect(tarjetas, hasLength(1));
+        final tarjeta = tarjetas.single as Map<String, dynamic>;
+        expect(tarjeta['montoUsado'], 800);
+        expect(tarjeta['lineaTotal'], 2000);
+        expect(tarjeta['creditoDisponible'], 1200);
+        expect(tarjeta['moneda'], 'pen');
       },
     );
 

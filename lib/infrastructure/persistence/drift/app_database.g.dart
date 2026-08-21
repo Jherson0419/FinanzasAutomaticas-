@@ -88,6 +88,17 @@ class $CuentasTable extends Cuentas with TableInfo<$CuentasTable, CuentaRow> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _ultimosDigitosMeta = const VerificationMeta(
+    'ultimosDigitos',
+  );
+  @override
+  late final GeneratedColumn<String> ultimosDigitos = GeneratedColumn<String>(
+    'ultimos_digitos',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -98,6 +109,7 @@ class $CuentasTable extends Cuentas with TableInfo<$CuentasTable, CuentaRow> {
     lineaCredito,
     diaCorte,
     diaPago,
+    ultimosDigitos,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -172,6 +184,15 @@ class $CuentasTable extends Cuentas with TableInfo<$CuentasTable, CuentaRow> {
         diaPago.isAcceptableOrUnknown(data['dia_pago']!, _diaPagoMeta),
       );
     }
+    if (data.containsKey('ultimos_digitos')) {
+      context.handle(
+        _ultimosDigitosMeta,
+        ultimosDigitos.isAcceptableOrUnknown(
+          data['ultimos_digitos']!,
+          _ultimosDigitosMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -213,6 +234,10 @@ class $CuentasTable extends Cuentas with TableInfo<$CuentasTable, CuentaRow> {
         DriftSqlType.int,
         data['${effectivePrefix}dia_pago'],
       ),
+      ultimosDigitos: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ultimos_digitos'],
+      ),
     );
   }
 
@@ -231,6 +256,7 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
   final double? lineaCredito;
   final int? diaCorte;
   final int? diaPago;
+  final String? ultimosDigitos;
   const CuentaRow({
     required this.id,
     required this.nombre,
@@ -240,6 +266,7 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
     this.lineaCredito,
     this.diaCorte,
     this.diaPago,
+    this.ultimosDigitos,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -257,6 +284,9 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
     }
     if (!nullToAbsent || diaPago != null) {
       map['dia_pago'] = Variable<int>(diaPago);
+    }
+    if (!nullToAbsent || ultimosDigitos != null) {
+      map['ultimos_digitos'] = Variable<String>(ultimosDigitos);
     }
     return map;
   }
@@ -277,6 +307,9 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
       diaPago: diaPago == null && nullToAbsent
           ? const Value.absent()
           : Value(diaPago),
+      ultimosDigitos: ultimosDigitos == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ultimosDigitos),
     );
   }
 
@@ -294,6 +327,7 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
       lineaCredito: serializer.fromJson<double?>(json['lineaCredito']),
       diaCorte: serializer.fromJson<int?>(json['diaCorte']),
       diaPago: serializer.fromJson<int?>(json['diaPago']),
+      ultimosDigitos: serializer.fromJson<String?>(json['ultimosDigitos']),
     );
   }
   @override
@@ -308,6 +342,7 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
       'lineaCredito': serializer.toJson<double?>(lineaCredito),
       'diaCorte': serializer.toJson<int?>(diaCorte),
       'diaPago': serializer.toJson<int?>(diaPago),
+      'ultimosDigitos': serializer.toJson<String?>(ultimosDigitos),
     };
   }
 
@@ -320,6 +355,7 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
     Value<double?> lineaCredito = const Value.absent(),
     Value<int?> diaCorte = const Value.absent(),
     Value<int?> diaPago = const Value.absent(),
+    Value<String?> ultimosDigitos = const Value.absent(),
   }) => CuentaRow(
     id: id ?? this.id,
     nombre: nombre ?? this.nombre,
@@ -329,6 +365,9 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
     lineaCredito: lineaCredito.present ? lineaCredito.value : this.lineaCredito,
     diaCorte: diaCorte.present ? diaCorte.value : this.diaCorte,
     diaPago: diaPago.present ? diaPago.value : this.diaPago,
+    ultimosDigitos: ultimosDigitos.present
+        ? ultimosDigitos.value
+        : this.ultimosDigitos,
   );
   CuentaRow copyWithCompanion(CuentasCompanion data) {
     return CuentaRow(
@@ -344,6 +383,9 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
           : this.lineaCredito,
       diaCorte: data.diaCorte.present ? data.diaCorte.value : this.diaCorte,
       diaPago: data.diaPago.present ? data.diaPago.value : this.diaPago,
+      ultimosDigitos: data.ultimosDigitos.present
+          ? data.ultimosDigitos.value
+          : this.ultimosDigitos,
     );
   }
 
@@ -357,7 +399,8 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
           ..write('saldoActual: $saldoActual, ')
           ..write('lineaCredito: $lineaCredito, ')
           ..write('diaCorte: $diaCorte, ')
-          ..write('diaPago: $diaPago')
+          ..write('diaPago: $diaPago, ')
+          ..write('ultimosDigitos: $ultimosDigitos')
           ..write(')'))
         .toString();
   }
@@ -372,6 +415,7 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
     lineaCredito,
     diaCorte,
     diaPago,
+    ultimosDigitos,
   );
   @override
   bool operator ==(Object other) =>
@@ -384,7 +428,8 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
           other.saldoActual == this.saldoActual &&
           other.lineaCredito == this.lineaCredito &&
           other.diaCorte == this.diaCorte &&
-          other.diaPago == this.diaPago);
+          other.diaPago == this.diaPago &&
+          other.ultimosDigitos == this.ultimosDigitos);
 }
 
 class CuentasCompanion extends UpdateCompanion<CuentaRow> {
@@ -396,6 +441,7 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
   final Value<double?> lineaCredito;
   final Value<int?> diaCorte;
   final Value<int?> diaPago;
+  final Value<String?> ultimosDigitos;
   final Value<int> rowid;
   const CuentasCompanion({
     this.id = const Value.absent(),
@@ -406,6 +452,7 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
     this.lineaCredito = const Value.absent(),
     this.diaCorte = const Value.absent(),
     this.diaPago = const Value.absent(),
+    this.ultimosDigitos = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CuentasCompanion.insert({
@@ -417,6 +464,7 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
     this.lineaCredito = const Value.absent(),
     this.diaCorte = const Value.absent(),
     this.diaPago = const Value.absent(),
+    this.ultimosDigitos = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        nombre = Value(nombre),
@@ -432,6 +480,7 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
     Expression<double>? lineaCredito,
     Expression<int>? diaCorte,
     Expression<int>? diaPago,
+    Expression<String>? ultimosDigitos,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -443,6 +492,7 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
       if (lineaCredito != null) 'linea_credito': lineaCredito,
       if (diaCorte != null) 'dia_corte': diaCorte,
       if (diaPago != null) 'dia_pago': diaPago,
+      if (ultimosDigitos != null) 'ultimos_digitos': ultimosDigitos,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -456,6 +506,7 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
     Value<double?>? lineaCredito,
     Value<int?>? diaCorte,
     Value<int?>? diaPago,
+    Value<String?>? ultimosDigitos,
     Value<int>? rowid,
   }) {
     return CuentasCompanion(
@@ -467,6 +518,7 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
       lineaCredito: lineaCredito ?? this.lineaCredito,
       diaCorte: diaCorte ?? this.diaCorte,
       diaPago: diaPago ?? this.diaPago,
+      ultimosDigitos: ultimosDigitos ?? this.ultimosDigitos,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -498,6 +550,9 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
     if (diaPago.present) {
       map['dia_pago'] = Variable<int>(diaPago.value);
     }
+    if (ultimosDigitos.present) {
+      map['ultimos_digitos'] = Variable<String>(ultimosDigitos.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -515,6 +570,7 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
           ..write('lineaCredito: $lineaCredito, ')
           ..write('diaCorte: $diaCorte, ')
           ..write('diaPago: $diaPago, ')
+          ..write('ultimosDigitos: $ultimosDigitos, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3771,6 +3827,7 @@ typedef $$CuentasTableCreateCompanionBuilder =
       Value<double?> lineaCredito,
       Value<int?> diaCorte,
       Value<int?> diaPago,
+      Value<String?> ultimosDigitos,
       Value<int> rowid,
     });
 typedef $$CuentasTableUpdateCompanionBuilder =
@@ -3783,6 +3840,7 @@ typedef $$CuentasTableUpdateCompanionBuilder =
       Value<double?> lineaCredito,
       Value<int?> diaCorte,
       Value<int?> diaPago,
+      Value<String?> ultimosDigitos,
       Value<int> rowid,
     });
 
@@ -3832,6 +3890,11 @@ class $$CuentasTableFilterComposer
 
   ColumnFilters<int> get diaPago => $composableBuilder(
     column: $table.diaPago,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ultimosDigitos => $composableBuilder(
+    column: $table.ultimosDigitos,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -3884,6 +3947,11 @@ class $$CuentasTableOrderingComposer
     column: $table.diaPago,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get ultimosDigitos => $composableBuilder(
+    column: $table.ultimosDigitos,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$CuentasTableAnnotationComposer
@@ -3922,6 +3990,11 @@ class $$CuentasTableAnnotationComposer
 
   GeneratedColumn<int> get diaPago =>
       $composableBuilder(column: $table.diaPago, builder: (column) => column);
+
+  GeneratedColumn<String> get ultimosDigitos => $composableBuilder(
+    column: $table.ultimosDigitos,
+    builder: (column) => column,
+  );
 }
 
 class $$CuentasTableTableManager
@@ -3960,6 +4033,7 @@ class $$CuentasTableTableManager
                 Value<double?> lineaCredito = const Value.absent(),
                 Value<int?> diaCorte = const Value.absent(),
                 Value<int?> diaPago = const Value.absent(),
+                Value<String?> ultimosDigitos = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CuentasCompanion(
                 id: id,
@@ -3970,6 +4044,7 @@ class $$CuentasTableTableManager
                 lineaCredito: lineaCredito,
                 diaCorte: diaCorte,
                 diaPago: diaPago,
+                ultimosDigitos: ultimosDigitos,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -3982,6 +4057,7 @@ class $$CuentasTableTableManager
                 Value<double?> lineaCredito = const Value.absent(),
                 Value<int?> diaCorte = const Value.absent(),
                 Value<int?> diaPago = const Value.absent(),
+                Value<String?> ultimosDigitos = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CuentasCompanion.insert(
                 id: id,
@@ -3992,6 +4068,7 @@ class $$CuentasTableTableManager
                 lineaCredito: lineaCredito,
                 diaCorte: diaCorte,
                 diaPago: diaPago,
+                ultimosDigitos: ultimosDigitos,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

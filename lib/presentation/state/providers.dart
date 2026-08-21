@@ -478,10 +478,25 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return SupabaseAuthRepository(Supabase.instance.client);
 });
 
-/// `true` si hay una sesión de Supabase activa. Se invalida manualmente
-/// tras iniciar sesión, crear cuenta o cerrar sesión (no es un stream:
-/// mismo patrón de invalidación explícita que el resto de la app).
+/// Emite cada vez que cambia el estado de auth de Supabase — login,
+/// logout, sesión restaurada al abrir la app, o (Fase 54) una sesión que
+/// aparece sola cuando el usuario confirma su correo desde el deep link
+/// `finzo://login-callback` y `supabase_flutter` la resuelve en segundo
+/// plano (ver `SupabaseAuth._handleDeeplink` en el paquete). Ese último
+/// caso puede ocurrir con la app ya abierta en `LoginScreen`, sin que
+/// ninguna pantalla llame `ref.invalidate` — de ahí la necesidad de un
+/// provider reactivo en vez de depender solo de invalidación manual.
+final _authStateChangeProvider = StreamProvider<AuthState>((ref) {
+  return Supabase.instance.client.auth.onAuthStateChange;
+});
+
+/// `true` si hay una sesión de Supabase activa. Sigue invalidándose
+/// manualmente tras iniciar sesión/crear cuenta/cerrar sesión (mismo
+/// patrón que el resto de la app), pero además se recalcula solo ante
+/// cualquier evento de `_authStateChangeProvider` — así cubre el caso de
+/// la Fase 54 sin que cada pantalla tenga que saber del deep link.
 final haySesionActivaProvider = Provider<bool>((ref) {
+  ref.watch(_authStateChangeProvider);
   return ref.watch(authRepositoryProvider).haySesionActiva;
 });
 
@@ -531,28 +546,6 @@ final eliminarCuentaDeUsuarioProvider = Provider<EliminarCuentaDeUsuario>((
     authRepository: ref.watch(authRepositoryProvider),
   );
 });
-
-/// `true` si el usuario ya configuró PIN y/o bloqueo biométrico.
-final bloqueoConfiguradoProvider = FutureProvider<bool>((ref) async {
-  final preferencias = ref.watch(preferenciasRepositoryProvider);
-  final pinHash = await preferencias.obtenerPinHash();
-  final biometricoActivo = await preferencias.obtenerBloqueoBiometricoActivo();
-  return pinHash != null || biometricoActivo;
-});
-
-/// `true` si el usuario ya tocó "Omitir por ahora" en
-/// `ConfigurarBloqueoScreen` — no se le vuelve a ofrecer automáticamente.
-final bloqueoOmitidoProvider = FutureProvider<bool>((ref) {
-  return ref.watch(preferenciasRepositoryProvider).bloqueoOmitido();
-});
-
-/// `true` una vez que el usuario se desbloqueó (PIN o biométrico) en esta
-/// ejecución del proceso. Deliberadamente en memoria (no persistido): al
-/// ser un `StateProvider`, se reinicia a `false` en cada apertura en frío
-/// de la app pero NO al volver de segundo plano (el `ProviderScope` no se
-/// recrea al pasar a background/foreground) — así `DesbloqueoScreen` solo
-/// se muestra en cold start, según lo pedido.
-final desbloqueadoEnEstaSesionProvider = StateProvider<bool>((ref) => false);
 
 /// Gate de entrada: decide onboarding vs. dashboard en `RootScreen`.
 final onboardingCompletadoProvider = FutureProvider<bool>((ref) {

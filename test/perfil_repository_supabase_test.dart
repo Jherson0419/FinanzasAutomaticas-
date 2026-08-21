@@ -17,28 +17,47 @@ void main() {
   final repo = PerfilRepositorySupabase(_clienteFalso);
 
   group('aDominio', () {
-    test('mapea nick/avatar_id/instagram cuando los tres tienen valor', () {
-      final perfil = repo.aDominio({
-        'nick': 'jherson_v',
-        'avatar_id': 'cohete',
-        'instagram': '@jherson.finanzas',
-      });
+    test(
+      'mapea nick/avatar_id/instagram/nombre_completo/celular/otra_red_social '
+      'cuando todos tienen valor',
+      () {
+        final perfil = repo.aDominio({
+          'nick': 'jherson_v',
+          'avatar_id': 'https://storage.example.com/avatares/foo/avatar.jpg',
+          'instagram': '@jherson.finanzas',
+          'nombre_completo': 'Jherson Vásquez Castillo',
+          'celular': '+51987654321',
+          'otra_red_social': '@jherson_tt',
+        });
 
-      expect(perfil.nick, 'jherson_v');
-      expect(perfil.avatarId, 'cohete');
-      expect(perfil.instagram, '@jherson.finanzas');
-    });
+        expect(perfil.nick, 'jherson_v');
+        expect(
+          perfil.avatarId,
+          'https://storage.example.com/avatares/foo/avatar.jpg',
+        );
+        expect(perfil.instagram, '@jherson.finanzas');
+        expect(perfil.nombreCompleto, 'Jherson Vásquez Castillo');
+        expect(perfil.celular, '+51987654321');
+        expect(perfil.otraRedSocial, '@jherson_tt');
+      },
+    );
 
     test('mapea nulos correctamente (perfil recién creado, sin nada aún)', () {
       final perfil = repo.aDominio({
         'nick': null,
         'avatar_id': null,
         'instagram': null,
+        'nombre_completo': null,
+        'celular': null,
+        'otra_red_social': null,
       });
 
       expect(perfil.nick, isNull);
       expect(perfil.avatarId, isNull);
       expect(perfil.instagram, isNull);
+      expect(perfil.nombreCompleto, isNull);
+      expect(perfil.celular, isNull);
+      expect(perfil.otraRedSocial, isNull);
     });
   });
 

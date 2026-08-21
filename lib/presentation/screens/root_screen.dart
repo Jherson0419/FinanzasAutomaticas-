@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../state/providers.dart';
-import 'configurar_bloqueo_screen.dart';
 import 'dashboard/dashboard_screen.dart';
-import 'desbloqueo_screen.dart';
 import 'login_screen.dart';
 import 'migrar_datos_screen.dart';
 import 'onboarding/onboarding_flow_screen.dart';
@@ -16,12 +14,13 @@ import 'onboarding/onboarding_flow_screen.dart';
 ///    `MigrarDatosScreen` (Fase 21); si no hay ningún dato local que
 ///    migrar, se marca la migración como completada sin mostrar nada y se
 ///    sigue de largo (cuenta nueva, Fase 21.4).
-/// 3. ¿Ya configuró PIN/biométrico, u optó por omitirlo? Ninguna de las
-///    dos → `ConfigurarBloqueoScreen` (se ofrece una sola vez, Fase 18).
-/// 4. ¿Ya se desbloqueó en esta apertura en frío? No (y hay bloqueo
-///    configurado) → `DesbloqueoScreen` (Fase 18).
-/// 5. `onboardingCompletado` (Fase 9, sin cambios) → `DashboardScreen` o
+/// 3. `onboardingCompletado` (Fase 9, sin cambios) → `DashboardScreen` o
 ///    `OnboardingFlowScreen`.
+///
+/// El bloqueo local por PIN/biométrico (Fase 18, puertas 3-4 de esta
+/// pantalla en su momento) se eliminó por completo en la Fase 55 — la
+/// sesión de Supabase Auth es la única puerta de entrada, sin ningún
+/// desbloqueo adicional después del login.
 class RootScreen extends ConsumerWidget {
   const RootScreen({super.key});
 
@@ -39,42 +38,7 @@ class RootScreen extends ConsumerWidget {
       error: (error, stackTrace) => _ErrorScaffold(error: error),
       data: (necesitaMigracion) => necesitaMigracion
           ? const MigrarDatosScreen()
-          : const _PuertaBloqueo(),
-    );
-  }
-}
-
-class _PuertaBloqueo extends ConsumerWidget {
-  const _PuertaBloqueo();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final bloqueoConfiguradoAsync = ref.watch(bloqueoConfiguradoProvider);
-
-    return bloqueoConfiguradoAsync.when(
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (error, stackTrace) => _ErrorScaffold(error: error),
-      data: (bloqueoConfigurado) {
-        if (!bloqueoConfigurado) {
-          final bloqueoOmitidoAsync = ref.watch(bloqueoOmitidoProvider);
-          return bloqueoOmitidoAsync.when(
-            loading: () => const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            ),
-            error: (error, stackTrace) => _ErrorScaffold(error: error),
-            data: (omitido) => omitido
-                ? const _PuertaOnboarding()
-                : const ConfigurarBloqueoScreen(),
-          );
-        }
-
-        final desbloqueado = ref.watch(desbloqueadoEnEstaSesionProvider);
-        if (!desbloqueado) {
-          return const DesbloqueoScreen();
-        }
-        return const _PuertaOnboarding();
-      },
+          : const _PuertaOnboarding(),
     );
   }
 }

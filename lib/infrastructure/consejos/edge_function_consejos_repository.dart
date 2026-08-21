@@ -101,6 +101,15 @@ class EdgeFunctionConsejosRepository implements ChatConsejosRepository {
         for (final entry in resumen.saldoTotalPorMoneda.entries)
           entry.key.name: entry.value,
       },
+      'tarjetasCredito': [
+        for (final tarjeta in resumen.tarjetasCredito)
+          {
+            'montoUsado': tarjeta.montoUsado,
+            'lineaTotal': tarjeta.lineaTotal,
+            'creditoDisponible': tarjeta.creditoDisponible,
+            'moneda': tarjeta.moneda.name,
+          },
+      ],
     };
   }
 

@@ -13,12 +13,13 @@ class NickNoDisponibleError extends StateError {
 }
 
 /// Adapter de `PerfilRepository` sobre la tabla `usuarios` de Supabase
-/// (Fase 31). `nickDisponible` no puede hacer un `SELECT` directo contra
-/// `usuarios` — RLS solo deja leer la fila propia (`auth.uid() = id`), así
-/// que consultar si el nick de OTRO usuario existe necesita una función de
-/// Postgres `SECURITY DEFINER` (`nick_disponible`, SQL en el reporte de la
-/// Fase 31) que corre con más privilegio que el usuario que la invoca, pero
-/// solo devuelve un `bool` — nunca expone el resto de la fila de nadie.
+/// (Fase 31, ampliado en la Fase 56). `nickDisponible` no puede hacer un
+/// `SELECT` directo contra `usuarios` — RLS solo deja leer la fila propia
+/// (`auth.uid() = id`), así que consultar si el nick de OTRO usuario existe
+/// necesita una función de Postgres `SECURITY DEFINER` (`nick_disponible`,
+/// SQL en el reporte de la Fase 31) que corre con más privilegio que el
+/// usuario que la invoca, pero solo devuelve un `bool` — nunca expone el
+/// resto de la fila de nadie.
 class PerfilRepositorySupabase implements PerfilRepository {
   final SupabaseClient _client;
 
@@ -31,7 +32,9 @@ class PerfilRepositorySupabase implements PerfilRepository {
     return conManejoDeErroresSupabase('usuarios.obtenerPerfil', () async {
       final fila = await _client
           .from('usuarios')
-          .select('nick, avatar_id, instagram')
+          .select(
+            'nick, avatar_id, instagram, nombre_completo, celular, otra_red_social',
+          )
           .eq('id', _userId)
           .single();
       return aDominio(fila);
@@ -46,6 +49,9 @@ class PerfilRepositorySupabase implements PerfilRepository {
       nick: fila['nick'] as String?,
       avatarId: fila['avatar_id'] as String?,
       instagram: fila['instagram'] as String?,
+      nombreCompleto: fila['nombre_completo'] as String?,
+      celular: fila['celular'] as String?,
+      otraRedSocial: fila['otra_red_social'] as String?,
     );
   }
 
@@ -94,6 +100,31 @@ class PerfilRepositorySupabase implements PerfilRepository {
     });
   }
 
+  /// Fase 56 — sube al bucket `avatares` (SQL para crearlo en el reporte de
+  /// esta fase) en la carpeta `<user_id>/`, siempre con el mismo nombre de
+  /// archivo (`upsert: true`) para no ir acumulando fotos viejas cada vez
+  /// que el usuario cambia de avatar.
+  @override
+  Future<String> subirFotoAvatar(
+    List<int> bytes, {
+    required String extension,
+  }) {
+    return conManejoDeErroresSupabase('avatares.subirFotoAvatar', () async {
+      final ruta = '$_userId/avatar.$extension';
+      await _client.storage
+          .from('avatares')
+          .uploadBinary(
+            ruta,
+            Uint8List.fromList(bytes),
+            fileOptions: FileOptions(
+              upsert: true,
+              contentType: 'image/$extension',
+            ),
+          );
+      return _client.storage.from('avatares').getPublicUrl(ruta);
+    });
+  }
+
   @override
   Future<void> guardarInstagram(String? instagram) {
     return conManejoDeErroresSupabase('usuarios.guardarInstagram', () async {
@@ -102,5 +133,41 @@ class PerfilRepositorySupabase implements PerfilRepository {
           .update({'instagram': instagram})
           .eq('id', _userId);
     });
+  }
+
+  @override
+  Future<void> guardarNombreCompleto(String? nombreCompleto) {
+    return conManejoDeErroresSupabase(
+      'usuarios.guardarNombreCompleto',
+      () async {
+        await _client
+            .from('usuarios')
+            .update({'nombre_completo': nombreCompleto})
+            .eq('id', _userId);
+      },
+    );
+  }
+
+  @override
+  Future<void> guardarCelular(String? celular) {
+    return conManejoDeErroresSupabase('usuarios.guardarCelular', () async {
+      await _client
+          .from('usuarios')
+          .update({'celular': celular})
+          .eq('id', _userId);
+    });
+  }
+
+  @override
+  Future<void> guardarOtraRedSocial(String? otraRedSocial) {
+    return conManejoDeErroresSupabase(
+      'usuarios.guardarOtraRedSocial',
+      () async {
+        await _client
+            .from('usuarios')
+            .update({'otra_red_social': otraRedSocial})
+            .eq('id', _userId);
+      },
+    );
   }
 }

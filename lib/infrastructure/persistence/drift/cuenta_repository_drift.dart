@@ -48,6 +48,7 @@ class CuentaRepositoryDrift implements CuentaRepository {
       lineaCredito: row.lineaCredito,
       diaCorte: row.diaCorte,
       diaPago: row.diaPago,
+      ultimosDigitos: row.ultimosDigitos,
     );
   }
 
@@ -61,6 +62,7 @@ class CuentaRepositoryDrift implements CuentaRepository {
       lineaCredito: Value(cuenta.lineaCredito),
       diaCorte: Value(cuenta.diaCorte),
       diaPago: Value(cuenta.diaPago),
+      ultimosDigitos: Value(cuenta.ultimosDigitos),
     );
   }
 }

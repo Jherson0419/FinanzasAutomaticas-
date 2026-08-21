@@ -1,4 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Fase 56: image_picker necesita esto para abrir la galería. API 33+
+         (Android 13) usa READ_MEDIA_IMAGES; en versiones anteriores,
+         READ_EXTERNAL_STORAGE (limitado con maxSdkVersion para que el
+         sistema no lo pida de más en dispositivos nuevos). -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32"/>
     <application
         android:label="Finzo"
         android:name="${applicationName}"
@@ -23,6 +31,15 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <!-- Fase 54: deep link de confirmación de correo (finzo://login-callback),
+                 usado como `emailRedirectTo` al crear una cuenta — supabase_flutter
+                 lo intercepta solo para resolver la sesión. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="finzo" android:host="login-callback"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

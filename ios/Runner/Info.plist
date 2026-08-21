@@ -26,8 +26,24 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSFaceIDUsageDescription</key>
-	<string>Usamos Face ID para proteger el acceso rápido a tu información financiera.</string>
+	<!-- Fase 56: la app pide una foto de la galería para el avatar del
+	     perfil (image_picker) — nunca la cámara, solo la biblioteca. -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Usamos tu galería para elegir la foto de tu avatar en el perfil.</string>
+	<!-- Fase 54: esquema de URL para el deep link de confirmación de correo
+	     (finzo://login-callback) — usado como `emailRedirectTo` al crear una
+	     cuenta; supabase_flutter lo intercepta solo para resolver la sesión. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.finzoapp.movil.auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>finzo</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

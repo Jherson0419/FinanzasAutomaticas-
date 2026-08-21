@@ -270,4 +270,215 @@ void main() {
       expect(fakeCuentas.cuentas, isEmpty);
     },
   );
+
+  group('Fase 58 — pago secuencial obligatorio en cuotasFijas', () {
+    Deuda deudaCuotasFijas({int numeroCuotasPagadas = 0}) => Deuda(
+      id: 'd5',
+      nombreDeuda: 'Compra a cuotas',
+      tipoDeuda: TipoDeuda.compraCuotas,
+      tipoAcreedor: TipoAcreedor.comercio,
+      nombreAcreedor: 'Falabella',
+      moneda: Moneda.pen,
+      montoTotal: 300,
+      montoPagado: numeroCuotasPagadas * 100,
+      tieneInteres: false,
+      estructuraPago: EstructuraPago.cuotasFijas,
+      numeroCuotasTotal: 3,
+      numeroCuotasPagadas: numeroCuotasPagadas,
+      montoCuota: 100,
+      periodicidadCuotas: PeriodicidadCuota.mensual,
+      fechaInicio: DateTime(2026, 1, 1),
+      enMora: false,
+      estado: EstadoDeuda.activa,
+    );
+
+    Cuenta cuentaPen() => const Cuenta(
+      id: 'cta-1',
+      nombre: 'BCP Cuenta sueldo',
+      tipo: TipoCuenta.debito,
+      moneda: Moneda.pen,
+      saldoActual: 1000,
+    );
+
+    test('pagar las cuotas en orden (1, luego 2) funciona sin error', () async {
+      final fakeDeudas = _FakeDeudaRepository({'d5': deudaCuotasFijas()});
+      final fakeCuentas = _FakeCuentaRepository({'cta-1': cuentaPen()});
+      final fakePagos = _FakePagoDeudaRepository();
+      final registrarPagoDeuda = RegistrarPagoDeuda(
+        pagoDeudaRepository: fakePagos,
+        deudaRepository: fakeDeudas,
+        cuentaRepository: fakeCuentas,
+      );
+
+      await registrarPagoDeuda(
+        deudaId: 'd5',
+        cuentaId: 'cta-1',
+        montoPagado: 100,
+        numeroCuota: 1,
+      );
+      await registrarPagoDeuda(
+        deudaId: 'd5',
+        cuentaId: 'cta-1',
+        montoPagado: 100,
+        numeroCuota: 2,
+      );
+
+      expect(fakePagos.pagos, hasLength(2));
+    });
+
+    test(
+      'pagar la cuota 2 sin haber pagado la 1 lanza el error con el número '
+      'de la cuota pendiente más antigua',
+      () async {
+        final fakeDeudas = _FakeDeudaRepository({'d5': deudaCuotasFijas()});
+        final fakeCuentas = _FakeCuentaRepository({'cta-1': cuentaPen()});
+        final fakePagos = _FakePagoDeudaRepository();
+        final registrarPagoDeuda = RegistrarPagoDeuda(
+          pagoDeudaRepository: fakePagos,
+          deudaRepository: fakeDeudas,
+          cuentaRepository: fakeCuentas,
+        );
+
+        await expectLater(
+          () => registrarPagoDeuda(
+            deudaId: 'd5',
+            cuentaId: 'cta-1',
+            montoPagado: 100,
+            numeroCuota: 2,
+          ),
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'message',
+              contains('cuota 1'),
+            ),
+          ),
+        );
+
+        // No debe haber quedado ningún rastro del intento rechazado.
+        expect(fakePagos.pagos, isEmpty);
+        expect(fakeDeudas.deudas['d5']!.montoPagado, 0);
+        expect(fakeCuentas.cuentas['cta-1']!.saldoActual, 1000);
+      },
+    );
+
+    test(
+      'pagar la cuota 3 con la 1 y 2 pendientes reporta la 1, no la 2',
+      () async {
+        final fakeDeudas = _FakeDeudaRepository({'d5': deudaCuotasFijas()});
+        final fakeCuentas = _FakeCuentaRepository({'cta-1': cuentaPen()});
+        final fakePagos = _FakePagoDeudaRepository();
+        final registrarPagoDeuda = RegistrarPagoDeuda(
+          pagoDeudaRepository: fakePagos,
+          deudaRepository: fakeDeudas,
+          cuentaRepository: fakeCuentas,
+        );
+
+        await expectLater(
+          () => registrarPagoDeuda(
+            deudaId: 'd5',
+            cuentaId: 'cta-1',
+            montoPagado: 100,
+            numeroCuota: 3,
+          ),
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'message',
+              contains('cuota 1'),
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'pago libre nunca se bloquea, sin importar el numeroCuota que se pase',
+      () async {
+        final deudaPagoLibre = Deuda(
+          id: 'd6',
+          nombreDeuda: 'Tarjeta de crédito',
+          tipoDeuda: TipoDeuda.tarjetaCredito,
+          tipoAcreedor: TipoAcreedor.entidadFinanciera,
+          nombreAcreedor: 'BBVA',
+          moneda: Moneda.pen,
+          montoTotal: 500,
+          montoPagado: 0,
+          tieneInteres: false,
+          estructuraPago: EstructuraPago.pagoLibre,
+          fechaInicio: DateTime(2026, 1, 1),
+          enMora: false,
+          estado: EstadoDeuda.activa,
+        );
+        final fakeDeudas = _FakeDeudaRepository({'d6': deudaPagoLibre});
+        final fakeCuentas = _FakeCuentaRepository({'cta-1': cuentaPen()});
+        final fakePagos = _FakePagoDeudaRepository();
+        final registrarPagoDeuda = RegistrarPagoDeuda(
+          pagoDeudaRepository: fakePagos,
+          deudaRepository: fakeDeudas,
+          cuentaRepository: fakeCuentas,
+        );
+
+        final pago = await registrarPagoDeuda(
+          deudaId: 'd6',
+          cuentaId: 'cta-1',
+          montoPagado: 50,
+          numeroCuota: 99,
+        );
+
+        expect(pago.numeroCuota, 99);
+        expect(fakePagos.pagos, hasLength(1));
+      },
+    );
+
+    test(
+      'un pago retroactivo nunca se bloquea aunque haya cuotas anteriores '
+      'sin pagar',
+      () async {
+        final fakeDeudas = _FakeDeudaRepository({'d5': deudaCuotasFijas()});
+        final fakeCuentas = _FakeCuentaRepository({'cta-1': cuentaPen()});
+        final fakePagos = _FakePagoDeudaRepository();
+        final registrarPagoDeuda = RegistrarPagoDeuda(
+          pagoDeudaRepository: fakePagos,
+          deudaRepository: fakeDeudas,
+          cuentaRepository: fakeCuentas,
+        );
+
+        final pago = await registrarPagoDeuda(
+          deudaId: 'd5',
+          cuentaId: null,
+          montoPagado: 100,
+          numeroCuota: 3,
+          fechaPago: DateTime(2025, 1, 1),
+        );
+
+        expect(pago.numeroCuota, 3);
+        expect(fakePagos.pagos, hasLength(1));
+      },
+    );
+
+    test(
+      'sin numeroCuota, cuotasFijas no bloquea (se asigna a la cuota '
+      'pendiente más antigua por construcción del cronograma)',
+      () async {
+        final fakeDeudas = _FakeDeudaRepository({'d5': deudaCuotasFijas()});
+        final fakeCuentas = _FakeCuentaRepository({'cta-1': cuentaPen()});
+        final fakePagos = _FakePagoDeudaRepository();
+        final registrarPagoDeuda = RegistrarPagoDeuda(
+          pagoDeudaRepository: fakePagos,
+          deudaRepository: fakeDeudas,
+          cuentaRepository: fakeCuentas,
+        );
+
+        final pago = await registrarPagoDeuda(
+          deudaId: 'd5',
+          cuentaId: 'cta-1',
+          montoPagado: 100,
+        );
+
+        expect(pago.numeroCuota, isNull);
+        expect(fakePagos.pagos, hasLength(1));
+      },
+    );
+  });
 }

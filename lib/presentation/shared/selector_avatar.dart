@@ -2,108 +2,67 @@ import 'package:flutter/material.dart';
 
 import 'avatares.dart';
 
-/// Círculo de avatar (ícono sobre color sólido) — usado tanto en "Mi
-/// perfil" (tamaño grande, tocable) como dentro del grid selector.
+/// Círculo de avatar — usado en "Mi perfil" (tamaño grande, tocable).
+///
+/// Fase 56: reemplaza la selección de un ícono prediseñado por una foto
+/// real subida a Supabase Storage. [avatarId] ahora casi siempre es una URL
+/// (`http...`); si lo es, se carga con `Image.network` recortada a círculo.
+/// Los usuarios que todavía tengan un id de ícono prediseñado guardado de
+/// antes de esta fase (`avataresDisponibles`, Fase 31) siguen viendo su
+/// ícono de siempre — `avatarPorId` seguía existiendo justo para este
+/// respaldo — hasta que cambien de foto por primera vez.
 class AvatarCirculo extends StatelessWidget {
-  const AvatarCirculo({
-    super.key,
-    required this.avatar,
-    this.tamano = 40,
-    this.destacado = false,
-  });
+  const AvatarCirculo({super.key, required this.avatarId, this.tamano = 40});
 
-  final AvatarOption avatar;
+  final String? avatarId;
   final double tamano;
 
-  /// Borde blanco translúcido más grueso — usado para marcar la selección
-  /// actual dentro del grid (mismo espíritu que `_IconoChip` en
-  /// `categoria_formulario.dart`, Fase 20).
-  final bool destacado;
+  bool get _esFoto => avatarId != null && avatarId!.startsWith('http');
 
   @override
   Widget build(BuildContext context) {
+    if (!_esFoto) return _iconoRespaldo();
+
+    return ClipOval(
+      child: Image.network(
+        avatarId!,
+        width: tamano,
+        height: tamano,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _iconoRespaldo(),
+        loadingBuilder: (context, child, progreso) {
+          if (progreso == null) return child;
+          return _placeholderCargando(context);
+        },
+      ),
+    );
+  }
+
+  Widget _iconoRespaldo() {
+    final avatar = avatarPorId(avatarId);
+    return Container(
+      width: tamano,
+      height: tamano,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: avatar.color),
+      child: Icon(avatar.icono, color: Colors.white, size: tamano * 0.5),
+    );
+  }
+
+  Widget _placeholderCargando(BuildContext context) {
     return Container(
       width: tamano,
       height: tamano,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: avatar.color,
-        border: destacado ? Border.all(color: Colors.white, width: 2.5) : null,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
       ),
-      child: Icon(avatar.icono, color: Colors.white, size: tamano * 0.5),
+      child: Center(
+        child: SizedBox(
+          width: tamano * 0.35,
+          height: tamano * 0.35,
+          child: const CircularProgressIndicator(strokeWidth: 2),
+        ),
+      ),
     );
   }
-}
-
-/// Grid seleccionable de avatares — mismo patrón que el selector de íconos
-/// de categorías (Fase 20, `_SelectorIcono`/`_IconoChip` en
-/// `categoria_formulario.dart`).
-class SelectorAvatarGrid extends StatelessWidget {
-  const SelectorAvatarGrid({
-    super.key,
-    required this.seleccionado,
-    required this.onSeleccionar,
-  });
-
-  final String? seleccionado;
-  final ValueChanged<String> onSeleccionar;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 14,
-      runSpacing: 14,
-      children: [
-        for (final avatar in avataresDisponibles)
-          InkWell(
-            onTap: () => onSeleccionar(avatar.id),
-            borderRadius: BorderRadius.circular(32),
-            child: AvatarCirculo(
-              avatar: avatar,
-              tamano: 56,
-              destacado: avatar.id == seleccionado,
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-/// Abre el selector de avatar como un bottom sheet — devuelve el `id`
-/// elegido, o `null` si el usuario lo cerró sin elegir nada.
-Future<String?> abrirSelectorAvatar(
-  BuildContext context, {
-  required String? avatarActual,
-}) {
-  return showModalBottomSheet<String>(
-    context: context,
-    isScrollControlled: true,
-    builder: (context) {
-      return Padding(
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 20,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Elige tu avatar',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            SelectorAvatarGrid(
-              seleccionado: avatarActual,
-              onSeleccionar: (id) => Navigator.of(context).pop(id),
-            ),
-          ],
-        ),
-      );
-    },
-  );
 }

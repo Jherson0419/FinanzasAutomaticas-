@@ -10,13 +10,13 @@
 
 **Archivo:** `lib/presentation/screens/root_screen.dart`
 **Ruta de navegación:** `'/'`
-**Propósito:** puerta de entrada de la app — decide, en orden estricto, si mostrar login, migración de datos, configuración/desbloqueo de PIN, onboarding, o el dashboard. No es una pantalla que el usuario "use", es un despachador reactivo.
+**Propósito:** puerta de entrada de la app — decide, en orden estricto, si mostrar login, migración de datos, onboarding, o el dashboard. No es una pantalla que el usuario "use", es un despachador reactivo. El bloqueo local por PIN/biométrico (puertas 3-4 hasta la Fase 18-54) se eliminó por completo en la Fase 55 — la sesión de Supabase Auth es la única puerta de entrada.
 **Cómo se llega aquí:** siempre, al abrir la app (ruta inicial `/`), y cada vez que algo hace `pushNamedAndRemoveUntil('/', false)` (fin del onboarding, fin de la migración).
 
 **Elementos visibles:**
-- Mientras resuelve `haySesionActivaProvider` → `necesitaMigracionProvider` → `bloqueoConfiguradoProvider`/`bloqueoOmitidoProvider` → `onboardingCompletadoProvider` (todos en `providers.dart`): un `Scaffold` en blanco con `CircularProgressIndicator` centrado, sin texto.
+- Mientras resuelve `haySesionActivaProvider` → `necesitaMigracionProvider` → `onboardingCompletadoProvider` (todos en `providers.dart`): un `Scaffold` en blanco con `CircularProgressIndicator` centrado, sin texto.
 - Si cualquiera de esos providers lanza un error: `_ErrorScaffold` — texto centrado "No se pudo iniciar la app.\n$error" (el error se muestra crudo, sin traducir con `mensajeDeError`).
-- No hay ningún botón ni campo propio: en cuanto resuelve, delega en `LoginScreen`, `MigrarDatosScreen`, `ConfigurarBloqueoScreen`, `DesbloqueoScreen`, `OnboardingFlowScreen` o `DashboardScreen`.
+- No hay ningún botón ni campo propio: en cuanto resuelve, delega en `LoginScreen`, `MigrarDatosScreen`, `OnboardingFlowScreen` o `DashboardScreen`.
 
 **Estados que maneja:** cargando SÍ (spinner mientras resuelve cada puerta, potencialmente varias veces en cascada). Vacío no aplica. Error SÍ (`_ErrorScaffold`, texto crudo). Éxito no aplica (es una transición, no un estado final).
 
@@ -31,20 +31,21 @@
 **Archivo:** `lib/presentation/screens/login_screen.dart`
 **Ruta de navegación:** sin ruta con nombre (`RootScreen` la retorna directamente cuando no hay sesión)
 **Propósito:** autenticar con correo y contraseña contra Supabase Auth para poder entrar a la app.
-**Cómo se llega aquí:** automáticamente al abrir la app sin sesión activa (puerta 1 de `RootScreen`); también al cerrar sesión desde `MiPerfilScreen` o desde `DesbloqueoScreen` ("Usar mi correo y contraseña").
+**Cómo se llega aquí:** automáticamente al abrir la app sin sesión activa (puerta 1 de `RootScreen`); también al cerrar sesión desde `MiPerfilScreen`.
 
 **Elementos visibles:**
 - Ícono decorativo + título "Finzo" (nombre corto — Fase 27, antes decía "Finanzas Automáticas").
 - `TextFormField` Correo — texto, obligatorio, validado con regex de email en vivo (sin `errorText` visible, solo condiciona el botón).
 - `TextFormField` Contraseña — texto oculto, obligatorio (mínimo 6 caracteres), botón de mostrar/ocultar.
 - Botón "Iniciar sesión" (`FilledButton`) — deshabilitado hasta que el correo sea válido y la contraseña tenga ≥6 caracteres; invoca `AuthRepository.iniciarSesion`.
+- **Fase 56** — separador "o", y botón "Continuar con Google" (`OutlinedButton.icon`) → `AuthRepository.iniciarSesionConGoogle()`, que abre el navegador externo con la pantalla de consentimiento de Google (`signInWithOAuth`, parte de `supabase_flutter` — sin paquete nativo aparte). No deja la sesión activa al volver de ese método: la sesión llega después, sola, por el mismo deep link `finzo://login-callback` de la Fase 54; esta pantalla no espera nada ni navega a mano, `RootScreen` reacciona solo cuando `haySesionActivaProvider` cambie.
 - Botón de texto "Crear cuenta" → `Navigator.push` a `CrearCuentaScreen`.
 
-**Estados que maneja:** cargando SÍ (spinner dentro del botón mientras `_iniciandoSesion`). Vacío no aplica. Error SÍ (`SnackBar` con `mensajeDeError`, mensajes traducidos — verificado por `login_screen_test.dart`). Éxito: NO hay confirmación visual propia — solo `ref.invalidate(haySesionActivaProvider)`, y es `RootScreen` quien reactivamente navega a la siguiente puerta; no hay ningún mensaje "Sesión iniciada".
+**Estados que maneja:** cargando SÍ (spinner dentro del botón mientras `_iniciandoSesion`, o dentro del botón de Google mientras `_iniciandoConGoogle`). Vacío no aplica. Error SÍ (`SnackBar` con `mensajeDeError`, mensajes traducidos — verificado por `login_screen_test.dart`, incluido el error de Google). Éxito: NO hay confirmación visual propia — solo `ref.invalidate(haySesionActivaProvider)` (login normal) o la llegada reactiva de la sesión por el deep link (Google); es `RootScreen` quien reactivamente navega a la siguiente puerta; no hay ningún mensaje "Sesión iniciada".
 
 **Sistema de diseño:** consistente — usa `Theme.of(context).colorScheme` correctamente, sin `Colors.*` crudos. No usa `AppCard` (no le hace falta, es un formulario centrado simple).
 
-**Limitaciones conocidas:** no hay "Olvidé mi contraseña" ni ningún flujo de recuperación de cuenta por correo. No hay inicio de sesión social (Google/Apple) — puede ser un requisito adicional de Apple para apps con login. El error de validación del correo nunca se muestra como texto (`errorText`); el usuario solo ve que el botón está deshabilitado, sin saber por qué. No hay biometría en el login inicial (eso solo existe después, como bloqueo local, no como método de inicio de sesión).
+**Limitaciones conocidas:** no hay "Olvidé mi contraseña" ni ningún flujo de recuperación de cuenta por correo. Login social (Fase 56): solo Google, no Apple — puede ser un requisito de Apple para apps con login social si ofrecen alguno (Guideline 4.8). El error de validación del correo nunca se muestra como texto (`errorText`); el usuario solo ve que el botón está deshabilitado, sin saber por qué. No hay biometría en el login inicial ni en ningún otro punto de la app (el bloqueo local por PIN/biométrico de la Fase 18 se eliminó por completo en la Fase 55). El botón de Google no tiene el logo oficial de Google (usa un ícono genérico, `Icons.login`) — evita usar una versión incorrecta/desactualizada del logo sin agregar un asset de marca al proyecto.
 
 ---
 
@@ -71,53 +72,7 @@
 
 ---
 
-## 4. ConfigurarBloqueoScreen
-
-**Archivo:** `lib/presentation/screens/configurar_bloqueo_screen.dart`
-**Ruta de navegación:** sin ruta con nombre
-**Propósito:** ofrecer, una sola vez tras el primer login, configurar un PIN de 4 dígitos y/o biometría como bloqueo local rápido (más ágil que reautenticar con Supabase cada vez).
-**Cómo se llega aquí:** puerta 3 de `RootScreen` — sesión activa, sin migración pendiente, y sin bloqueo configurado ni "omitido" previamente.
-
-**Elementos visibles:**
-- Texto explicativo.
-- `TextFormField` "Nuevo PIN" — numérico, oculto, `maxLength` 4.
-- `TextFormField` "Confirmar PIN" — numérico, oculto, `maxLength` 4.
-- `OutlinedButton` "Guardar PIN" (cambia a "PIN guardado ✓" tras éxito) — deshabilitado hasta 4 dígitos numéricos que coincidan entre ambos campos; guarda `hashPin(...)` vía `PreferenciasRepository`.
-- `SwitchListTile` "Usar Face ID / huella" — solo visible si `LocalAuthentication().canCheckBiometrics` devuelve `true`.
-- Botón "Continuar" (`FilledButton`) — habilitado solo si hay PIN guardado o biometría activa.
-- Botón de texto "Omitir por ahora".
-
-**Estados que maneja:** cargando parcial — no hay spinner de pantalla completa, pero sí feedback puntual (`_guardandoPin`, `_procesandoOmitir`). Vacío no aplica. Error SÍ (`SnackBar` si falla guardar el PIN o la preferencia biométrica). Éxito SÍ — `SnackBar` "PIN guardado" + el texto del botón cambia a "PIN guardado ✓"; es la única pantalla del flujo de autenticación con confirmación textual explícita de éxito.
-
-**Sistema de diseño:** consistente, sin colores crudos, sin `AppCard` (formulario plano, no aplica).
-
-**Limitaciones conocidas:** activar/desactivar el switch de biometría no tiene confirmación — se aplica al instante y solo se revierte silenciosamente si falla (con `SnackBar`, pero el switch ya cambió visualmente antes). "Omitir por ahora" no advierte que la app quedará sin ninguna capa extra de seguridad. Si la biometría no está disponible en el dispositivo, la única alternativa es PIN u "omitir" — no hay patrón de dibujo ni otra alternativa. No hay botón para cancelar/volver sin decidir nada.
-
----
-
-## 5. DesbloqueoScreen
-
-**Archivo:** `lib/presentation/screens/desbloqueo_screen.dart`
-**Ruta de navegación:** sin ruta con nombre
-**Propósito:** reautenticación rápida (PIN y/o biométrico) al abrir la app en frío, cuando ya hay bloqueo configurado — evita tener que volver a iniciar sesión con Supabase cada vez.
-**Cómo se llega aquí:** puerta 4 de `RootScreen` — bloqueo configurado y `desbloqueadoEnEstaSesionProvider == false` (solo en cold start, nunca al volver de segundo plano).
-
-**Elementos visibles:**
-- Ícono de candado + título "Ingresa tu PIN".
-- `TextFormField` PIN — numérico, oculto, `maxLength` 4, centrado, autoenvío al completar 4 dígitos (`onFieldSubmitted`).
-- Botón "Desbloquear" (`FilledButton`) — deshabilitado hasta 4 dígitos.
-- Botón de texto "Usar mi correo y contraseña" → cierra la sesión de Supabase y vuelve a `LoginScreen`.
-- Intento automático de biometría al montar la pantalla (sin UI propia — delega el prompt nativo al sistema operativo).
-
-**Estados que maneja:** cargando SÍ (spinner en el botón mientras se compara el hash). Vacío no aplica. Error SÍ ("PIN incorrecto" como `errorText` bajo el campo, que además se limpia solo). Éxito: NO hay confirmación visual — solo cambia `desbloqueadoEnEstaSesionProvider` a `true` y `RootScreen` navega reactivamente.
-
-**Sistema de diseño:** consistente, sin `AppCard` (no aplica), sin colores crudos.
-
-**Limitaciones conocidas:** no hay límite de intentos fallidos de PIN — sin bloqueo temporal tras varios intentos incorrectos seguidos (riesgo de fuerza bruta local, aunque acotado porque solo protege acceso local, no la cuenta de Supabase en sí). Si el biométrico falla o se cancela, no se muestra ningún mensaje (el `catch` está vacío) — el usuario no sabe si falló su huella/rostro o simplemente debe usar el PIN. No hay "olvidé mi PIN" salvo cerrar sesión por completo (no hay recuperación intermedia sin perder la sesión).
-
----
-
-## 6. MigrarDatosScreen
+## 4. MigrarDatosScreen
 
 **Archivo:** `lib/presentation/screens/migrar_datos_screen.dart`
 **Ruta de navegación:** sin ruta con nombre
@@ -138,16 +93,16 @@
 
 ---
 
-## 7. OnboardingFlowScreen (contenedor del wizard)
+## 5. OnboardingFlowScreen (contenedor del wizard)
 
 **Archivo:** `lib/presentation/screens/onboarding/onboarding_flow_screen.dart`
 **Ruta de navegación:** sin ruta con nombre (mostrada directamente por `RootScreen` cuando el onboarding no está completo)
 **Propósito:** contenedor con estado local (`_paso`, 0-5) de los 6 pasos del onboarding (Fase 31 agregó el paso de nick, entre nombre y cuentas); mantiene vivos los controllers de nombre y nick entre pasos.
-**Cómo se llega aquí:** puerta 5 de `RootScreen`.
+**Cómo se llega aquí:** puerta 3 de `RootScreen`.
 
 **Elementos visibles:**
 - Barra de progreso superior — 6 segmentos (`AnimatedContainer`), el actual y los anteriores resaltados en `colorScheme.primary`, el resto en `colorScheme.surfaceContainerHighest`.
-- El paso actual, embebido en un `Expanded` (ver entradas 8-13 para el contenido de cada paso).
+- El paso actual, embebido en un `Expanded` (ver entradas 6-11 para el contenido de cada paso).
 
 **Estados que maneja:** no tiene estados propios de carga/vacío/error/éxito — delega por completo en el paso montado.
 
@@ -157,12 +112,12 @@
 
 ---
 
-## 8. OnboardingWelcomeStep (paso 0 de 6)
+## 6. OnboardingWelcomeStep (paso 0 de 6)
 
 **Archivo:** `lib/presentation/screens/onboarding/onboarding_welcome_step.dart`
 **Ruta de navegación:** sin ruta propia — paso 0 embebido en `OnboardingFlowScreen`
 **Propósito:** pantalla de bienvenida, presenta brevemente la app.
-**Cómo se llega aquí:** primer paso del wizard, mostrado automáticamente al terminar las puertas de autenticación/bloqueo si el onboarding no está completo.
+**Cómo se llega aquí:** primer paso del wizard, mostrado automáticamente al terminar las puertas de autenticación/migración si el onboarding no está completo.
 
 **Elementos visibles:**
 - Ícono decorativo, título "Bienvenido a Finzo: Finanzas Automáticas" (nombre completo — Fase 27, antes decía solo "Finanzas Automáticas"), texto descriptivo.
@@ -176,7 +131,7 @@
 
 ---
 
-## 9. OnboardingNombreStep (paso 1 de 6)
+## 7. OnboardingNombreStep (paso 1 de 6)
 
 **Archivo:** `lib/presentation/screens/onboarding/onboarding_nombre_step.dart`
 **Ruta de navegación:** sin ruta propia — paso 1 embebido en `OnboardingFlowScreen`
@@ -195,7 +150,7 @@
 
 ---
 
-## 10. OnboardingNickStep (paso 2 de 6, Fase 31)
+## 8. OnboardingNickStep (paso 2 de 6, Fase 31; sugerencias en la Fase 56)
 
 **Archivo:** `lib/presentation/screens/onboarding/onboarding_nick_step.dart`
 **Ruta de navegación:** sin ruta propia — paso 2 embebido en `OnboardingFlowScreen`
@@ -204,6 +159,7 @@
 
 **Elementos visibles:**
 - `TextFormField` "Nick" — texto, obligatorio, prefijo `@`, formato validado en vivo (3-20 caracteres, solo letras/números/guion bajo). `helperText` dinámico bajo el campo: "Usa entre 3 y 20 letras..." (formato inválido, `colorWarning`), "Verificando disponibilidad..." (mientras espera, `textSecondary`, con un spinner chico como `suffixIcon`), "Disponible" (`colorSuccess`, con ícono de check) o "Ya está en uso" (`colorDanger`).
+- **Fase 56** — debajo del campo, hasta 3 sugerencias de nick como `ActionChip` tocables (`@jherson47`, `@jherson_82`, etc.), generadas a partir del nombre ya ingresado en el paso anterior (`domain/generar_sugerencias_nick.dart`, función pura) y verificadas en paralelo contra `nickDisponible` — solo se muestran las que de verdad están libres (spinner chico + "Buscando sugerencias de nick..." mientras se resuelven; la sección entera desaparece si ninguna quedó disponible, o si no había nombre del que partir). Tocar una autocompleta el campo y dispara la misma verificación normal (debounce incluido) — es un atajo opcional, el campo de texto libre sigue funcionando igual.
 - La verificación contra `PerfilRepository.nickDisponible` tiene debounce de 450ms — no se dispara en cada tecla, solo cuando el usuario deja de escribir.
 - Botón "Atrás" (`OutlinedButton`) / Botón "Continuar" (`FilledButton`) — deshabilitado hasta que la última verificación resuelta corresponda exactamente al texto actual del campo y diga "disponible".
 
@@ -215,7 +171,7 @@
 
 ---
 
-## 11. OnboardingCuentasStep (paso 3 de 6)
+## 9. OnboardingCuentasStep (paso 3 de 6)
 
 **Archivo:** `lib/presentation/screens/onboarding/onboarding_cuentas_step.dart`
 **Ruta de navegación:** sin ruta propia — paso 3 embebido en `OnboardingFlowScreen`
@@ -235,7 +191,7 @@
 
 ---
 
-## 12. OnboardingDeudasStep (paso 4 de 6)
+## 10. OnboardingDeudasStep (paso 4 de 6)
 
 **Archivo:** `lib/presentation/screens/onboarding/onboarding_deudas_step.dart`
 **Ruta de navegación:** sin ruta propia — paso 4 embebido en `OnboardingFlowScreen`
@@ -244,7 +200,7 @@
 
 **Elementos visibles:**
 - Lista de deudas ya agregadas — `DeudaListaItem` (ver Verificación), alimentada por `deudasProvider`.
-- Formulario de creación de deuda embebido (`DeudaFormulario`, siempre modo creación; ver Verificación — mismos campos que se documentan en la entrada 20, `DeudaNuevaScreen`).
+- Formulario de creación de deuda embebido (`DeudaFormulario`, siempre modo creación; ver Verificación — mismos campos que se documentan en la entrada 18, `DeudaNuevaScreen`).
 - Botón "Atrás" / Botón "Continuar" (siempre habilitado) / botón de texto "Omitir por ahora".
 
 **Estados que maneja:** cargando SÍ (`deudasProvider`). Vacío parcial (igual patrón que el paso de cuentas: sin lista, sin texto). Error SÍ (texto genérico). Éxito: sin confirmación textual.
@@ -255,7 +211,7 @@
 
 ---
 
-## 13. OnboardingResumenStep (paso 5 de 6)
+## 11. OnboardingResumenStep (paso 5 de 6)
 
 **Archivo:** `lib/presentation/screens/onboarding/onboarding_resumen_step.dart`
 **Ruta de navegación:** sin ruta propia — paso 5 embebido en `OnboardingFlowScreen`
@@ -277,12 +233,12 @@
 
 ---
 
-## 14. DashboardScreen
+## 12. DashboardScreen
 
 **Archivo:** `lib/presentation/screens/dashboard/dashboard_screen.dart`
 **Ruta de navegación:** `'/'` (cuando el onboarding ya está completo)
 **Propósito:** vista general de la situación financiera — punto central de la app tras el onboarding.
-**Cómo se llega aquí:** puerta 5 de `RootScreen` tras onboarding completo; destino de retorno (`pop`) tras completar prácticamente cualquier acción (crear cuenta, guardar transacción, registrar pago, etc.).
+**Cómo se llega aquí:** puerta 3 de `RootScreen` tras onboarding completo; destino de retorno (`pop`) tras completar prácticamente cualquier acción (crear cuenta, guardar transacción, registrar pago, etc.).
 
 **Elementos visibles:**
 - `AppBar`: saludo dinámico "Hola, {nombre}" (`nombreUsuarioProvider`, con fallback a "Hola" si no hay nombre) + ícono billetera → `/cuentas` + ícono escudo decorativo `gpp_good_outlined` sin acción + ícono campana `notifications_none` sin acción (`onPressed: () {}`, `dashboard_screen.dart:49-52`).
@@ -296,9 +252,9 @@
 - `SaldoTotalCard` (embebido).
 - `IngresosGastosSection` (embebido, dos `AppCard` lado a lado).
 - `GastoPorCategoriaSection` (embebido).
-- `DeudasActivasSection` (embebido, acordeón expandible por defecto).
+- `DeudasActivasSection` (embebido, acordeón expandible por defecto). **Fase 60:** el contenido expandido ya no es una sola lista con todas las deudas activas — se separa en 2 páginas deslizables por swipe horizontal según `estructuraPago` (cuotas fijas / pago libre), con un subtítulo que cambia según la página activa ("Cuotas fijas"/"Pago libre") y 2 puntitos indicadores tocables debajo del encabezado. El título "Deudas activas" y el total adeudado no cambian ni se duplican por página. Si una categoría no tiene ninguna deuda, esa página muestra "No tienes deudas de este tipo." — el mensaje general "No tienes deudas activas registradas." solo aparece si NO hay ninguna deuda activa de ningún tipo (ahí no se muestra el selector de páginas).
 - `MovimientosRecientesSection` (embebido, acordeón expandible, "Ver todos" → `/transacciones/todas`).
-- `AppBottomBar` fijo (Fase 32 — pasó de 4 a 5 botones, con estilo "glass" estilo iOS): "Gasto" → `/transacciones/nueva`, "Deuda" → `/deudas/nueva`, "Inicio" (nuevo, círculo central) → sin acción aquí (`Navigator.popUntil` a la primera ruta, no-op porque ya se está en el dashboard), "Consejos" → `/consejos`, "Perfil" → `/perfil`. Ver el párrafo dedicado abajo para el rediseño completo — Consejos/Perfil (entradas 26/27) solo enlazan aquí en vez de repetir la descripción.
+- `AppBottomBar` fijo (Fase 32 — pasó de 4 a 5 botones, con estilo "glass" estilo iOS): "Gasto" → `/transacciones/nueva`, "Deuda" → `/deudas/nueva`, "Inicio" (nuevo, círculo central) → sin acción aquí (`Navigator.popUntil` a la primera ruta, no-op porque ya se está en el dashboard), "Consejos" → `/consejos`, "Perfil" → `/perfil`. Ver el párrafo dedicado abajo para el rediseño completo — Consejos/Perfil (entradas 24/25) solo enlazan aquí en vez de repetir la descripción.
   - **Rediseño "glass" de la Fase 32:** el fondo sólido de la barra se reemplazó por un efecto de vidrio esmerilado — `BackdropFilter` (`ImageFilter.blur`, sigma 18) acotado con `ClipRect` al área fija de la barra (nunca a la pantalla completa) más un tinte semitransparente (`bgCard` al 75% de opacidad) y un borde superior sutil (`borderCard` al 60%), ambos leídos del token de tema activo — se ve correcto en claro y oscuro sin cambiar el blur, solo el tinte. Envuelto en `RepaintBoundary` para que el scroll del contenido del dashboard (un widget completamente distinto, fuera de este árbol) no fuerce un repintado del filtro.
   - **Botón "Inicio" (nuevo, quinto botón, centro exacto entre Deuda y Consejos):** ícono `home_rounded` dentro de un círculo de 60px sólido en `colorSuccess` — nunca gris, ni siquiera inactivo, a propósito distinto de los otros 4 (que sí quedan en `textSecondary` cuando no están resaltados) — con sombra y posicionado 24px por encima del borde superior de la barra (`Stack`/`Positioned`, no alineado en la misma fila que los demás íconos), como una muesca/FAB integrado. Cuando el dashboard es la pantalla actual se suma un anillo y una sombra más marcada (mismo lenguaje de "resaltado" que el `colorSuccess` + negrita de los otros 4). Navega con `Navigator.popUntil((route) => route.isFirst)` en vez de `pushNamed`/`pushNamedAndRemoveUntil`: como Dashboard/Consejos/Perfil son las únicas pantallas con esta barra y siempre están apiladas sobre la primera ruta (`/`), esto vuelve a la instancia ya existente del dashboard sin crear una nueva ni importar cuántos niveles de profundidad haya (p. ej. Consejos abierto desde Perfil).
 - Todos los datos de solo lectura vienen de `resumenDashboardProvider` (`dashboard_providers.dart`, que corre `ActualizarEstadoMora` y luego `ObtenerResumenDashboard`, tocando `CuentaRepository`, `TransaccionRepository`, `CategoriaRepository`, `DeudaRepository`, todos bifurcados Drift/Supabase según `datosEnLaNubeProvider`).
@@ -311,7 +267,7 @@
 
 ---
 
-## 15. MisCuentasScreen
+## 13. MisCuentasScreen
 
 **Archivo:** `lib/presentation/screens/mis_cuentas_screen.dart`
 **Ruta de navegación:** `'/cuentas'`
@@ -332,7 +288,7 @@
 
 ---
 
-## 16. CuentaNuevaScreen
+## 14. CuentaNuevaScreen
 
 **Archivo:** `lib/presentation/screens/cuenta_nueva_screen.dart` (con `lib/presentation/screens/cuenta_formulario.dart` embebido)
 **Ruta de navegación:** `'/cuentas/nueva'` (arg. `cuentaId` opcional — `null` = crear, con valor = editar)
@@ -340,19 +296,21 @@
 **Cómo se llega aquí:** `MisCuentasScreen` (tap en una cuenta o "Agregar cuenta"), botón "Añadir cuenta" integrado en el recorte cóncavo de la tarjeta frontal del `CuentasCarrusel` del dashboard (Fase 33 — antes una página "+" aparte del carrusel horizontal).
 
 **Elementos visibles (delegados a `CuentaFormulario`, documentados aquí porque es lo único que el usuario ve en esta ruta — ver Verificación):**
-- *Modo creación:* `TextFormField` Nombre (obligatorio), `DropdownButtonFormField` Tipo de cuenta, campos de crédito (ver abajo, solo si el tipo es Crédito), `DropdownButtonFormField` Moneda, `TextFormField` Saldo inicial (numérico, obligatorio, prefijo de símbolo de moneda), botón "Guardar".
-- *Modo edición:* `WalletAccountCard` de la cuenta; `TextFormField` Nombre; `DropdownButtonFormField` Tipo; campos de crédito (ver abajo); `DropdownButtonFormField` Moneda (bloqueado, con `helperText`, si la cuenta ya tiene transacciones o pagos de deuda asociados — `transaccionesPorCuentaProvider`/`pagosPorCuentaProvider`); bloque de solo lectura "Saldo actual" + botón "Ajustar" (abre un modal `_ModalAjusteSaldo` con un único campo "Saldo real" → invoca `AjustarSaldoCuenta`, que registra la diferencia como una transacción de ajuste); botón "Ver movimientos de esta cuenta" → `/cuentas/movimientos`; botón "Guardar cambios"; separador; botón "Eliminar cuenta" (rojo, invoca `EliminarCuenta` — falla con un diálogo de error si la cuenta tiene movimientos).
+- *Modo creación:* `TextFormField` Nombre (obligatorio), `TextFormField` Últimos 4 dígitos (opcional, Fase 57 — ver abajo), `DropdownButtonFormField` Tipo de cuenta, campos de crédito (ver abajo, solo si el tipo es Crédito), `DropdownButtonFormField` Moneda, `TextFormField` **"Saldo inicial"** (tipos no-crédito) o **"Saldo utilizado"** (tipo Crédito, Fase 57 — ver abajo) (numérico, obligatorio, prefijo de símbolo de moneda), botón "Guardar".
+- *Modo edición:* `WalletAccountCard` de la cuenta; `TextFormField` Nombre; `TextFormField` Últimos 4 dígitos (opcional, Fase 57); `DropdownButtonFormField` Tipo; campos de crédito (ver abajo); `DropdownButtonFormField` Moneda (bloqueado, con `helperText`, si la cuenta ya tiene transacciones o pagos de deuda asociados — `transaccionesPorCuentaProvider`/`pagosPorCuentaProvider`); bloque de solo lectura "Saldo actual" + botón "Ajustar" (abre un modal `_ModalAjusteSaldo` con un único campo "Saldo real" → invoca `AjustarSaldoCuenta`, que registra la diferencia como una transacción de ajuste); botón "Ver movimientos de esta cuenta" → `/cuentas/movimientos`; botón "Guardar cambios"; separador; botón "Eliminar cuenta" (rojo, invoca `EliminarCuenta` — falla con un diálogo de error si la cuenta tiene movimientos).
 - **Campos de crédito (Fase 29):** cuando el tipo elegido es "Crédito", aparecen con una transición animada (`AnimatedSize`, mismo patrón que los campos condicionales de `DeudaFormulario`) `TextFormField` Línea de crédito (numérico, obligatorio, prefijo de moneda), `TextFormField` Día de corte y `TextFormField` Día de pago (ambos numéricos, obligatorios, 1-31). A diferencia de la moneda, estos 3 campos se pueden seguir editando aunque la cuenta ya tenga movimientos — no afectan el saldo histórico. Al cambiar el tipo de Crédito a otro, los 3 valores se descartan (se guardan como `null`).
+- **Últimos 4 dígitos (Fase 57):** campo opcional para **cualquier** tipo de cuenta (no solo Crédito), con validación de formato — si se llena, debe ser exactamente 4 dígitos numéricos, si no "Guardar" se deshabilita con un texto de error inline. Se muestra luego en `WalletAccountCard` junto a la etiqueta del tipo de cuenta (ej. "CRÉDITO •••• 4821"). Puramente informativo, no identifica la cuenta.
+- **"Saldo utilizado" en Crédito (Fase 57):** solo en modo creación (en edición el saldo nunca fue editable). Con tipo Crédito, la etiqueta del campo de saldo cambia de "Saldo inicial" a "Saldo utilizado"; el número que ingresa el usuario se interpreta como el monto ya gastado de la línea y se guarda como `saldoActual` negativo (`-valor.abs()`), consistente con el resto del modelo (Fase 29: saldo negativo en una tarjeta = usado).
 
 **Estados que maneja:** cargando SÍ (mientras carga `cuentaPorIdProvider` en modo edición). Vacío parcial — texto "Esta cuenta ya no existe." si el id no resuelve. Error SÍ (texto con el error crudo al cargar; `SnackBar` al guardar/ajustar). Éxito: SÍ desde la Fase 23.1 — `SnackBar` "Cuenta creada"/"Cambios guardados" justo antes del `Navigator.pop()`, y "Saldo ajustado" en el modal de ajuste.
 
 **Sistema de diseño:** casi consistente — el texto de ayuda bajo "Saldo actual" usa `Theme.of(context).colorScheme.onSurfaceVariant` en vez del token semántico `textSecondary` directamente (`cuenta_formulario.dart:271-273`); funciona igual porque el `ColorScheme` mapea `onSurfaceVariant → textSecondary`, pero es una fuente de color distinta a la que usan las pantallas que sí importan `app_theme.dart` explícitamente.
 
-**Limitaciones conocidas:** el diálogo de confirmación de "Eliminar cuenta" dice "Esta acción no se puede deshacer" incluso cuando la cuenta tiene movimientos y en realidad **no se podrá eliminar** — el usuario confirma primero y recién después, en un segundo diálogo, se entera de que la operación falló. No hay forma de fusionar/transferir el saldo de una cuenta a otra antes de eliminarla. El modal de ajuste de saldo no muestra un ejemplo numérico de cómo se calculará la diferencia. No se puede personalizar la cuenta con una foto/ícono propio (a diferencia de las categorías, que sí tienen selector de ícono).
+**Limitaciones conocidas:** el diálogo de confirmación de "Eliminar cuenta" dice "Esta acción no se puede deshacer" incluso cuando la cuenta tiene movimientos y en realidad **no se podrá eliminar** — el usuario confirma primero y recién después, en un segundo diálogo, se entera de que la operación falló. No hay forma de fusionar/transferir el saldo de una cuenta a otra antes de eliminarla. El modal de ajuste de saldo no muestra un ejemplo numérico de cómo se calculará la diferencia. No se puede personalizar la cuenta con una foto/ícono propio (a diferencia de las categorías, que sí tienen selector de ícono). Los últimos 4 dígitos no se validan contra duplicados entre cuentas (Fase 57) ni tienen ninguna verificación de que correspondan a una tarjeta real.
 
 ---
 
-## 17. TransaccionNuevaScreen
+## 15. TransaccionNuevaScreen
 
 **Archivo:** `lib/presentation/screens/placeholders/transaccion_nueva_screen.dart`
 **Ruta de navegación:** `'/transacciones/nueva'` (arg. `transaccionId` opcional)
@@ -379,7 +337,7 @@
 
 ---
 
-## 18. MovimientosCuentaScreen
+## 16. MovimientosCuentaScreen
 
 **Archivo:** `lib/presentation/screens/movimientos_cuenta_screen.dart`
 **Ruta de navegación:** `'/cuentas/movimientos'` (arg. `cuentaId`)
@@ -387,7 +345,7 @@
 **Cómo se llega aquí:** botón "Ver movimientos de esta cuenta" en `CuentaNuevaScreen` (modo edición).
 
 **Elementos visibles:**
-- Lista de movimientos (`FilaMovimientoTransaccion`, el mismo widget que usa el dashboard), ordenados por fecha descendente, con badge "Ajuste" para los generados por `AjustarSaldoCuenta`.
+- Lista de movimientos (`FilaMovimientoTransaccion`, el mismo widget que usa el dashboard, "Todos los movimientos" e "Historial de cuenta"), ordenados por fecha descendente, con badge "Ajuste" para los generados por `AjustarSaldoCuenta`. Si el movimiento no tiene concepto (vacío), muestra el nombre de la categoría en su lugar en vez de dejar el espacio en blanco (verificado en la Fase 60 — ya existía en el código, se agregó solo el test de regresión).
 - Tap en un movimiento → `/transacciones/nueva` en modo edición.
 - Datos: `transaccionesPorCuentaProvider`.
 
@@ -399,7 +357,7 @@
 
 ---
 
-## 19. TodosLosMovimientosScreen
+## 17. TodosLosMovimientosScreen
 
 **Archivo:** `lib/presentation/screens/todos_los_movimientos_screen.dart`
 **Ruta de navegación:** `'/transacciones/todas'`
@@ -416,7 +374,7 @@
 
 ---
 
-## 20. DeudaNuevaScreen
+## 18. DeudaNuevaScreen
 
 **Archivo:** `lib/presentation/screens/placeholders/deuda_nueva_screen.dart` (con `lib/presentation/screens/deuda_formulario.dart` embebido)
 **Ruta de navegación:** `'/deudas/nueva'` (arg. `deudaId` opcional)
@@ -440,7 +398,7 @@
 
 ---
 
-## 21. DeudaDetalleScreen
+## 19. DeudaDetalleScreen
 
 **Archivo:** `lib/presentation/screens/deuda_detalle_screen.dart`
 **Ruta de navegación:** `'/deudas/detalle'` (arg. `deudaId`)
@@ -451,7 +409,7 @@
 - Mini-dashboard (`AppCard`): nombre, tipo + acreedor, banner "En mora" (color `colorGasto`/`colorDanger`) si aplica, monto total, interés total (si >0), barra de progreso de pago, texto "Pagado X de Y", próxima cuota/fecha o "Sin cuota fija".
 - Botón "Editar deuda" → `/deudas/nueva` en modo edición.
 - Botón "Ver historial" → `/deudas/historial`.
-- Si **cuotas fijas**: cronograma de cuotas (`generarCronogramaCuotas`) — cada cuota pendiente es un `Dismissible` (swipe hacia la derecha) que abre `/deudas/pago` con precarga de número/monto esperado; las cuotas ya pagadas se muestran sin swipe, con ícono de check.
+- Si **cuotas fijas**: cronograma de cuotas (`generarCronogramaCuotas`) — cada cuota pendiente es un `Dismissible` (swipe hacia la derecha) que abre `/deudas/pago` con precarga de número/monto esperado; las cuotas ya pagadas se muestran sin swipe, con ícono de check y, desde la Fase 58, con el número y el monto **tachados** (`TextDecoration.lineThrough` — la fecha de vencimiento no se tacha).
 - Si **pago libre**: `ListaPagosDeuda` embebida (el mismo widget que usa `HistorialPagosDeudaScreen`).
 - Datos: `deudaPorIdProvider`, `pagosPorDeudaProvider`.
 
@@ -463,7 +421,7 @@
 
 ---
 
-## 22. PagoDeudaNuevoScreen
+## 20. PagoDeudaNuevoScreen
 
 **Archivo:** `lib/presentation/screens/pago_deuda_nuevo_screen.dart`
 **Ruta de navegación:** `'/deudas/pago'` (arg. `deudaId: String` o `PagoDeudaRouteArgs`)
@@ -485,11 +443,11 @@
 
 **Sistema de diseño:** consistente, usa `AppCard`.
 
-**Limitaciones conocidas:** si no hay ninguna cuenta en la moneda de la deuda, el único texto disponible dice "créala desde 'Mis cuentas' o marca este pago como ya ocurrido" — pero no es un enlace tocable, solo texto plano; no hay atajo directo a "Mis cuentas" ni a "Agregar cuenta". El campo "Número de cuota" es texto libre (no un selector de las cuotas pendientes reales del cronograma, salvo cuando llega precargado desde el swipe de `DeudaDetalleScreen`) — se puede escribir cualquier número sin validar que corresponda a una cuota real. No se puede adjuntar comprobante del pago.
+**Limitaciones conocidas:** si no hay ninguna cuenta en la moneda de la deuda, el único texto disponible dice "créala desde 'Mis cuentas' o marca este pago como ya ocurrido" — pero no es un enlace tocable, solo texto plano; no hay atajo directo a "Mis cuentas" ni a "Agregar cuenta". El campo "Número de cuota" es texto libre (no un selector de las cuotas pendientes reales del cronograma, salvo cuando llega precargado desde el swipe de `DeudaDetalleScreen`) — se puede escribir cualquier número sin validar que corresponda a una cuota real, **salvo el orden**: desde la Fase 58, si la deuda es `cuotasFijas`, no es retroactivo y hay un número de cuota, `RegistrarPagoDeuda` rechaza el pago (`SnackBar` con "Debes pagar primero la cuota X antes de esta") cuando existe alguna cuota anterior sin pagar — el botón "Guardar" no se deshabilita de antemano para este caso (a diferencia del resto de validaciones del formulario), el error solo aparece después de intentar guardar. No se puede adjuntar comprobante del pago.
 
 ---
 
-## 23. HistorialPagosDeudaScreen
+## 21. HistorialPagosDeudaScreen
 
 **Archivo:** `lib/presentation/screens/historial_pagos_deuda_screen.dart`
 **Ruta de navegación:** `'/deudas/historial'` (arg. `deudaId`)
@@ -509,7 +467,7 @@
 
 ---
 
-## 24. MisCategoriasScreen
+## 22. MisCategoriasScreen
 
 **Archivo:** `lib/presentation/screens/mis_categorias_screen.dart`
 **Ruta de navegación:** `'/categorias'`
@@ -530,7 +488,7 @@
 
 ---
 
-## 25. CategoriaNuevaScreen
+## 23. CategoriaNuevaScreen
 
 **Archivo:** `lib/presentation/screens/categoria_nueva_screen.dart` (con `lib/presentation/screens/categoria_formulario.dart` embebido)
 **Ruta de navegación:** `'/categorias/nueva'` (arg. `categoriaId` opcional)
@@ -551,7 +509,7 @@
 
 ---
 
-## 26. ConsejosFinancierosScreen
+## 24. ConsejosFinancierosScreen
 
 **Archivo:** `lib/presentation/screens/consejos_financieros_screen.dart`
 **Ruta de navegación:** `'/consejos'`
@@ -564,7 +522,7 @@
 - Burbuja "Escribiendo..." (izquierda, texto en cursiva `textSecondary`) mientras se espera la respuesta del asistente — no hay spinner de pantalla completa, ni para el primer mensaje ni para los de seguimiento.
 - Burbuja de sistema centrada (ícono + texto, sin alinear a ningún lado) cuando falla un envío: fondo/ícono `colorWarning` con el mensaje fijo "Alcanzaste el límite de mensajes por hoy. Vuelve mañana." si es `LimiteDiarioConsejosError` (Fase 24, ahora cuenta mensajes en vez de "generaciones"); fondo/ícono `colorDanger` para cualquier otro error, con `mensajeDeError(error)`. Si falló el primer mensaje automático (historial todavía vacío), la burbuja incluye un botón "Reintentar" que vuelve a intentar armar el resumen y enviarlo.
 - Campo de texto (`TextField`, multilínea hasta 4 líneas) + botón enviar (`IconButton.filled`, ícono `send`) al final, siempre visible — para mensajes de seguimiento libres. Se deshabilita mientras se está esperando una respuesta.
-- `AppBottomBar` con "Consejos" resaltado (Fase 32: barra de 5 botones con efecto "glass" — ver el detalle completo en la entrada 14, DashboardScreen).
+- `AppBottomBar` con "Consejos" resaltado (Fase 32: barra de 5 botones con efecto "glass" — ver el detalle completo en la entrada 12, DashboardScreen).
 - Datos: `historialConsejosProvider` (lee `mensajes_consejos` del usuario actual directo contra Supabase, vía `ChatConsejosRepository.obtenerHistorial()`).
 
 **Estados que maneja:** cargando SÍ (spinner de pantalla completa solo mientras se resuelve `historialConsejosProvider` por primera vez; de ahí en adelante, "Escribiendo..." dentro del chat, nunca un spinner que tape la conversación). Vacío SÍ ("Preparando tu resumen financiero..." antes de que el primer mensaje automático se dispare). Error SÍ, como burbuja de sistema dentro del chat (ver arriba) — ya no existe el bloque de error genérico que reemplazaba toda la pantalla. Éxito: la burbuja nueva del asistente en la lista ES la confirmación (igual que antes, no hace falta un mensaje adicional).
@@ -575,29 +533,32 @@
 
 ---
 
-## 27. MiPerfilScreen
+## 25. MiPerfilScreen
 
 **Archivo:** `lib/presentation/screens/mi_perfil_screen.dart`
 **Ruta de navegación:** `'/perfil'`
-**Propósito:** administrar el perfil del usuario (avatar, nick de solo lectura, nombre, Instagram), elegir el tema de la app, acceder a categorías, cerrar sesión, y eliminar la cuenta de forma permanente. **Enriquecida en la Fase 31** — antes solo tenía el campo Nombre.
+**Propósito:** administrar el perfil del usuario (foto de avatar, nick de solo lectura, nombre corto, nombre completo, celular, Instagram, otra red social), elegir el tema de la app, acceder a categorías, cerrar sesión, y eliminar la cuenta de forma permanente. **Enriquecida en la Fase 31** (antes solo tenía el campo Nombre) **y de nuevo en la Fase 56** (foto real de avatar en vez de ícono prediseñado, más 3 campos nuevos).
 **Cómo se llega aquí:** botón "Perfil" del `AppBottomBar`.
 
 **Elementos visibles:**
-- **Fase 31** — Avatar actual (`AvatarCirculo`, 88px, círculo de color sólido por tipo + ícono blanco) centrado arriba de todo, tocable (con un pequeño ícono de lápiz superpuesto en la esquina) → abre `abrirSelectorAvatar` (bottom sheet con el grid de 12 avatares de `avataresDisponibles`, mismo patrón que el selector de íconos de categorías, Fase 20) → `PerfilRepository.guardarAvatarId`.
+- **Fase 31, foto real desde la Fase 56** — Avatar actual (`AvatarCirculo`, 88px) centrado arriba de todo, tocable (con un pequeño ícono de lápiz superpuesto en la esquina) → abre la galería (`package:image_picker`, `ImageSource.gallery`, redimensionada a máx. 800×800 y calidad 85 — sin recorte exacto a cuadrado, `AvatarCirculo` ya la muestra con `BoxFit.cover` dentro de un círculo) → sube la foto a Supabase Storage (`PerfilRepository.subirFotoAvatar`, bucket `avatares`, ruta `<user_id>/avatar.<extensión>`, siempre el mismo nombre así no se acumulan fotos viejas) → guarda la URL pública devuelta con `guardarAvatarId`. Si el usuario cierra la galería sin elegir nada, no cambia nada. Cuentas con un id de avatar viejo (catálogo prediseñado, Fase 31, antes de cambiar de foto por primera vez) siguen viendo su ícono de siempre — `AvatarCirculo` decide según si el valor guardado empieza con `http`.
 - **Fase 31** — Nick de solo lectura, centrado bajo el avatar (`@nick`, o "Sin nick" si por alguna razón no se guardó en el onboarding) + texto "El nick no se puede cambiar" (decisión explícita: así un futuro sistema social siempre encuentra al usuario por el mismo nick que usó desde el principio; no hay ningún campo editable para él en esta pantalla).
-- `TextFormField` Nombre — sin validación de vacío, se puede guardar en blanco.
+- `TextFormField` Nombre — sin validación de vacío, se puede guardar en blanco. (Nombre corto, local — distinto del nombre completo de abajo.)
+- **Fase 56** — `TextFormField` "Nombre completo (opcional)" → `PerfilRepository.guardarNombreCompleto`.
+- **Fase 56** — `TextFormField` "Celular (opcional)" → `PerfilRepository.guardarCelular`; valida formato en vivo (`^\+?[0-9]{7,15}$`, tras quitar espacios/guiones) con `errorText` inline "Formato de celular inválido" — deshabilita "Guardar" mientras no sea válido (vacío sí es válido, el campo es opcional).
 - **Fase 31** — `TextFormField` Instagram (opcional, texto libre tipo `@usuario`) → `PerfilRepository.guardarInstagram` (`null` si se deja vacío).
-- Botón "Guardar" (`FilledButton`) — nunca se deshabilita por validación, siempre tocable; guarda Nombre e Instagram juntos.
+- **Fase 56** — `TextFormField` "Otra red social (opcional)" → `PerfilRepository.guardarOtraRedSocial` — un solo campo de texto libre genérico, no una lista abierta de redes.
+- Botón "Guardar" (`FilledButton`) — deshabilitado solo si el celular tiene formato inválido; guarda Nombre (local) + nombre completo/celular/Instagram/otra red social (Supabase) juntos.
 - **Fase 31** — Sección "Apariencia": `SegmentedButton<TemaApp>` con 3 opciones (Claro/Oscuro/Sistema) → `PreferenciasRepository.guardarTema` + invalida `temaProvider`, que `FinanzasAutomaticasApp` (`app.dart`) observa para fijar `MaterialApp.themeMode` en tiempo real — cambiar la selección aquí recolorea toda la app al instante, sin reiniciar.
 - `ListTile` "Mis categorías" → `/categorias`.
 - **Fase 25** — `ListTile` "Automatización" → `/automatizacion` (`AutomatizacionScreen`, ver entrada más abajo).
 - Botón "Cerrar sesión" (`OutlinedButton.icon`) — con diálogo de confirmación que aclara que no se borran datos.
 - Sección "Zona de peligro" (título en `colorDanger`) + texto explicativo + botón "Eliminar mi cuenta" (`FilledButton.icon`, fondo `colorDanger`, ícono `delete_forever`) → diálogo `confirmarEliminarCuenta` (exige escribir literalmente "ELIMINAR" para habilitar el botón de confirmar) → `EliminarCuentaDeUsuario` + `PreferenciasRepository.limpiarTodo()`.
-- `AppBottomBar` con "Perfil" resaltado (Fase 32: barra de 5 botones con efecto "glass" — ver el detalle completo en la entrada 14, DashboardScreen).
-- Datos: `nombreUsuarioProvider` (`PreferenciasRepository`, 100% local) + `perfilProvider` (Fase 31, `PerfilRepository` → tabla `usuarios` de Supabase) + `temaProvider` (Fase 31, lectura síncrona de `PreferenciasRepository`, mismo patrón que `datosEnLaNubeProvider`).
+- `AppBottomBar` con "Perfil" resaltado (Fase 32: barra de 5 botones con efecto "glass" — ver el detalle completo en la entrada 12, DashboardScreen).
+- Datos: `nombreUsuarioProvider` (`PreferenciasRepository`, 100% local) + `perfilProvider` (Fase 31, `PerfilRepository` → tabla `usuarios` de Supabase, ahora con más columnas) + `temaProvider` (Fase 31, lectura síncrona de `PreferenciasRepository`, mismo patrón que `datosEnLaNubeProvider`).
 - **Fase 24 — ya no tiene el campo "API key de Gemini"** (ni su `ListTile`/texto de ayuda de "Consejos financieros con IA"): la API key ahora es del distribuidor de la app y vive solo en el servidor (Edge Function `generar-consejos`), ningún usuario la ve ni la ingresa. `PreferenciasRepository.obtenerApiKeyGemini`/`guardarApiKeyGemini` siguen existiendo en el puerto por compatibilidad, pero esta pantalla ya no los llama.
 
-**Estados que maneja:** cargando SÍ (mientras precargan el nombre y el perfil — dos providers anidados, Fase 23.2: mientras se ejecuta "Eliminar mi cuenta", un diálogo no descartable muestra la etapa actual en tiempo real en vez de solo el spinner del botón). Vacío no aplica. Error SÍ (texto genérico si falla cualquiera de los dos providers de precarga; `SnackBar` si falla guardar/cambiar avatar/cambiar tema/cerrar sesión; diálogo `mostrarErrorEliminar` si falla eliminar la cuenta). Éxito: `SnackBar` "Perfil actualizado" al guardar Nombre/Instagram — cambiar avatar o tema no muestra `SnackBar` propio (el cambio visual inmediato ya es la confirmación). "Cerrar sesión" y "Eliminar mi cuenta" siguen sin `SnackBar` de éxito propio (decisión explícita de la Fase 23.1: la navegación resultante, volver al login, ya es señal suficiente).
+**Estados que maneja:** cargando SÍ (mientras precargan el nombre y el perfil — dos providers anidados, Fase 23.2: mientras se ejecuta "Eliminar mi cuenta", un diálogo no descartable muestra la etapa actual en tiempo real en vez de solo el spinner del botón). Vacío no aplica. Error SÍ (texto genérico si falla cualquiera de los dos providers de precarga; `SnackBar` si falla guardar/cambiar avatar/cambiar tema/cerrar sesión/abrir la galería; diálogo `mostrarErrorEliminar` si falla eliminar la cuenta). Éxito: `SnackBar` "Perfil actualizado" al guardar los campos de texto — cambiar avatar o tema no muestra `SnackBar` propio (el cambio visual inmediato ya es la confirmación). "Cerrar sesión" y "Eliminar mi cuenta" siguen sin `SnackBar` de éxito propio (decisión explícita de la Fase 23.1: la navegación resultante, volver al login, ya es señal suficiente).
 
 **Sistema de diseño:** consistente — "Zona de peligro" usa `colorDanger` correctamente, el botón de eliminar usa `colorSobreEstado` (Fase 31, reemplaza a `bgPage` como color de primer plano sobre `colorDanger` — `bgPage` cambia de valor según el tema ahora, `colorSobreEstado` es fijo a propósito para mantener contraste sobre los tres colores de estado en cualquier tema) dentro del sistema de tokens de la Fase 19/31.
 
@@ -606,11 +567,12 @@
 - El campo Nombre no tiene validación de vacío — se puede guardar en blanco, lo que rompe el saludo "Hola, " (con coma y espacio colgantes) en el dashboard.
 - ~~No hay validación de formato de la API key antes de guardarla~~ — ya no aplica desde la Fase 24: el campo se quitó, el usuario no ingresa ninguna API key.
 - "Cerrar sesión" y "Eliminar mi cuenta" usan dos patrones de confirmación distintos (diálogo sí/no vs. escribir "ELIMINAR") — consistente con la gravedad relativa de cada acción, pero ninguno de los dos muestra un resumen con cifras concretas ("esto borrará N cuentas, N deudas, N transacciones") antes de confirmar, solo texto genérico.
-- **Nuevo en la Fase 31:** el campo Instagram no valida el formato `@usuario` (acepta cualquier texto libre). Si el usuario nunca eligió un avatar (no debería pasar si el onboarding se completó, pero es posible en datos preexistentes migrados antes de la Fase 31), se ve el primer avatar del catálogo por defecto sin ninguna indicación de que es un valor "no elegido".
+- El campo Instagram no valida el formato `@usuario` (acepta cualquier texto libre) — tampoco "Otra red social" (Fase 56, a propósito genérico). Si el usuario nunca eligió un avatar (no debería pasar si el onboarding se completó, pero es posible en datos preexistentes migrados antes de la Fase 31), se ve el primer avatar del catálogo por defecto sin ninguna indicación de que es un valor "no elegido".
+- **Nuevo en la Fase 56:** no se puede recortar la foto de avatar a un cuadrado exacto antes de subirla (`image_picker` no lo soporta solo; agregar recorte real necesitaría un paquete aparte, como `image_cropper`) — funciona bien igual porque `AvatarCirculo` la muestra con `BoxFit.cover` dentro de un círculo, pero una foto muy panorámica podría recortarse de forma poco favorecedora. Tampoco hay forma de quitar una foto ya subida y volver al ícono prediseñado (solo reemplazarla por otra).
 
 ---
 
-## 28. AutomatizacionScreen
+## 26. AutomatizacionScreen
 
 **Archivo:** `lib/presentation/screens/automatizacion_screen.dart`
 **Ruta de navegación:** `'/automatizacion'`
@@ -639,8 +601,6 @@
 | RootScreen | Sí | — | Sí | Sí |
 | LoginScreen | Sí | — | Sí | Sí |
 | CrearCuentaScreen | Sí | — | Sí | Sí |
-| ConfigurarBloqueoScreen | Parcial (por botón) | — | Sí | Sí |
-| DesbloqueoScreen | Sí | — | Sí | Sí |
 | MigrarDatosScreen | Sí (con etapas) | — | Sí | Sí |
 | OnboardingFlowScreen | — | — | — | Sí |
 | OnboardingWelcomeStep | — | — | — | Sí |
@@ -682,24 +642,22 @@ Ordenados de mayor a menor impacto para el usuario, agrupando patrones que se re
 
 6. **Patrón de "fila embebida" que escapa del sistema de diseño, repetido en 4 archivos independientes.** `onboarding/deuda_lista_item.dart`, `deuda_formulario.dart` (bloque de interés/vencimiento estimado), `deuda_detalle_screen.dart` (`_FilaCuota`) e `historial_pagos_deuda_screen.dart` (`_FilaPago`) implementan cada uno, por separado, el mismo `Container` con `colorScheme.surfaceContainerHigh` + `BorderRadius.circular(14)` en vez de usar `AppCard`. No es solo una inconsistencia visual menor: al estar duplicado 4 veces, cualquier ajuste futuro al estilo de "fila de información" (por ejemplo alinearlo mejor con `AppCard`) exige tocar 4 archivos en vez de uno. Vale la pena extraer un widget compartido (`InfoRowCard` o similar) que envuelva `AppCard` con el layout común.
 
-7. **Protección contra fuerza bruta en el bloqueo local.** `DesbloqueoScreen` no limita los intentos fallidos de PIN — no hay ningún retraso ni bloqueo temporal tras varios intentos incorrectos seguidos. Aunque el bloqueo local es una capa adicional (la sesión de Supabase sigue protegida aparte), es una brecha de seguridad percibida fácil de explotar si el dispositivo cae en manos de un tercero.
-
-8. **Botones redundantes o sin retroalimentación clara.** `OnboardingDeudasStep` tiene dos botones ("Continuar" y "Omitir por ahora") que hacen exactamente lo mismo — sugiere revisar la copy/UX de ese paso. Y en varias pantallas donde falta una cuenta/categoría para continuar (p. ej. `PagoDeudaNuevoScreen` sin cuentas en la moneda de la deuda), el texto explicativo no es un enlace tocable hacia la acción que lo resolvería.
+7. **Botones redundantes o sin retroalimentación clara.** `OnboardingDeudasStep` tiene dos botones ("Continuar" y "Omitir por ahora") que hacen exactamente lo mismo — sugiere revisar la copy/UX de ese paso. Y en varias pantallas donde falta una cuenta/categoría para continuar (p. ej. `PagoDeudaNuevoScreen` sin cuentas en la moneda de la deuda), el texto explicativo no es un enlace tocable hacia la acción que lo resolvería.
 
 ---
 
 ## Verificación
 
-**Pantallas documentadas en detalle:** 27 (secciones 1 a 27 de este documento — se sumó `AutomatizacionScreen` en la Fase 25).
+**Pantallas documentadas en detalle:** 26 (secciones 1 a 26 de este documento — se sumó `AutomatizacionScreen` en la Fase 25; se restaron `ConfigurarBloqueoScreen` y `DesbloqueoScreen`, eliminadas junto con todo el bloqueo local por PIN/biométrico en la Fase 55).
 
-**Archivos `.dart` bajo `lib/presentation/screens/` (recursivo):** 41 al momento de esta actualización (Fase 25) — el conteo original de este documento (Fase de inventario inicial) fue 40 contra un enunciado que decía 39; ese desfase de entonces se dejó documentado tal cual en su momento, sin ajustar el número real. El archivo nuevo de la Fase 25 (`automatizacion_screen.dart`) explica el 40 → 41. Los 41 se reparten así: 27 documentados como pantallas reales (arriba) + 14 excluidos por ser widgets/formularios compartidos sin `Scaffold` ni ruta propia (mismos 14 de siempre, sin cambios — ver lista abajo). 27 + 14 = 41, cuadra con el recuento real.
+**Archivos `.dart` bajo `lib/presentation/screens/` (recursivo):** 41 al momento de esta actualización (Fase 55) — verificado de nuevo contra el sistema de archivos real, no asumido. Los 41 se reparten así: 26 documentados como pantallas reales (arriba) + 15 excluidos por ser widgets/formularios compartidos sin `Scaffold` ni ruta propia (ver lista abajo). 26 + 15 = 41, cuadra con el recuento real. De paso, esta revisión corrigió dos desfases menores que traía el documento desde antes de la Fase 55 y que se cancelaban entre sí en el total: el conteo de "documentadas" decía 27 cuando en realidad ya había 28 secciones (con `AutomatizacionScreen` como la 28°, no la 27°), y a la lista de excluidos le faltaba `alertas_tarjetas_credito_banner.dart` (Fase 29). Con ambos corregidos, antes de la Fase 55 eran 28 documentadas + 15 excluidos = 43 archivos — la Fase 55 borró 2 de los documentados (`ConfigurarBloqueoScreen`, `DesbloqueoScreen`), dejando 26 + 15 = 41.
 
-**Los 14 archivos NO documentados como pantalla independiente, con el motivo exacto de cada uno:**
+**Los 15 archivos NO documentados como pantalla independiente, con el motivo exacto de cada uno:**
 
 1. `lib/presentation/screens/dashboard/dashboard_fixtures.dart` — no es ni siquiera un widget, son constantes de datos de prueba (`cuentasDashboardFixture`, `resumenDashboardFixture`, `resumenDashboardVacioFixture`) usadas solo por `lib/main_dev.dart` para previsualizar el dashboard con datos falsos. Sin `Scaffold`, sin `build()`.
 2. `lib/presentation/screens/dashboard/widgets/accesos_rapidos_section.dart` — fila de 2 botones ("Gasto/ingreso", "Nueva deuda"), embebida únicamente dentro de `DashboardEmptyState`. Sin `Scaffold` ni ruta propia.
-3. `lib/presentation/screens/dashboard/widgets/cuentas_carrusel.dart` — la pila de tarjetas de cuenta (Fase 33: pila vertical con gesto de deslizar hacia arriba, antes un carrusel horizontal), embebida dentro del contenido de `DashboardScreen`. Sin `Scaffold` ni ruta propia; sus elementos se documentaron dentro de la entrada 14 (DashboardScreen).
-4. `lib/presentation/screens/dashboard/widgets/dashboard_empty_state.dart` — estado vacío del dashboard, mostrado condicionalmente por `DashboardScreen` (`resumen.estaVacio`). Sin `Scaffold` ni ruta propia; documentado como parte del estado "vacío" de la entrada 14.
+3. `lib/presentation/screens/dashboard/widgets/cuentas_carrusel.dart` — la pila de tarjetas de cuenta (Fase 33: pila vertical con gesto de deslizar hacia arriba, antes un carrusel horizontal), embebida dentro del contenido de `DashboardScreen`. Sin `Scaffold` ni ruta propia; sus elementos se documentaron dentro de la entrada 12 (DashboardScreen).
+4. `lib/presentation/screens/dashboard/widgets/dashboard_empty_state.dart` — estado vacío del dashboard, mostrado condicionalmente por `DashboardScreen` (`resumen.estaVacio`). Sin `Scaffold` ni ruta propia; documentado como parte del estado "vacío" de la entrada 12.
 5. `lib/presentation/screens/dashboard/widgets/deudas_activas_section.dart` — sección acordeón embebida en `DashboardScreen`. Sin `Scaffold` ni ruta propia.
 6. `lib/presentation/screens/dashboard/widgets/gasto_por_categoria_section.dart` — sección embebida en `DashboardScreen`. Sin `Scaffold` ni ruta propia.
 7. `lib/presentation/screens/dashboard/widgets/ingresos_gastos_section.dart` — sección embebida en `DashboardScreen`. Sin `Scaffold` ni ruta propia.
@@ -707,8 +665,9 @@ Ordenados de mayor a menor impacto para el usuario, agrupando patrones que se re
 9. `lib/presentation/screens/dashboard/widgets/saldo_total_card.dart` — tarjeta embebida en `DashboardScreen`. Sin `Scaffold` ni ruta propia.
 10. `lib/presentation/screens/dashboard/widgets/wallet_account_card.dart` — tarjeta de cuenta reutilizada en al menos 5 lugares distintos (pila de cuentas del dashboard, `MisCuentasScreen`, `CuentaFormulario` en modo edición, `OnboardingCuentasStep`, `OnboardingResumenStep`). Nunca se instancia con su propio `Scaffold` ni ruta.
 11. `lib/presentation/screens/onboarding/deuda_lista_item.dart` — fila compacta de una deuda, reutilizada en `OnboardingDeudasStep` y `OnboardingResumenStep`. Sin `Scaffold` ni ruta propia.
-12. `lib/presentation/screens/cuenta_formulario.dart` — formulario de cuenta (crear/editar/ajustar saldo/eliminar), reutilizado por `CuentaNuevaScreen` (entrada 16) y `OnboardingCuentasStep` (entrada 11). Nunca se instancia con su propio `Scaffold`; sus campos y botones se documentaron dentro de esas dos entradas, no como pantalla aparte.
-13. `lib/presentation/screens/deuda_formulario.dart` — formulario de deuda, reutilizado por `DeudaNuevaScreen` (entrada 20) y `OnboardingDeudasStep` (entrada 12). Mismo criterio que `cuenta_formulario.dart`.
-14. `lib/presentation/screens/categoria_formulario.dart` — formulario de categoría, reutilizado por `CategoriaNuevaScreen` (entrada 25) y por el modo rápido embebido (bottom sheet) de `TransaccionNuevaScreen` (entrada 17). Mismo criterio.
+12. `lib/presentation/screens/cuenta_formulario.dart` — formulario de cuenta (crear/editar/ajustar saldo/eliminar), reutilizado por `CuentaNuevaScreen` (entrada 14) y `OnboardingCuentasStep` (entrada 9). Nunca se instancia con su propio `Scaffold`; sus campos y botones se documentaron dentro de esas dos entradas, no como pantalla aparte.
+13. `lib/presentation/screens/deuda_formulario.dart` — formulario de deuda, reutilizado por `DeudaNuevaScreen` (entrada 18) y `OnboardingDeudasStep` (entrada 10). Mismo criterio que `cuenta_formulario.dart`.
+14. `lib/presentation/screens/categoria_formulario.dart` — formulario de categoría, reutilizado por `CategoriaNuevaScreen` (entrada 23) y por el modo rápido embebido (bottom sheet) de `TransaccionNuevaScreen` (entrada 15). Mismo criterio.
+15. `lib/presentation/screens/dashboard/widgets/alertas_tarjetas_credito_banner.dart` (Fase 29) — banner de alerta de corte/pago próximo para cuentas tipo crédito, embebido en `DashboardScreen`. Sin `Scaffold` ni ruta propia; documentado como parte de los elementos visibles de la entrada 12 (DashboardScreen) — faltaba en esta lista desde la Fase 29, corregido en esta revisión (Fase 55).
 
 Los 26 archivos restantes corresponden exactamente a las 26 pantallas documentadas en detalle arriba (incluyendo `RootScreen`, que aunque es principalmente un despachador reactivo sin UI propia persistente, sí tiene estados de carga/error reales y visibles que valía la pena catalogar, y los 5 pasos del onboarding + su contenedor, tal como pide el orden de pantallas del encargo).

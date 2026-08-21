@@ -148,26 +148,6 @@ class _FakePreferenciasRepository implements PreferenciasRepository {
       _apiKeyGemini = apiKey;
 
   @override
-  Future<String?> obtenerPinHash() async => null;
-
-  @override
-  Future<void> guardarPinHash(String hash) async {}
-
-  @override
-  Future<bool> obtenerBloqueoBiometricoActivo() async => false;
-
-  @override
-  Future<void> guardarBloqueoBiometricoActivo(bool activo) async {}
-
-  // El wizard de onboarding no es lo que este test ejercita — se simula
-  // que el usuario ya omitió configurar bloqueo, para no interponer
-  // `ConfigurarBloqueoScreen` antes de llegar a `RootScreen`.
-  @override
-  Future<bool> bloqueoOmitido() async => true;
-
-  @override
-  Future<void> marcarBloqueoOmitido() async {}
-  @override
   Future<bool> datosEnLaNube() async => true;
   @override
   Future<void> marcarDatosEnLaNube() async {}
@@ -191,7 +171,22 @@ class _FakePerfilRepository implements PerfilRepository {
   Future<void> guardarAvatarId(String avatarId) async {}
 
   @override
+  Future<String> subirFotoAvatar(
+    List<int> bytes, {
+    required String extension,
+  }) async => 'https://storage.example.com/avatares/prueba.$extension';
+
+  @override
   Future<void> guardarInstagram(String? instagram) async {}
+
+  @override
+  Future<void> guardarNombreCompleto(String? nombreCompleto) async {}
+
+  @override
+  Future<void> guardarCelular(String? celular) async {}
+
+  @override
+  Future<void> guardarOtraRedSocial(String? otraRedSocial) async {}
 }
 
 class _FakeAuthRepository implements AuthRepository {
@@ -212,6 +207,9 @@ class _FakeAuthRepository implements AuthRepository {
 
   @override
   Future<void> cerrarSesion() async {}
+
+  @override
+  Future<void> iniciarSesionConGoogle() async {}
 
   @override
   Future<void> eliminarCuenta() async {}

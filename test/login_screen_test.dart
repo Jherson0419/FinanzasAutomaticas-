@@ -11,6 +11,8 @@ class _FakeAuthRepository implements AuthRepository {
   String? emailRecibido;
   String? passwordRecibido;
   Object? errorAlIniciarSesion;
+  Object? errorAlIniciarSesionConGoogle;
+  int vecesIniciarSesionConGoogle = 0;
 
   @override
   bool get haySesionActiva => _haySesion;
@@ -37,6 +39,17 @@ class _FakeAuthRepository implements AuthRepository {
 
   @override
   Future<void> eliminarCuenta() async => _haySesion = false;
+
+  @override
+  Future<void> iniciarSesionConGoogle() async {
+    vecesIniciarSesionConGoogle++;
+    if (errorAlIniciarSesionConGoogle != null) {
+      throw errorAlIniciarSesionConGoogle!;
+    }
+    // A propósito NO pone `_haySesion = true` aquí: en la app real, la
+    // sesión llega después por el deep link, no como resultado directo de
+    // este método (ver `AuthRepository.iniciarSesionConGoogle`).
+  }
 }
 
 Future<_FakeAuthRepository> _pumpScreen(
@@ -175,4 +188,75 @@ void main() {
 
     expect(find.text('Confirmar contraseña'), findsOneWidget);
   });
+
+  testWidgets(
+    'Fase 54: tras crear una cuenta con éxito, vuelve al login y avisa '
+    'que hay que confirmar el correo (el deep link llega después, por '
+    'fuera de la app)',
+    (WidgetTester tester) async {
+      await _pumpScreen(tester);
+
+      await tester.tap(find.text('Crear cuenta'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Correo'),
+        'nuevo@example.com',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Contraseña'),
+        'secreto123',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Confirmar contraseña'),
+        'secreto123',
+      );
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, 'Crear cuenta'));
+      await tester.pumpAndSettle();
+
+      // De vuelta en LoginScreen (el formulario de registro ya no está).
+      expect(find.text('Confirmar contraseña'), findsNothing);
+      expect(
+        find.text('Revisa tu correo para confirmar tu cuenta.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'Fase 56: "Continuar con Google" invoca AuthRepository.iniciarSesionConGoogle '
+    'sin dejar la sesión activa de inmediato (llega después, por el deep link)',
+    (WidgetTester tester) async {
+      final fake = await _pumpScreen(tester);
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Continuar con Google'));
+      await tester.pumpAndSettle();
+
+      expect(fake.vecesIniciarSesionConGoogle, 1);
+      expect(fake.haySesionActiva, isFalse);
+    },
+  );
+
+  testWidgets(
+    'Fase 56: un error al continuar con Google muestra el mensaje traducido',
+    (WidgetTester tester) async {
+      final fake = await _pumpScreen(tester);
+      fake.errorAlIniciarSesionConGoogle = StateError(
+        'No se pudo continuar con Google. Revisa tu conexión a internet e '
+        'intenta de nuevo.',
+      );
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Continuar con Google'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'No se pudo continuar con Google. Revisa tu conexión a internet e '
+          'intenta de nuevo.',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
 }

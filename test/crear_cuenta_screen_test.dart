@@ -36,6 +36,9 @@ class _FakeAuthRepository implements AuthRepository {
   Future<void> cerrarSesion() async => _haySesion = false;
 
   @override
+  Future<void> iniciarSesionConGoogle() async {}
+
+  @override
   Future<void> eliminarCuenta() async => _haySesion = false;
 }
 

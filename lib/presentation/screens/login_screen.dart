@@ -19,6 +19,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _passwordVisible = false;
   bool _iniciandoSesion = false;
+  bool _iniciandoConGoogle = false;
 
   @override
   void dispose() {
@@ -50,6 +51,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ).showSnackBar(SnackBar(content: Text(mensajeDeError(error))));
     } finally {
       if (mounted) setState(() => _iniciandoSesion = false);
+    }
+  }
+
+  /// Fase 56 — a diferencia de `_iniciarSesion`, este método no deja la
+  /// sesión activa al terminar: solo abre el navegador con la pantalla de
+  /// Google. La sesión llega después, sola, por el deep link
+  /// (`AuthRepository.iniciarSesionConGoogle`) — `RootScreen` navega al
+  /// dashboard cuando eso pase, sin que esta pantalla tenga que esperarlo
+  /// ni invalidar nada a mano.
+  Future<void> _continuarConGoogle() async {
+    setState(() => _iniciandoConGoogle = true);
+    try {
+      await ref.read(authRepositoryProvider).iniciarSesionConGoogle();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(mensajeDeError(error))));
+    } finally {
+      if (mounted) setState(() => _iniciandoConGoogle = false);
     }
   }
 
@@ -125,13 +146,55 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         )
                       : const Text('Iniciar sesión'),
                 ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(child: Divider(color: theme.colorScheme.outlineVariant)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        'o',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    Expanded(child: Divider(color: theme.colorScheme.outlineVariant)),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                OutlinedButton.icon(
+                  onPressed: _iniciandoConGoogle ? null : _continuarConGoogle,
+                  icon: _iniciandoConGoogle
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        )
+                      : const Icon(Icons.login),
+                  label: const Text('Continuar con Google'),
+                ),
                 const SizedBox(height: 16),
                 TextButton(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const CrearCuentaScreen(),
-                    ),
-                  ),
+                  onPressed: () async {
+                    final cuentaCreada = await Navigator.of(context).push<bool>(
+                      MaterialPageRoute(
+                        builder: (context) => const CrearCuentaScreen(),
+                      ),
+                    );
+                    if (cuentaCreada == true && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Revisa tu correo para confirmar tu cuenta.',
+                          ),
+                        ),
+                      );
+                    }
+                  },
                   child: const Text('Crear cuenta'),
                 ),
               ],

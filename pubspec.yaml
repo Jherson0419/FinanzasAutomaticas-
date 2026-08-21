@@ -42,8 +42,7 @@ dependencies:
   shared_preferences: ^2.5.5
   http: ^1.2.0
   supabase_flutter: ^2.8.0
-  local_auth: ^2.3.0
-  crypto: ^3.0.6
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:
@@ -58,6 +57,16 @@ dev_dependencies:
   drift_dev: ^2.34.0
   build_runner: ^2.15.1
   flutter_launcher_icons: ^0.14.4
+  # Fase 56: solo para poder fijar `ImagePickerPlatform.instance` a un fake
+  # en los tests de "Mi perfil" — nunca se importa en `lib/`.
+  image_picker_platform_interface: ^2.10.0
+  # Fase 59: solo para poder fijar `UrlLauncherPlatform.instance` a un fake
+  # en el test de `iniciarSesionConGoogle` (verifica `redirectTo`/modo de
+  # lanzamiento sin abrir un navegador de verdad) — nunca se importa en
+  # `lib/`. `url_launcher` llega como dependencia transitiva de
+  # `supabase_flutter`, no directa de este proyecto.
+  url_launcher_platform_interface: ^2.3.2
+  plugin_platform_interface: ^2.1.8
 
 # Ícono de la app (Fase 35, reemplaza al de la Fase 22): logo nuevo de
 # Finzo — círculo con anillo orbital en colorSuccess (0xFF5DCAA5) sobre

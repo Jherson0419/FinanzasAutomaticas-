@@ -152,6 +152,51 @@ void main() {
         throwsFormatException,
       );
     });
+
+    test('Fase 57: aFila incluye ultimos_digitos', () {
+      final fila = repoAutenticado.aFila(
+        const Cuenta(
+          id: 'cta-1',
+          nombre: 'Visa BCP',
+          tipo: TipoCuenta.credito,
+          moneda: Moneda.pen,
+          saldoActual: -100,
+          lineaCredito: 2000,
+          diaCorte: 10,
+          diaPago: 20,
+          ultimosDigitos: '4821',
+        ),
+      );
+
+      expect(fila['ultimos_digitos'], '4821');
+    });
+
+    test('Fase 57: aDominio mapea ultimos_digitos cuando viene presente', () {
+      final cuenta = repo.aDominio({
+        'id': 'cta-1',
+        'user_id': 'user-1',
+        'nombre': 'Visa BCP',
+        'tipo': 'debito',
+        'moneda': 'PEN',
+        'saldo_actual': 100,
+        'ultimos_digitos': '4821',
+      });
+
+      expect(cuenta.ultimosDigitos, '4821');
+    });
+
+    test('Fase 57: aDominio deja ultimosDigitos en null si la columna no viene', () {
+      final cuenta = repo.aDominio({
+        'id': 'cta-1',
+        'user_id': 'user-1',
+        'nombre': 'Visa BCP',
+        'tipo': 'debito',
+        'moneda': 'PEN',
+        'saldo_actual': 100,
+      });
+
+      expect(cuenta.ultimosDigitos, isNull);
+    });
   });
 
   group('CategoriaRepositorySupabase', () {

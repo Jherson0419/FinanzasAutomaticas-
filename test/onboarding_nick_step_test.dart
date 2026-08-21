@@ -29,7 +29,22 @@ class _FakePerfilRepository implements PerfilRepository {
   Future<void> guardarAvatarId(String avatarId) async {}
 
   @override
+  Future<String> subirFotoAvatar(
+    List<int> bytes, {
+    required String extension,
+  }) async => 'https://storage.example.com/avatares/prueba.$extension';
+
+  @override
   Future<void> guardarInstagram(String? instagram) async {}
+
+  @override
+  Future<void> guardarNombreCompleto(String? nombreCompleto) async {}
+
+  @override
+  Future<void> guardarCelular(String? celular) async {}
+
+  @override
+  Future<void> guardarOtraRedSocial(String? otraRedSocial) async {}
 }
 
 Future<_FakePerfilRepository> _pumpNickStep(
@@ -37,6 +52,7 @@ Future<_FakePerfilRepository> _pumpNickStep(
   required TextEditingController controller,
   required VoidCallback onContinuar,
   Set<String> nicksTomados = const {},
+  String nombre = '',
 }) async {
   final fake = _FakePerfilRepository(nicksTomados: nicksTomados);
   await tester.pumpWidget(
@@ -46,6 +62,7 @@ Future<_FakePerfilRepository> _pumpNickStep(
         home: Scaffold(
           body: OnboardingNickStep(
             controller: controller,
+            nombre: nombre,
             onAtras: () {},
             onContinuar: onContinuar,
           ),
@@ -170,6 +187,92 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(fake.llamadasNickDisponible, 1);
+    },
+  );
+
+  testWidgets(
+    'Fase 56: sin nombre, no genera ninguna sugerencia de nick',
+    (WidgetTester tester) async {
+      final controller = TextEditingController();
+      await _pumpNickStep(tester, controller: controller, onContinuar: () {});
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sugerencias:'), findsNothing);
+      expect(find.byType(ActionChip), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'Fase 56: con nombre, genera 3 sugerencias de nick disponibles como chips',
+    (WidgetTester tester) async {
+      final controller = TextEditingController();
+      await _pumpNickStep(
+        tester,
+        controller: controller,
+        onContinuar: () {},
+        nombre: 'Jherson',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sugerencias:'), findsOneWidget);
+      expect(find.byType(ActionChip), findsNWidgets(3));
+    },
+  );
+
+  testWidgets(
+    'Fase 56: las sugerencias ya tomadas no se muestran como chip',
+    (WidgetTester tester) async {
+      final controller = TextEditingController();
+      // Con esta semilla fija en `generarSugerenciasNick` (no controlable
+      // desde el widget), lo verificable sin acoplarse a los valores
+      // exactos es: ninguna sugerencia mostrada aparece en `nicksTomados`.
+      // Se simula "todo tomado" para confirmar que en ese caso no se
+      // muestra ningún chip en absoluto.
+      await _pumpNickStep(
+        tester,
+        controller: controller,
+        onContinuar: () {},
+        nombre: 'Jherson',
+        nicksTomados: {
+          for (var n = 10; n < 1000; n++) ...{
+            'jherson$n',
+            'jherson_$n',
+          },
+        },
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sugerencias:'), findsNothing);
+      expect(find.byType(ActionChip), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'Fase 56: tocar una sugerencia autocompleta el campo y dispara su '
+    'verificación',
+    (WidgetTester tester) async {
+      final controller = TextEditingController();
+      await _pumpNickStep(
+        tester,
+        controller: controller,
+        onContinuar: () {},
+        nombre: 'Jherson',
+      );
+      await tester.pumpAndSettle();
+
+      final chip = tester.widget<ActionChip>(find.byType(ActionChip).first);
+      final textoChip = (chip.label as Text).data!; // "@jhersonNN"
+      final sugerencia = textoChip.substring(1); // sin el "@"
+
+      await tester.tap(find.byType(ActionChip).first);
+      await tester.pumpAndSettle();
+
+      expect(controller.text, sugerencia);
+      expect(find.text('Disponible'), findsOneWidget);
+      final boton = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Continuar'),
+      );
+      expect(boton.onPressed, isNotNull);
     },
   );
 }

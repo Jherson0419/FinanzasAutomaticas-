@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-/// Un avatar prediseñado (Fase 31): ícono simple sobre un círculo de color
-/// sólido — nada de ilustraciones, coherente con el resto del sistema de
-/// diseño (varios colores reutilizan la paleta de degradados de
-/// `wallet_card_colors.dart`, Fase 8). `id` es lo único que se persiste
-/// (`usuarios.avatar_id`); el ícono/color se resuelven siempre desde este
-/// catálogo, nunca se guardan sueltos.
+/// Un avatar prediseñado (Fase 31) — ícono simple sobre un círculo de color
+/// sólido. Fase 56: dejó de ser la forma principal de elegir avatar (ahora
+/// es una foto real, ver `AvatarCirculo` en `selector_avatar.dart`); este
+/// catálogo se conserva solo como respaldo visual para cuentas que todavía
+/// tengan guardado un id de este catálogo en `usuarios.avatar_id` en vez de
+/// una URL de foto.
 class AvatarOption {
   final String id;
   final IconData icono;

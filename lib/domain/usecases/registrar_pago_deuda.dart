@@ -43,6 +43,28 @@ class RegistrarPagoDeuda {
       throw StateError('La deuda "${deuda.nombreDeuda}" ya está pagada');
     }
 
+    // Pago secuencial obligatorio (Fase 58): solo aplica a `cuotasFijas` con
+    // un `numeroCuota` explícito y no retroactivo — un pago retroactivo
+    // (`cuentaId == null`) existe justamente para registrar historial pasado
+    // que pudo quedar desordenado, y `pagoLibre` no tiene cuotas numeradas.
+    if (deuda.estructuraPago == EstructuraPago.cuotasFijas &&
+        cuentaId != null &&
+        numeroCuota != null) {
+      final pagosExistentes = await _pagoDeudaRepository.obtenerPorDeuda(
+        deudaId,
+      );
+      final cronogramaActual = generarCronogramaCuotas(deuda, pagosExistentes);
+      for (final cuotaProgramada in cronogramaActual) {
+        if (cuotaProgramada.numero >= numeroCuota) break;
+        if (!cuotaProgramada.pagada) {
+          throw StateError(
+            'Debes pagar primero la cuota ${cuotaProgramada.numero} antes '
+            'de esta',
+          );
+        }
+      }
+    }
+
     var cuenta = cuentaId == null
         ? null
         : await _cuentaRepository.obtenerPorId(cuentaId);

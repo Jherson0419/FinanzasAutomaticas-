@@ -57,6 +57,14 @@ class WalletAccountCard extends StatelessWidget {
   Color _colorUso(double progreso) =>
       progreso >= 0.8 ? colorDanger : colorSuccess;
 
+  /// Etiqueta del tipo de cuenta, con los últimos 4 dígitos si están
+  /// configurados (Fase 57) — ej. "CRÉDITO •••• 4821".
+  String _labelTipoConDigitos() {
+    final base = labelTipoCuenta(cuenta.tipo).toUpperCase();
+    final digitos = cuenta.ultimosDigitos;
+    return digitos == null ? base : '$base  •••• $digitos';
+  }
+
   @override
   Widget build(BuildContext context) {
     final estilo = walletCardEstilos[cuenta.tipo]!;
@@ -105,7 +113,9 @@ class WalletAccountCard extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            labelTipoCuenta(cuenta.tipo).toUpperCase(),
+                            _labelTipoConDigitos(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: _estiloTipoLabel(10),
                           ),
                         ],
@@ -228,7 +238,9 @@ class WalletAccountCard extends StatelessWidget {
                     ),
                   const SizedBox(height: 2),
                   Text(
-                    labelTipoCuenta(cuenta.tipo).toUpperCase(),
+                    _labelTipoConDigitos(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: _estiloTipoLabel(11),
                   ),
                 ],

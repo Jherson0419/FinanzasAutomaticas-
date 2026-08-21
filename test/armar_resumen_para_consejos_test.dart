@@ -213,4 +213,103 @@ void main() {
     expect(volcado.contains('ACREEDOR_SECRETO_456'), isFalse);
     expect(volcado.contains('CUENTA_SECRETA_789'), isFalse);
   });
+
+  group('Fase 60 — tarjetas de crédito no cuentan como fondos disponibles', () {
+    test(
+      'una tarjeta de crédito con saldo negativo (usado) NO se suma a '
+      'saldoTotalPorMoneda, y se reporta aparte como obligación pendiente',
+      () async {
+        final debito = const Cuenta(
+          id: 'cta-debito',
+          nombre: 'Ahorros',
+          tipo: TipoCuenta.debito,
+          moneda: Moneda.pen,
+          saldoActual: 500,
+        );
+        final tarjeta = const Cuenta(
+          id: 'cta-credito',
+          nombre: 'Visa BCP',
+          tipo: TipoCuenta.credito,
+          moneda: Moneda.pen,
+          saldoActual: -800,
+          lineaCredito: 2000,
+          diaCorte: 10,
+          diaPago: 20,
+        );
+
+        final armarResumen = ArmarResumenParaConsejos(
+          deudaRepository: _FakeDeudaRepository([]),
+          transaccionRepository: _FakeTransaccionRepository([]),
+          categoriaRepository: _FakeCategoriaRepository([]),
+          cuentaRepository: _FakeCuentaRepository([debito, tarjeta]),
+        );
+
+        final resumen = await armarResumen();
+
+        // El saldo de la tarjeta (-800) NUNCA se resta ni se suma acá: el
+        // total solo refleja las cuentas de débito/efectivo/billetera.
+        expect(resumen.saldoTotalPorMoneda[Moneda.pen], 500);
+
+        expect(resumen.tarjetasCredito, hasLength(1));
+        final tarjetaResumen = resumen.tarjetasCredito.single;
+        expect(tarjetaResumen.montoUsado, 800);
+        expect(tarjetaResumen.lineaTotal, 2000);
+        expect(tarjetaResumen.creditoDisponible, 1200);
+        expect(tarjetaResumen.moneda, Moneda.pen);
+      },
+    );
+
+    test(
+      'una tarjeta sin uso (saldoActual >= 0) reporta montoUsado en 0 y '
+      'todo el crédito como disponible',
+      () async {
+        final tarjeta = const Cuenta(
+          id: 'cta-credito',
+          nombre: 'Visa BCP',
+          tipo: TipoCuenta.credito,
+          moneda: Moneda.pen,
+          saldoActual: 0,
+          lineaCredito: 2000,
+          diaCorte: 10,
+          diaPago: 20,
+        );
+
+        final armarResumen = ArmarResumenParaConsejos(
+          deudaRepository: _FakeDeudaRepository([]),
+          transaccionRepository: _FakeTransaccionRepository([]),
+          categoriaRepository: _FakeCategoriaRepository([]),
+          cuentaRepository: _FakeCuentaRepository([tarjeta]),
+        );
+
+        final resumen = await armarResumen();
+
+        expect(resumen.saldoTotalPorMoneda, isEmpty);
+        final tarjetaResumen = resumen.tarjetasCredito.single;
+        expect(tarjetaResumen.montoUsado, 0);
+        expect(tarjetaResumen.creditoDisponible, 2000);
+      },
+    );
+
+    test('sin ninguna tarjeta de crédito, tarjetasCredito queda vacío', () async {
+      final debito = const Cuenta(
+        id: 'cta-debito',
+        nombre: 'Ahorros',
+        tipo: TipoCuenta.debito,
+        moneda: Moneda.pen,
+        saldoActual: 500,
+      );
+
+      final armarResumen = ArmarResumenParaConsejos(
+        deudaRepository: _FakeDeudaRepository([]),
+        transaccionRepository: _FakeTransaccionRepository([]),
+        categoriaRepository: _FakeCategoriaRepository([]),
+        cuentaRepository: _FakeCuentaRepository([debito]),
+      );
+
+      final resumen = await armarResumen();
+
+      expect(resumen.tarjetasCredito, isEmpty);
+      expect(resumen.saldoTotalPorMoneda[Moneda.pen], 500);
+    });
+  });
 }

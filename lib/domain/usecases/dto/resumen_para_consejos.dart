@@ -36,6 +36,24 @@ class CategoriaMontoConsejo {
   });
 }
 
+/// Una tarjeta de crédito, reducida a lo relevante para consejos (Fase 60):
+/// lo ya usado de la línea es una **deuda propia**, nunca dinero disponible
+/// — ver la nota de `saldoTotalPorMoneda` más abajo. Sin identificar la
+/// cuenta (mismo criterio de anonimización que `DeudaParaConsejos`).
+class TarjetaCreditoParaConsejos {
+  final double montoUsado;
+  final double lineaTotal;
+  final double creditoDisponible;
+  final Moneda moneda;
+
+  const TarjetaCreditoParaConsejos({
+    required this.montoUsado,
+    required this.lineaTotal,
+    required this.creditoDisponible,
+    required this.moneda,
+  });
+}
+
 /// Resumen financiero **agregado y anonimizado**: sin nombres de cuentas,
 /// sin `nombreDeuda`/`nombreAcreedor`. Es lo único que sale de este
 /// dispositivo al pedir consejos financieros a Gemini.
@@ -43,12 +61,23 @@ class ResumenParaConsejos {
   final List<DeudaParaConsejos> deudasActivas;
   final List<CategoriaMontoConsejo> ingresosPorCategoriaMes;
   final List<CategoriaMontoConsejo> gastosPorCategoriaMes;
+
+  /// Solo cuentas de débito/efectivo/billetera (Fase 60) — el `saldoActual`
+  /// de una tarjeta de crédito NUNCA se suma aquí, aunque sea positivo:
+  /// una tarjeta no es una fuente de fondos propios, es una línea prestada
+  /// por el banco. Su información va aparte, en [tarjetasCredito].
   final Map<Moneda, double> saldoTotalPorMoneda;
+
+  /// Tarjetas de crédito con línea configurada (Fase 29/60), como
+  /// obligación pendiente — nunca como saldo disponible para gastar o para
+  /// pagar otras deudas.
+  final List<TarjetaCreditoParaConsejos> tarjetasCredito;
 
   const ResumenParaConsejos({
     required this.deudasActivas,
     required this.ingresosPorCategoriaMes,
     required this.gastosPorCategoriaMes,
     required this.saldoTotalPorMoneda,
+    this.tarjetasCredito = const [],
   });
 }

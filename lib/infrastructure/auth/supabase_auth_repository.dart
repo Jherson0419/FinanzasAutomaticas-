@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../config/supabase_config.dart';
 import '../../domain/repositories/auth_repository.dart';
 
 /// Adapter de `AuthRepository` sobre Supabase Auth. Traduce los errores
@@ -38,7 +39,11 @@ class SupabaseAuthRepository implements AuthRepository {
     required String password,
   }) async {
     try {
-      await _client.auth.signUp(email: email, password: password);
+      await _client.auth.signUp(
+        email: email,
+        password: password,
+        emailRedirectTo: authEmailRedirectUrl,
+      );
     } on AuthException catch (error) {
       debugPrint('SupabaseAuthRepository.crearCuenta: ${error.message}');
       throw StateError(_mensajeError(error, alIniciarSesion: false));
@@ -46,6 +51,42 @@ class SupabaseAuthRepository implements AuthRepository {
       debugPrint('SupabaseAuthRepository.crearCuenta: $error');
       throw StateError(
         'No se pudo crear la cuenta. Revisa tu conexión a internet e intenta de nuevo.',
+      );
+    }
+  }
+
+  /// Fase 56 — usa `signInWithOAuth` (parte de `supabase_flutter`, ya una
+  /// dependencia) en vez de un paquete nativo tipo `google_sign_in`: abre
+  /// el navegador externo del sistema con la pantalla de consentimiento de
+  /// Google, y Supabase redirige de vuelta a la app por
+  /// `authEmailRedirectUrl` (el mismo esquema `finzo://login-callback` que
+  /// ya escucha `SupabaseAuth` internamente desde la Fase 54) — nada de
+  /// integración nativa de Google adicional en el proyecto Xcode/Gradle.
+  /// Este método solo abre esa pantalla; no espera a que el login termine
+  /// (`haySesionActivaProvider` reacciona solo cuando la sesión llegue).
+  @override
+  Future<void> iniciarSesionConGoogle() async {
+    try {
+      final seAbrio = await _client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: authEmailRedirectUrl,
+        authScreenLaunchMode: LaunchMode.externalApplication,
+      );
+      if (!seAbrio) {
+        throw StateError(
+          'No se pudo abrir la pantalla de Google. Intenta de nuevo.',
+        );
+      }
+    } on AuthException catch (error) {
+      debugPrint('SupabaseAuthRepository.iniciarSesionConGoogle: ${error.message}');
+      throw StateError(_mensajeError(error, alIniciarSesion: true));
+    } on StateError {
+      rethrow;
+    } catch (error) {
+      debugPrint('SupabaseAuthRepository.iniciarSesionConGoogle: $error');
+      throw StateError(
+        'No se pudo continuar con Google. Revisa tu conexión a internet e '
+        'intenta de nuevo.',
       );
     }
   }

@@ -31,18 +31,6 @@ class _FakePreferenciasRepository implements PreferenciasRepository {
   @override
   Future<void> guardarTema(TemaApp tema) async {}
   @override
-  Future<String?> obtenerPinHash() async => null;
-  @override
-  Future<void> guardarPinHash(String hash) async {}
-  @override
-  Future<bool> obtenerBloqueoBiometricoActivo() async => false;
-  @override
-  Future<void> guardarBloqueoBiometricoActivo(bool activo) async {}
-  @override
-  Future<bool> bloqueoOmitido() async => false;
-  @override
-  Future<void> marcarBloqueoOmitido() async {}
-  @override
   Future<bool> datosEnLaNube() async => true;
   @override
   Future<void> marcarDatosEnLaNube() async {}

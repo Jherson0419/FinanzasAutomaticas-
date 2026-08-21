@@ -52,6 +52,7 @@ class _OnboardingFlowScreenState extends State<OnboardingFlowScreen> {
       case 2:
         return OnboardingNickStep(
           controller: _nickController,
+          nombre: _nombreController.text.trim(),
           onAtras: () => _irA(1),
           onContinuar: () => _irA(3),
         );

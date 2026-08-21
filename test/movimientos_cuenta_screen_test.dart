@@ -220,4 +220,28 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'Fase 60: sin concepto (vacío), muestra el nombre de la categoría en su '
+    'lugar',
+    (WidgetTester tester) async {
+      final sinConcepto = Transaccion(
+        id: 'tx-1',
+        cuentaId: 'cta-1',
+        categoriaId: 'cat-comida',
+        monto: 25,
+        moneda: Moneda.pen,
+        tipo: TipoTransaccion.gasto,
+        concepto: '',
+        metodoPago: MetodoPago.efectivo,
+        esRecurrente: false,
+        fuenteCaptura: FuenteCaptura.manual,
+        fecha: DateTime(2026, 3, 1),
+      );
+
+      await _pumpScreen(tester, transacciones: [sinConcepto]);
+
+      expect(find.text('Comida'), findsOneWidget);
+    },
+  );
 }

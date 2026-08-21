@@ -13,6 +13,14 @@ import 'dto/resumen_para_consejos.dart';
 /// Gemini directo (un solo turno, sin historial) — ese caso de uso
 /// desapareció junto con el flujo de "Generar consejos" de un botón único;
 /// esta clase es exactamente su método `_armarResumen()` extraído.
+///
+/// **Fase 60 — bug corregido:** antes, `saldoActual` de TODAS las cuentas
+/// (incluidas las de crédito) se sumaba en un solo "saldo total disponible".
+/// Como `saldoActual` de una tarjeta es negativo cuando tiene uso (Fase 57),
+/// Gemini no tenía forma de distinguir "esto es dinero mío" de "esto es una
+/// tarjeta con X ya gastado" — y llegó a sugerir usar una tarjeta para pagar
+/// otras deudas. Ahora las cuentas de crédito se excluyen por completo de
+/// `saldoTotalPorMoneda` y se reportan aparte en `tarjetasCredito`.
 class ArmarResumenParaConsejos {
   final DeudaRepository _deudaRepository;
   final TransaccionRepository _transaccionRepository;
@@ -47,8 +55,27 @@ class ArmarResumenParaConsejos {
     final cuentas = await _cuentaRepository.obtenerTodas();
     final categoriasPorId = {for (final c in categorias) c.id: c};
 
+    // Fase 60: las tarjetas de crédito NUNCA cuentan como fondos propios —
+    // se excluyen de `saldoTotalPorMoneda` (aunque su `saldoActual` esté en
+    // positivo) y se reportan aparte, como obligación pendiente.
     final saldoTotalPorMoneda = <Moneda, double>{};
+    final tarjetasCredito = <TarjetaCreditoParaConsejos>[];
     for (final cuenta in cuentas) {
+      if (cuenta.tipo == TipoCuenta.credito) {
+        final montoUsado = cuenta.saldoActual < 0
+            ? cuenta.saldoActual.abs()
+            : 0.0;
+        final lineaTotal = cuenta.lineaCredito ?? 0.0;
+        tarjetasCredito.add(
+          TarjetaCreditoParaConsejos(
+            montoUsado: montoUsado,
+            lineaTotal: lineaTotal,
+            creditoDisponible: lineaTotal - montoUsado,
+            moneda: cuenta.moneda,
+          ),
+        );
+        continue;
+      }
       saldoTotalPorMoneda.update(
         cuenta.moneda,
         (v) => v + cuenta.saldoActual,
@@ -82,6 +109,7 @@ class ArmarResumenParaConsejos {
       ingresosPorCategoriaMes: _aLista(ingresosAcumulado),
       gastosPorCategoriaMes: _aLista(gastosAcumulado),
       saldoTotalPorMoneda: saldoTotalPorMoneda,
+      tarjetasCredito: tarjetasCredito,
     );
   }
 

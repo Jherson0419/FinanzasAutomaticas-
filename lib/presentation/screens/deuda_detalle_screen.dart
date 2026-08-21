@@ -292,6 +292,11 @@ class _FilaCuota extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    // Fase 58: además del ícono y el color ya existentes, la cuota pagada
+    // se tacha — solo el número/monto de ESA cuota, no la fecha.
+    final decoracionSiPagada = cuota.pagada
+        ? TextDecoration.lineThrough
+        : TextDecoration.none;
 
     return Container(
       width: double.infinity,
@@ -310,6 +315,7 @@ class _FilaCuota extends StatelessWidget {
                   'Cuota #${cuota.numero}',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w600,
+                    decoration: decoracionSiPagada,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -324,7 +330,9 @@ class _FilaCuota extends StatelessWidget {
           ),
           Text(
             formatearMonto(cuota.montoEsperado, moneda),
-            style: theme.textTheme.bodyMedium,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              decoration: decoracionSiPagada,
+            ),
           ),
           const SizedBox(width: 12),
           Icon(

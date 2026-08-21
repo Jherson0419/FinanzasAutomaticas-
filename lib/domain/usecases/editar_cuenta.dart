@@ -28,6 +28,7 @@ class EditarCuenta {
     double? lineaCredito,
     int? diaCorte,
     int? diaPago,
+    String? ultimosDigitos,
   }) async {
     validarCamposDeCredito(
       tipo: tipo,
@@ -66,6 +67,7 @@ class EditarCuenta {
       lineaCredito: lineaCredito,
       diaCorte: diaCorte,
       diaPago: diaPago,
+      ultimosDigitos: ultimosDigitos,
     );
     await _cuentaRepository.actualizar(actualizada);
     return actualizada;

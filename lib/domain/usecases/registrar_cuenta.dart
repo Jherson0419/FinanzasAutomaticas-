@@ -20,6 +20,7 @@ class RegistrarCuenta {
     double? lineaCredito,
     int? diaCorte,
     int? diaPago,
+    String? ultimosDigitos,
   }) async {
     validarCamposDeCredito(
       tipo: tipo,
@@ -37,6 +38,7 @@ class RegistrarCuenta {
       lineaCredito: lineaCredito,
       diaCorte: diaCorte,
       diaPago: diaPago,
+      ultimosDigitos: ultimosDigitos,
     );
 
     await _cuentaRepository.crear(cuenta);

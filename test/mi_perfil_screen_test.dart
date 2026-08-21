@@ -1,6 +1,9 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 
 import 'package:finanzas_automaticas/domain/entities/categoria.dart';
 import 'package:finanzas_automaticas/domain/entities/cuenta.dart';
@@ -48,18 +51,6 @@ class _FakePreferenciasRepository implements PreferenciasRepository {
   @override
   Future<void> guardarApiKeyGemini(String apiKey) async {}
   @override
-  Future<String?> obtenerPinHash() async => null;
-  @override
-  Future<void> guardarPinHash(String hash) async {}
-  @override
-  Future<bool> obtenerBloqueoBiometricoActivo() async => false;
-  @override
-  Future<void> guardarBloqueoBiometricoActivo(bool activo) async {}
-  @override
-  Future<bool> bloqueoOmitido() async => false;
-  @override
-  Future<void> marcarBloqueoOmitido() async {}
-  @override
   Future<bool> datosEnLaNube() async => true;
   @override
   Future<void> marcarDatosEnLaNube() async {}
@@ -70,16 +61,35 @@ class _FakePreferenciasRepository implements PreferenciasRepository {
 }
 
 class _FakePerfilRepository implements PerfilRepository {
-  _FakePerfilRepository({String? nick, this.avatarId, this.instagram})
-    : _nick = nick;
+  _FakePerfilRepository({
+    String? nick,
+    this.avatarId,
+    this.instagram,
+    this.nombreCompleto,
+    this.celular,
+    this.otraRedSocial,
+  }) : _nick = nick;
 
   String? _nick;
   String? avatarId;
   String? instagram;
+  String? nombreCompleto;
+  String? celular;
+  String? otraRedSocial;
+
+  /// Extensión con la que se llamó `subirFotoAvatar` por última vez — para
+  /// verificar en los tests que `_extensionDeFoto` la dedujo bien.
+  String? extensionSubida;
 
   @override
-  Future<Perfil> obtenerPerfil() async =>
-      Perfil(nick: _nick, avatarId: avatarId, instagram: instagram);
+  Future<Perfil> obtenerPerfil() async => Perfil(
+    nick: _nick,
+    avatarId: avatarId,
+    instagram: instagram,
+    nombreCompleto: nombreCompleto,
+    celular: celular,
+    otraRedSocial: otraRedSocial,
+  );
 
   @override
   Future<bool> nickDisponible(String nick) async => true;
@@ -92,8 +102,43 @@ class _FakePerfilRepository implements PerfilRepository {
       this.avatarId = avatarId;
 
   @override
+  Future<String> subirFotoAvatar(
+    List<int> bytes, {
+    required String extension,
+  }) async {
+    extensionSubida = extension;
+    return 'https://storage.example.com/avatares/usuario-de-prueba/avatar.$extension';
+  }
+
+  @override
   Future<void> guardarInstagram(String? instagram) async =>
       this.instagram = instagram;
+
+  @override
+  Future<void> guardarNombreCompleto(String? nombreCompleto) async =>
+      this.nombreCompleto = nombreCompleto;
+
+  @override
+  Future<void> guardarCelular(String? celular) async => this.celular = celular;
+
+  @override
+  Future<void> guardarOtraRedSocial(String? otraRedSocial) async =>
+      this.otraRedSocial = otraRedSocial;
+}
+
+/// Fake de `ImagePickerPlatform` (Fase 56) — el punto de extensión oficial
+/// del paquete `image_picker` para no depender de canales de plataforma
+/// reales en tests. [archivoAEntregar] es lo que "elige" el usuario
+/// simulado en la galería; `null` simula cerrar el selector sin elegir
+/// nada.
+class _FakeImagePickerPlatform extends ImagePickerPlatform {
+  XFile? archivoAEntregar;
+
+  @override
+  Future<XFile?> getImageFromSource({
+    required ImageSource source,
+    ImagePickerOptions options = const ImagePickerOptions(),
+  }) async => archivoAEntregar;
 }
 
 /// Repositorios financieros "vacíos" — a `MiPerfilScreen` no le importa qué
@@ -198,6 +243,8 @@ class _FakeAuthRepository implements AuthRepository {
   @override
   Future<void> cerrarSesion() async => _haySesion = false;
   @override
+  Future<void> iniciarSesionConGoogle() async {}
+  @override
   Future<void> eliminarCuenta() async {
     eliminarCuentaLlamado = true;
     if (fallaAlEliminar) {
@@ -301,6 +348,25 @@ Future<_FakePerfilRepository> _pumpPerfilScreen(
   return perfilRepo;
 }
 
+/// Fase 56: reemplaza `ImagePickerPlatform.instance` por un fake que
+/// entrega [archivoAEntregar] antes de pumpear la pantalla, y lo restaura
+/// al terminar el test — mismo patrón oficial de `image_picker` para
+/// probar sin canales de plataforma reales.
+Future<_FakePerfilRepository> _pumpPerfilScreenConFotoElegida(
+  WidgetTester tester, {
+  required XFile? archivoAEntregar,
+}) async {
+  final platformOriginal = ImagePickerPlatform.instance;
+  ImagePickerPlatform.instance = _FakeImagePickerPlatform()
+    ..archivoAEntregar = archivoAEntregar;
+  addTearDown(() => ImagePickerPlatform.instance = platformOriginal);
+
+  return _pumpPerfilScreen(
+    tester,
+    perfil: _FakePerfilRepository(nick: 'jherson_v'),
+  );
+}
+
 void main() {
   testWidgets(
     'precarga el nombre existente, y guardarlo invoca al repositorio',
@@ -364,10 +430,10 @@ void main() {
         perfil: _FakePerfilRepository(nick: 'jherson_v', avatarId: 'rayo'),
       );
 
-      final avatarMostrado = tester
-          .widget<AvatarCirculo>(find.byType(AvatarCirculo).first)
-          .avatar;
-      expect(avatarMostrado.id, 'rayo');
+      final circulo = tester.widget<AvatarCirculo>(
+        find.byType(AvatarCirculo).first,
+      );
+      expect(circulo.avatarId, 'rayo');
     },
   );
 
@@ -394,36 +460,44 @@ void main() {
     },
   );
 
-  testWidgets('elegir un avatar del selector guarda el avatarId correcto', (
-    WidgetTester tester,
-  ) async {
-    final perfilRepo = await _pumpPerfilScreen(
-      tester,
-      perfil: _FakePerfilRepository(nick: 'jherson_v'),
-    );
+  testWidgets(
+    'tocar el avatar abre la galería, sube la foto elegida y guarda la URL '
+    'devuelta',
+    (WidgetTester tester) async {
+      final perfilRepo = await _pumpPerfilScreenConFotoElegida(
+        tester,
+        archivoAEntregar: XFile.fromData(
+          Uint8List.fromList([1, 2, 3]),
+          path: 'foto.jpg',
+          mimeType: 'image/jpeg',
+        ),
+      );
 
-    await tester.tap(find.byType(AvatarCirculo).first);
-    await tester.pumpAndSettle();
+      await tester.tap(find.byType(AvatarCirculo).first);
+      await tester.pumpAndSettle();
 
-    expect(find.text('Elige tu avatar'), findsOneWidget);
+      expect(perfilRepo.extensionSubida, 'jpg');
+      expect(
+        perfilRepo.avatarId,
+        'https://storage.example.com/avatares/usuario-de-prueba/avatar.jpg',
+      );
+    },
+  );
 
-    // El grid tiene un `InkWell` por avatar — tocar el segundo elige el
-    // segundo `AvatarOption` del catálogo (`avataresDisponibles[1]`).
-    // Se busca dentro de `SelectorAvatarGrid` en vez de en toda la
-    // pantalla porque `MiPerfilScreen` sigue montada detrás del bottom
-    // sheet y sus propios `ListTile` también son `InkWell`.
-    await tester.tap(
-      find
-          .descendant(
-            of: find.byType(SelectorAvatarGrid),
-            matching: find.byType(InkWell),
-          )
-          .at(1),
-    );
-    await tester.pumpAndSettle();
+  testWidgets(
+    'si el usuario cierra la galería sin elegir nada, el avatar no cambia',
+    (WidgetTester tester) async {
+      final perfilRepo = await _pumpPerfilScreenConFotoElegida(
+        tester,
+        archivoAEntregar: null,
+      );
 
-    expect(perfilRepo.avatarId, 'cohete');
-  });
+      await tester.tap(find.byType(AvatarCirculo).first);
+      await tester.pumpAndSettle();
+
+      expect(perfilRepo.avatarId, isNull);
+    },
+  );
 
   testWidgets('guardar Instagram invoca a PerfilRepository.guardarInstagram', (
     WidgetTester tester,
@@ -442,6 +516,84 @@ void main() {
 
     expect(perfilRepo.instagram, '@jherson.finanzas');
   });
+
+  testWidgets(
+    'Fase 56: precarga nombre completo/celular/otra red social ya '
+    'guardados, y guardarlos invoca a PerfilRepository',
+    (WidgetTester tester) async {
+      final perfilRepo = await _pumpPerfilScreen(
+        tester,
+        perfil: _FakePerfilRepository(
+          nick: 'jherson_v',
+          nombreCompleto: 'Jherson Vásquez Castillo',
+          celular: '+51987654321',
+          otraRedSocial: '@jherson_tt',
+        ),
+      );
+
+      expect(
+        tester
+            .widget<TextFormField>(
+              find.widgetWithText(TextFormField, 'Nombre completo (opcional)'),
+            )
+            .controller
+            ?.text,
+        'Jherson Vásquez Castillo',
+      );
+      expect(
+        tester
+            .widget<TextFormField>(
+              find.widgetWithText(TextFormField, 'Celular (opcional)'),
+            )
+            .controller
+            ?.text,
+        '+51987654321',
+      );
+      expect(
+        tester
+            .widget<TextFormField>(
+              find.widgetWithText(TextFormField, 'Otra red social (opcional)'),
+            )
+            .controller
+            ?.text,
+        '@jherson_tt',
+      );
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Nombre completo (opcional)'),
+        'Jherson V. C.',
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Guardar'));
+      await tester.pumpAndSettle();
+
+      expect(perfilRepo.nombreCompleto, 'Jherson V. C.');
+      expect(perfilRepo.celular, '+51987654321');
+      expect(perfilRepo.otraRedSocial, '@jherson_tt');
+    },
+  );
+
+  testWidgets(
+    'Fase 56: un celular con formato inválido muestra error inline y '
+    'deshabilita Guardar',
+    (WidgetTester tester) async {
+      await _pumpPerfilScreen(
+        tester,
+        perfil: _FakePerfilRepository(nick: 'jherson_v'),
+      );
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Celular (opcional)'),
+        'no-es-un-numero',
+      );
+      await tester.pump();
+
+      expect(find.text('Formato de celular inválido'), findsOneWidget);
+      final boton = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Guardar'),
+      );
+      expect(boton.onPressed, isNull);
+    },
+  );
 
   testWidgets('el selector de Apariencia guarda el TemaApp elegido', (
     WidgetTester tester,

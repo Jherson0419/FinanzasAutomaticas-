@@ -84,6 +84,7 @@ class CuentaRepositorySupabase implements CuentaRepository {
       'linea_credito': cuenta.lineaCredito,
       'dia_corte': cuenta.diaCorte,
       'dia_pago': cuenta.diaPago,
+      'ultimos_digitos': cuenta.ultimosDigitos,
     };
   }
 
@@ -98,6 +99,7 @@ class CuentaRepositorySupabase implements CuentaRepository {
       lineaCredito: (fila['linea_credito'] as num?)?.toDouble(),
       diaCorte: fila['dia_corte'] as int?,
       diaPago: fila['dia_pago'] as int?,
+      ultimosDigitos: fila['ultimos_digitos'] as String?,
     );
   }
 }

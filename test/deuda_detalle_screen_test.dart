@@ -162,4 +162,45 @@ void main() {
       expect(find.text('Pagos registrados'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'Fase 58: una cuota pagada se muestra tachada, la pendiente no',
+    (WidgetTester tester) async {
+      final deuda = Deuda(
+        id: 'd3',
+        nombreDeuda: 'Compra a cuotas',
+        tipoDeuda: TipoDeuda.compraCuotas,
+        tipoAcreedor: TipoAcreedor.comercio,
+        nombreAcreedor: 'Falabella',
+        moneda: Moneda.pen,
+        montoTotal: 300,
+        montoPagado: 100,
+        tieneInteres: false,
+        estructuraPago: EstructuraPago.cuotasFijas,
+        numeroCuotasTotal: 3,
+        numeroCuotasPagadas: 1,
+        montoCuota: 100,
+        periodicidadCuotas: PeriodicidadCuota.mensual,
+        fechaInicio: DateTime(2026, 1, 1),
+        enMora: false,
+        estado: EstadoDeuda.activa,
+      );
+      final pagoCuota1 = PagoDeuda(
+        id: 'p1',
+        deudaId: 'd3',
+        cuentaId: 'cta-1',
+        montoPagado: 100,
+        fechaPago: DateTime(2026, 1, 1),
+        numeroCuota: 1,
+      );
+
+      await _pumpScreen(tester, deuda: deuda, pagos: [pagoCuota1]);
+
+      final numeroCuota1 = tester.widget<Text>(find.text('Cuota #1'));
+      expect(numeroCuota1.style?.decoration, TextDecoration.lineThrough);
+
+      final numeroCuota2 = tester.widget<Text>(find.text('Cuota #2'));
+      expect(numeroCuota2.style?.decoration, isNot(TextDecoration.lineThrough));
+    },
+  );
 }

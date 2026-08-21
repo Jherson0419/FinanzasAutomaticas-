@@ -152,4 +152,36 @@ void main() {
       expect(alertas.single.fecha, proximaFecha(diaCorte, hoySinHora));
     },
   );
+
+  test(
+    'Fase 57: un diaCorte que ya pasó este mes avanza solo a la próxima '
+    'ocurrencia (mes siguiente) sin que nadie reescriba la cuenta — misma '
+    '`diaCorte` guardada, resultado distinto según pase el tiempo',
+    () async {
+      final hoy = DateTime.now();
+      // Si hoy es el día 1, no hay ningún día "ya pasado" distinto de hoy
+      // mismo dentro de este mes — se cae al caso "vence hoy" (0 días),
+      // ya cubierto por el test de "pago cuando el día es hoy" de arriba.
+      final diaCorteQueYaPaso = hoy.day > 1 ? hoy.day - 1 : hoy.day;
+      final repo = _FakeCuentaRepository([
+        _tarjeta(id: 't1', diaCorte: diaCorteQueYaPaso),
+      ]);
+
+      final alertas = await ObtenerAlertasTarjetasCredito(
+        cuentaRepository: repo,
+      )();
+
+      final hoySinHora = DateTime(hoy.year, hoy.month, hoy.day);
+      final proxima = proximaFecha(diaCorteQueYaPaso, hoySinHora);
+
+      if (hoy.day > 1) {
+        // El día ya pasó este mes: `proximaFecha` lo movió sola al mes
+        // siguiente (fuera del umbral de 3 días) — nadie tocó `diaCorte`.
+        expect(proxima.month == hoySinHora.month, isFalse);
+        expect(alertas, isEmpty);
+      } else {
+        expect(alertas.single.diasRestantes, 0);
+      }
+    },
+  );
 }

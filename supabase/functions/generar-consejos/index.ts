@@ -42,7 +42,10 @@ const INSTRUCCION_SISTEMA =
   'Responde siempre en español, con un tono cercano y conversacional (como ' +
   'un asesor de confianza, no un documento formal), en mensajes breves y ' +
   'concretos. No uses markdown. No repitas datos que el usuario ya te dio ' +
-  'salvo que ayude a tu respuesta.';
+  'salvo que ayude a tu respuesta. El monto usado de una tarjeta de ' +
+  'crédito es una deuda, nunca sugieras usarlo como fuente de dinero para ' +
+  'pagar otras deudas u otros gastos — solo se puede usar crédito ' +
+  'disponible para nuevas compras, nunca para pagar deudas existentes.';
 
 interface DeudaParaConsejos {
   tipoDeuda: string;
@@ -58,11 +61,22 @@ interface CategoriaMontoConsejo {
   moneda: string;
 }
 
+// Fase 60: el monto usado de una tarjeta es una deuda propia, nunca dinero
+// disponible — se reporta aparte de `saldoTotalPorMoneda` (que ya viene sin
+// cuentas de crédito desde el cliente, ver `ArmarResumenParaConsejos`).
+interface TarjetaCreditoParaConsejos {
+  montoUsado: number;
+  lineaTotal: number;
+  creditoDisponible: number;
+  moneda: string;
+}
+
 interface ResumenParaConsejos {
   deudasActivas: DeudaParaConsejos[];
   ingresosPorCategoriaMes: CategoriaMontoConsejo[];
   gastosPorCategoriaMes: CategoriaMontoConsejo[];
   saldoTotalPorMoneda: Record<string, number>;
+  tarjetasCredito?: TarjetaCreditoParaConsejos[];
 }
 
 interface BodyPeticion {
@@ -251,7 +265,7 @@ function construirPrimerMensaje(resumen: ResumenParaConsejos): string {
   escribirCategorias(lineas, resumen.ingresosPorCategoriaMes);
   lineas.push('', 'Mis gastos del mes por categoría:');
   escribirCategorias(lineas, resumen.gastosPorCategoriaMes);
-  lineas.push('', 'Mi saldo total disponible:');
+  lineas.push('', 'Mi saldo total disponible (sin tarjetas de crédito):');
 
   const monedas = Object.keys(resumen.saldoTotalPorMoneda);
   if (monedas.length === 0) {
@@ -261,6 +275,21 @@ function construirPrimerMensaje(resumen: ResumenParaConsejos): string {
       lineas.push(
         `- ${resumen.saldoTotalPorMoneda[moneda].toFixed(2)} ` +
           `${moneda.toUpperCase()}`,
+      );
+    }
+  }
+
+  lineas.push('', 'Mis tarjetas de crédito (esto NO es dinero disponible, es deuda):');
+  const tarjetas = resumen.tarjetasCredito ?? [];
+  if (tarjetas.length === 0) {
+    lineas.push('- Ninguna');
+  } else {
+    for (const tarjeta of tarjetas) {
+      lineas.push(
+        `- Usado: ${tarjeta.montoUsado.toFixed(2)} ${tarjeta.moneda.toUpperCase()} ` +
+          `(deuda) de una línea de ${tarjeta.lineaTotal.toFixed(2)} ` +
+          `${tarjeta.moneda.toUpperCase()}, crédito disponible: ` +
+          `${tarjeta.creditoDisponible.toFixed(2)} ${tarjeta.moneda.toUpperCase()}`,
       );
     }
   }

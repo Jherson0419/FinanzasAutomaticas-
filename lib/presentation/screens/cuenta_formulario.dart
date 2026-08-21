@@ -42,6 +42,7 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
   final _lineaCreditoController = TextEditingController();
   final _diaCorteController = TextEditingController();
   final _diaPagoController = TextEditingController();
+  final _ultimosDigitosController = TextEditingController();
 
   TipoCuenta _tipo = TipoCuenta.efectivo;
   Moneda _moneda = Moneda.pen;
@@ -60,11 +61,26 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
     _lineaCreditoController.dispose();
     _diaCorteController.dispose();
     _diaPagoController.dispose();
+    _ultimosDigitosController.dispose();
     super.dispose();
   }
 
+  static final _regexUltimosDigitos = RegExp(r'^[0-9]{4}$');
+
   double? _parseDouble(String texto) =>
       double.tryParse(texto.trim().replaceAll(',', '.'));
+
+  /// `null` (campo vacío) siempre es válido — el campo es opcional. Si se
+  /// llena, debe ser exactamente 4 dígitos numéricos (Fase 57).
+  bool get _ultimosDigitosValidos {
+    final texto = _ultimosDigitosController.text.trim();
+    return texto.isEmpty || _regexUltimosDigitos.hasMatch(texto);
+  }
+
+  String? get _ultimosDigitosAGuardar {
+    final texto = _ultimosDigitosController.text.trim();
+    return texto.isEmpty ? null : texto;
+  }
 
   int? _parseDiaDelMes(String texto) {
     final dia = int.tryParse(texto.trim());
@@ -84,6 +100,7 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
   bool get _esValido {
     if (_nombreController.text.trim().isEmpty) return false;
     if (!_camposDeCreditoValidos) return false;
+    if (!_ultimosDigitosValidos) return false;
     if (_editando) return true;
     return _parseDouble(_saldoController.text) != null;
   }
@@ -98,6 +115,7 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
         cuenta.lineaCredito?.toStringAsFixed(2) ?? '';
     _diaCorteController.text = cuenta.diaCorte?.toString() ?? '';
     _diaPagoController.text = cuenta.diaPago?.toString() ?? '';
+    _ultimosDigitosController.text = cuenta.ultimosDigitos ?? '';
   }
 
   Future<void> _guardar() async {
@@ -114,6 +132,7 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
       final diaPago = _esCredito
           ? _parseDiaDelMes(_diaPagoController.text)
           : null;
+      final ultimosDigitos = _ultimosDigitosAGuardar;
 
       if (_editando) {
         await ref.read(editarCuentaProvider)(
@@ -124,17 +143,27 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
           lineaCredito: lineaCredito,
           diaCorte: diaCorte,
           diaPago: diaPago,
+          ultimosDigitos: ultimosDigitos,
         );
         ref.invalidate(cuentaPorIdProvider(widget.cuentaId!));
       } else {
+        // Para tarjetas de crédito el campo se muestra como "Saldo
+        // utilizado" (Fase 57): el número que ingresa el usuario es un
+        // monto ya gastado de la línea, que en el modelo se representa
+        // como `saldoActual` negativo (Fase 29).
+        final saldoIngresado = _parseDouble(_saldoController.text)!;
+        final saldoInicial = _esCredito
+            ? -saldoIngresado.abs()
+            : saldoIngresado;
         await ref.read(registrarCuentaProvider)(
           nombre: _nombreController.text.trim(),
           tipo: _tipo,
           moneda: _moneda,
-          saldoInicial: _parseDouble(_saldoController.text)!,
+          saldoInicial: saldoInicial,
           lineaCredito: lineaCredito,
           diaCorte: diaCorte,
           diaPago: diaPago,
+          ultimosDigitos: ultimosDigitos,
         );
       }
       ref.invalidate(cuentasProvider);
@@ -147,6 +176,7 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
         _lineaCreditoController.clear();
         _diaCorteController.clear();
         _diaPagoController.clear();
+        _ultimosDigitosController.clear();
         setState(() {
           _tipo = TipoCuenta.efectivo;
           _moneda = Moneda.pen;
@@ -253,6 +283,8 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
           ),
           onChanged: (_) => setState(() {}),
         ),
+        const SizedBox(height: 16),
+        _campoUltimosDigitos(),
         const SizedBox(height: 16),
         DropdownButtonFormField<TipoCuenta>(
           initialValue: _tipo,
@@ -373,6 +405,26 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
     );
   }
 
+  /// Últimos 4 dígitos (Fase 57): opcional para cualquier tipo de cuenta,
+  /// solo se usa para mostrarla en `WalletAccountCard` (ej. "•••• 4821").
+  Widget _campoUltimosDigitos() {
+    return TextFormField(
+      controller: _ultimosDigitosController,
+      keyboardType: TextInputType.number,
+      maxLength: 4,
+      decoration: InputDecoration(
+        labelText: 'Últimos 4 dígitos (opcional)',
+        hintText: '1234',
+        border: const OutlineInputBorder(),
+        counterText: '',
+        errorText: _ultimosDigitosValidos
+            ? null
+            : 'Deben ser exactamente 4 dígitos numéricos.',
+      ),
+      onChanged: (_) => setState(() {}),
+    );
+  }
+
   /// Campos exclusivos de cuentas tipo crédito (línea, día de corte, día de
   /// pago), con transición animada — mismo patrón que los campos
   /// condicionales de `deuda_formulario.dart` (`AnimatedSize`). En modo
@@ -451,6 +503,8 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 16),
+        _campoUltimosDigitos(),
+        const SizedBox(height: 16),
         DropdownButtonFormField<TipoCuenta>(
           initialValue: _tipo,
           decoration: const InputDecoration(
@@ -482,7 +536,10 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
           controller: _saldoController,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(
-            labelText: 'Saldo inicial',
+            // Para crédito, el número que ingresa el usuario es lo que ya
+            // gastó de la línea, no el saldo con el que "arranca" la
+            // cuenta — se guarda como `saldoActual` negativo (Fase 57).
+            labelText: _esCredito ? 'Saldo utilizado' : 'Saldo inicial',
             prefixText: '${simboloMoneda(_moneda)} ',
             border: const OutlineInputBorder(),
           ),

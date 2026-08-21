@@ -15,6 +15,8 @@ class Cuentas extends Table {
   RealColumn get lineaCredito => real().nullable()();
   IntColumn get diaCorte => integer().nullable()();
   IntColumn get diaPago => integer().nullable()();
+  // Últimos 4 dígitos de la tarjeta/cuenta (Fase 57), solo visual.
+  TextColumn get ultimosDigitos => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -108,7 +110,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.connection);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -156,6 +158,10 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(cuentas, cuentas.lineaCredito);
         await m.addColumn(cuentas, cuentas.diaCorte);
         await m.addColumn(cuentas, cuentas.diaPago);
+      }
+      if (from < 7) {
+        // Últimos 4 dígitos de la cuenta (Fase 57) — nullable, solo visual.
+        await m.addColumn(cuentas, cuentas.ultimosDigitos);
       }
     },
   );

@@ -20,6 +20,11 @@ class Cuenta {
   final int? diaCorte;
   final int? diaPago;
 
+  /// Últimos 4 dígitos de la tarjeta/cuenta (Fase 57), solo para mostrarlos
+  /// en la UI (ej. "•••• 4821") — no identifica la cuenta ni se usa en
+  /// ninguna validación. Opcional para todos los tipos de cuenta.
+  final String? ultimosDigitos;
+
   const Cuenta({
     required this.id,
     required this.nombre,
@@ -29,6 +34,7 @@ class Cuenta {
     this.lineaCredito,
     this.diaCorte,
     this.diaPago,
+    this.ultimosDigitos,
   });
 
   /// Nota: como con `Deuda.copyWith` (ver `INFORME_PROYECTO.md`), el patrón
@@ -44,6 +50,7 @@ class Cuenta {
     double? lineaCredito,
     int? diaCorte,
     int? diaPago,
+    String? ultimosDigitos,
   }) {
     return Cuenta(
       id: id,
@@ -54,6 +61,7 @@ class Cuenta {
       lineaCredito: lineaCredito ?? this.lineaCredito,
       diaCorte: diaCorte ?? this.diaCorte,
       diaPago: diaPago ?? this.diaPago,
+      ultimosDigitos: ultimosDigitos ?? this.ultimosDigitos,
     );
   }
 }
