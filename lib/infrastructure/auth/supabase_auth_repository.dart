@@ -94,6 +94,51 @@ class SupabaseAuthRepository implements AuthRepository {
   @override
   Future<void> cerrarSesion() => _client.auth.signOut();
 
+  @override
+  Future<void> enviarLinkRecuperacion({required String email}) async {
+    try {
+      await _client.auth.resetPasswordForEmail(
+        email,
+        redirectTo: authResetPasswordRedirectUrl,
+      );
+    } on AuthException catch (error) {
+      debugPrint(
+        'SupabaseAuthRepository.enviarLinkRecuperacion: ${error.message}',
+      );
+      throw StateError(
+        'No se pudo enviar el link de recuperación: ${error.message}',
+      );
+    } catch (error) {
+      debugPrint('SupabaseAuthRepository.enviarLinkRecuperacion: $error');
+      throw StateError(
+        'No se pudo enviar el link de recuperación. Revisa tu conexión a '
+        'internet e intenta de nuevo.',
+      );
+    }
+  }
+
+  @override
+  Future<void> actualizarContrasena({required String nuevaContrasena}) async {
+    try {
+      await _client.auth.updateUser(
+        UserAttributes(password: nuevaContrasena),
+      );
+    } on AuthException catch (error) {
+      debugPrint(
+        'SupabaseAuthRepository.actualizarContrasena: ${error.message}',
+      );
+      throw StateError(
+        'No se pudo actualizar la contraseña: ${error.message}',
+      );
+    } catch (error) {
+      debugPrint('SupabaseAuthRepository.actualizarContrasena: $error');
+      throw StateError(
+        'No se pudo actualizar la contraseña. Revisa tu conexión a internet '
+        'e intenta de nuevo.',
+      );
+    }
+  }
+
   /// El SDK de `supabase_flutter` no expone una forma de que un usuario
   /// borre su propia cuenta de autenticación: `auth.admin.deleteUser`
   /// existe en el paquete, pero solo funciona con un cliente inicializado

@@ -4,7 +4,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:share_plus/share_plus.dart';
 
+import '../../config/supabase_config.dart';
 import '../../domain/entities/perfil.dart';
 import '../../domain/entities/tema_app.dart';
 import '../shared/app_bottom_bar.dart';
@@ -165,6 +167,27 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
     final extension = partes.last.toLowerCase();
     const validas = {'jpg', 'jpeg', 'png', 'webp', 'heic'};
     return validas.contains(extension) ? extension : 'jpg';
+  }
+
+  /// Fase 64 — genera `finzo://agregar-amigo?nick=<nick>` y lo comparte con
+  /// el selector nativo del sistema (`share_plus`). `AgregarAmigoScreen` es
+  /// quien resuelve ese link cuando alguien más lo abre (ver `app.dart`).
+  Future<void> _compartirPerfil(String nick) async {
+    try {
+      await SharePlus.instance.share(
+        ShareParams(
+          text:
+              'Agrégame en Finzo: ${construirLinkAgregarAmigo(nick)}',
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No se pudo compartir: ${mensajeDeError(error)}'),
+        ),
+      );
+    }
   }
 
   Future<void> _cambiarTema(TemaApp tema) async {
@@ -345,6 +368,16 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
               ),
             ),
           ),
+        if (perfil.nick != null) ...[
+          const SizedBox(height: 12),
+          Center(
+            child: OutlinedButton.icon(
+              onPressed: () => _compartirPerfil(perfil.nick!),
+              icon: const Icon(Icons.share_outlined),
+              label: const Text('Compartir mi perfil'),
+            ),
+          ),
+        ],
         const SizedBox(height: 28),
         TextFormField(
           controller: _nombreController,
@@ -446,6 +479,13 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
           title: const Text('Automatización'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).pushNamed('/automatizacion'),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.people_outline),
+          title: const Text('Mis amigos'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).pushNamed('/amigos'),
         ),
         const Divider(),
         const SizedBox(height: 16),

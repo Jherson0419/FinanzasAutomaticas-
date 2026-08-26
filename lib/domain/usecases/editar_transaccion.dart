@@ -2,17 +2,24 @@ import '../calculo_saldo.dart';
 import '../entities/cuenta.dart';
 import '../entities/transaccion.dart';
 import '../repositories/cuenta_repository.dart';
+import '../repositories/deuda_repository.dart';
 import '../repositories/transaccion_repository.dart';
+import 'sincronizar_deuda_tarjeta.dart';
 
 class EditarTransaccion {
   final TransaccionRepository _transaccionRepository;
   final CuentaRepository _cuentaRepository;
+  final SincronizarDeudaTarjeta _sincronizarDeudaTarjeta;
 
   EditarTransaccion({
     required TransaccionRepository transaccionRepository,
     required CuentaRepository cuentaRepository,
+    required DeudaRepository deudaRepository,
   }) : _transaccionRepository = transaccionRepository,
-       _cuentaRepository = cuentaRepository;
+       _cuentaRepository = cuentaRepository,
+       _sincronizarDeudaTarjeta = SincronizarDeudaTarjeta(
+         deudaRepository: deudaRepository,
+       );
 
   Future<Transaccion> call({
     required String transaccionId,
@@ -46,13 +53,18 @@ class EditarTransaccion {
 
     if (cuentaId == anterior.cuentaId) {
       final saldoFinal = aplicarEfectoTransaccion(saldoRevertido, tipo, monto);
-      await _cuentaRepository.actualizar(
-        cuentaAnterior.copyWith(saldoActual: saldoFinal),
+      final cuentaActualizada = cuentaAnterior.copyWith(
+        saldoActual: saldoFinal,
       );
+      await _cuentaRepository.actualizar(cuentaActualizada);
+      await _sincronizarDeudaTarjeta(cuentaActualizada);
     } else {
-      await _cuentaRepository.actualizar(
-        cuentaAnterior.copyWith(saldoActual: saldoRevertido),
+      final cuentaAnteriorActualizada = cuentaAnterior.copyWith(
+        saldoActual: saldoRevertido,
       );
+      await _cuentaRepository.actualizar(cuentaAnteriorActualizada);
+      await _sincronizarDeudaTarjeta(cuentaAnteriorActualizada);
+
       final cuentaNueva = await _cuentaRepository.obtenerPorId(cuentaId);
       if (cuentaNueva == null) {
         throw ArgumentError('La cuenta $cuentaId no existe');
@@ -62,9 +74,11 @@ class EditarTransaccion {
         tipo,
         monto,
       );
-      await _cuentaRepository.actualizar(
-        cuentaNueva.copyWith(saldoActual: saldoNuevoFinal),
+      final cuentaNuevaActualizada = cuentaNueva.copyWith(
+        saldoActual: saldoNuevoFinal,
       );
+      await _cuentaRepository.actualizar(cuentaNuevaActualizada);
+      await _sincronizarDeudaTarjeta(cuentaNuevaActualizada);
     }
 
     final actualizada = Transaccion(

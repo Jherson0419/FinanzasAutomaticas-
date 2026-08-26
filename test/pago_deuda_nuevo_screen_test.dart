@@ -2,14 +2,49 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:finanzas_automaticas/domain/entities/amistad.dart';
 import 'package:finanzas_automaticas/domain/entities/cuenta.dart';
 import 'package:finanzas_automaticas/domain/entities/deuda.dart';
 import 'package:finanzas_automaticas/domain/entities/pago_deuda.dart';
+import 'package:finanzas_automaticas/domain/repositories/amistad_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/cuenta_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/deuda_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/pago_deuda_repository.dart';
 import 'package:finanzas_automaticas/presentation/screens/pago_deuda_nuevo_screen.dart';
 import 'package:finanzas_automaticas/presentation/state/providers.dart';
+
+/// Fase 64: `RegistrarPagoDeuda` ahora depende de `AmistadRepository` para
+/// notificar a un amigo cuando la deuda está vinculada a uno
+/// (`Deuda.amigoUsuarioId`) — ninguna deuda de este archivo lo está, así que
+/// un fake que nunca debería ser invocado basta (y confirma, con
+/// `UnimplementedError`, que efectivamente no se invoca).
+class _FakeAmistadRepository implements AmistadRepository {
+  @override
+  Future<void> notificarPago({
+    required String amigoUsuarioId,
+    required double monto,
+    required String nombreDeuda,
+  }) async => throw UnimplementedError();
+
+  @override
+  Future<PerfilPublico?> buscarPorNick(String nick) async =>
+      throw UnimplementedError();
+  @override
+  Future<void> enviarSolicitud(String paraUsuarioId) async =>
+      throw UnimplementedError();
+  @override
+  Future<List<SolicitudRecibida>> obtenerSolicitudesRecibidas() async =>
+      throw UnimplementedError();
+  @override
+  Future<List<PerfilPublico>> obtenerAmigos() async =>
+      throw UnimplementedError();
+  @override
+  Future<void> aceptarSolicitud(String solicitudId) async =>
+      throw UnimplementedError();
+  @override
+  Future<void> rechazarSolicitud(String solicitudId) async =>
+      throw UnimplementedError();
+}
 
 class _FakeCuentaRepository implements CuentaRepository {
   final Map<String, Cuenta> cuentas;
@@ -151,6 +186,7 @@ Future<_FakeDeudaRepository> _pumpScreen(
         cuentaRepositoryProvider.overrideWithValue(fakeCuentas),
         deudaRepositoryProvider.overrideWithValue(fakeDeudas),
         pagoDeudaRepositoryProvider.overrideWithValue(fakePagos),
+        amistadRepositoryProvider.overrideWithValue(_FakeAmistadRepository()),
       ],
       child: MaterialApp(home: PagoDeudaNuevoScreen(deudaId: deuda.id)),
     ),

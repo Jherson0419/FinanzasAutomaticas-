@@ -10,6 +10,7 @@ class PreferenciasRepositorySharedPrefs implements PreferenciasRepository {
   static const _claveNombre = 'nombre_usuario';
   static const _claveOnboardingCompletado = 'onboarding_completado';
   static const _claveApiKeyGemini = 'api_key_gemini';
+  static const _claveRecordarSesion = 'recordar_sesion';
 
   /// Pública a propósito (Fase 31): `providers.dart` necesita leer este
   /// mismo valor de forma síncrona (mismo motivo que `claveDatosEnLaNube`,
@@ -76,6 +77,16 @@ class PreferenciasRepositorySharedPrefs implements PreferenciasRepository {
     await _prefs.setBool(claveDatosEnLaNube, true);
   }
 
+  /// `true` por defecto (Fase 65) — ver el contrato en `PreferenciasRepository`.
+  @override
+  Future<bool> recordarSesion() async =>
+      _prefs.getBool(_claveRecordarSesion) ?? true;
+
+  @override
+  Future<void> guardarRecordarSesion(bool recordar) async {
+    await _prefs.setBool(_claveRecordarSesion, recordar);
+  }
+
   @override
   Future<void> limpiarTodo() async {
     await _prefs.remove(_claveNombre);
@@ -83,5 +94,6 @@ class PreferenciasRepositorySharedPrefs implements PreferenciasRepository {
     await _prefs.remove(_claveApiKeyGemini);
     await _prefs.remove(claveDatosEnLaNube);
     await _prefs.remove(claveTema);
+    await _prefs.remove(_claveRecordarSesion);
   }
 }

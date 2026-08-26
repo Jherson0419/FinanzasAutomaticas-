@@ -35,6 +35,7 @@ class RegistrarDeuda {
     required DateTime fechaInicio,
     int? diaPago,
     String? notas,
+    String? amigoUsuarioId,
   }) async {
     final esCuotasFijas = estructuraPago == EstructuraPago.cuotasFijas;
 
@@ -105,6 +106,7 @@ class RegistrarDeuda {
       tasaInteresMoratorio: null,
       estado: EstadoDeuda.activa,
       notas: notas,
+      amigoUsuarioId: amigoUsuarioId,
     );
 
     await _deudaRepository.crear(deuda);

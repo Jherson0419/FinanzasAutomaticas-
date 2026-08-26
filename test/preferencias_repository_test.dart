@@ -33,4 +33,46 @@ void main() {
 
     expect(await repo.obtenerApiKeyGemini(), 'clave-nueva');
   });
+
+  group('Fase 65 — recordarSesion (B.2)', () {
+    test('es true por defecto cuando nunca se guardó nada', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final repo = PreferenciasRepositorySharedPrefs(prefs);
+
+      expect(await repo.recordarSesion(), isTrue);
+    });
+
+    test('guarda y lee false', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final repo = PreferenciasRepositorySharedPrefs(prefs);
+
+      await repo.guardarRecordarSesion(false);
+
+      expect(await repo.recordarSesion(), isFalse);
+    });
+
+    test('volver a guardar true revierte un false guardado antes', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final repo = PreferenciasRepositorySharedPrefs(prefs);
+
+      await repo.guardarRecordarSesion(false);
+      await repo.guardarRecordarSesion(true);
+
+      expect(await repo.recordarSesion(), isTrue);
+    });
+
+    test('limpiarTodo borra la preferencia guardada (vuelve al default true)', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final repo = PreferenciasRepositorySharedPrefs(prefs);
+
+      await repo.guardarRecordarSesion(false);
+      await repo.limpiarTodo();
+
+      expect(await repo.recordarSesion(), isTrue);
+    });
+  });
 }

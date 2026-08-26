@@ -4,9 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../shared/mensajes_error.dart';
 import '../state/providers.dart';
 import 'crear_cuenta_screen.dart';
+import 'olvide_contrasena_screen.dart';
 
 final _regexEmail = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
+/// Rediseño estilo "Flow" (Fase 65): logo circular, subtítulo, "Recuérdame"
+/// (B.2) y "¿Olvidaste tu contraseña?" (B.3) junto al botón de login, un
+/// solo botón de continuar con proveedor externo (Google — Apple no aplica
+/// aquí). Sistema de diseño de la Fase 19/31 (`Theme.of(context)`, sin
+/// colores sueltos fuera de sus tokens).
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -18,6 +24,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _passwordVisible = false;
+  bool _recuerdame = true;
   bool _iniciandoSesion = false;
   bool _iniciandoConGoogle = false;
 
@@ -32,6 +39,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _regexEmail.hasMatch(_emailController.text.trim()) &&
       _passwordController.text.length >= 6;
 
+  /// Fase 65 (B.2) — "Recuérdame": la preferencia se guarda siempre (no
+  /// solo cuando queda desmarcada), para que volver a marcar el checkbox en
+  /// un login posterior también revierta un `false` guardado antes; sin
+  /// esto, el checkbox nunca podría "recuperar" la sesión persistente una
+  /// vez desactivado. Solo se guarda tras un login exitoso — un intento
+  /// fallido no debe tocar la preferencia.
   Future<void> _iniciarSesion() async {
     if (!_esValido) return;
 
@@ -43,6 +56,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             email: _emailController.text.trim(),
             password: _passwordController.text,
           );
+      await ref
+          .read(preferenciasRepositoryProvider)
+          .guardarRecordarSesion(_recuerdame);
       ref.invalidate(haySesionActivaProvider);
     } catch (error) {
       if (!mounted) return;
@@ -74,6 +90,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  void _abrirOlvideContrasena() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => const OlvideContrasenaScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -87,17 +109,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.account_balance_wallet_outlined,
-                  size: 48,
-                  color: theme.colorScheme.primary,
+                Center(
+                  child: Container(
+                    width: 84,
+                    height: 84,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: theme.colorScheme.primaryContainer,
+                    ),
+                    child: Icon(
+                      Icons.account_balance_wallet_outlined,
+                      size: 38,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
                 Text(
                   'Finzo',
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.headlineSmall?.copyWith(
+                  style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Tus finanzas, en un solo lugar',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -130,7 +170,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   onChanged: (_) => setState(() {}),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Transform.scale(
+                      scale: 0.9,
+                      child: Checkbox(
+                        value: _recuerdame,
+                        onChanged: (valor) =>
+                            setState(() => _recuerdame = valor ?? true),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () =>
+                          setState(() => _recuerdame = !_recuerdame),
+                      child: const Text('Recuérdame'),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: _abrirOlvideContrasena,
+                      child: const Text('¿Olvidaste tu contraseña?'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 FilledButton(
                   onPressed: (_esValido && !_iniciandoSesion)
                       ? _iniciarSesion
@@ -149,17 +217,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const SizedBox(height: 20),
                 Row(
                   children: [
-                    Expanded(child: Divider(color: theme.colorScheme.outlineVariant)),
+                    Expanded(
+                      child: Divider(color: theme.colorScheme.outlineVariant),
+                    ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: Text(
-                        'o',
+                        'o continúa con',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
-                    Expanded(child: Divider(color: theme.colorScheme.outlineVariant)),
+                    Expanded(
+                      child: Divider(color: theme.colorScheme.outlineVariant),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 20),
@@ -177,25 +249,43 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       : const Icon(Icons.login),
                   label: const Text('Continuar con Google'),
                 ),
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () async {
-                    final cuentaCreada = await Navigator.of(context).push<bool>(
-                      MaterialPageRoute(
-                        builder: (context) => const CrearCuentaScreen(),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '¿Nuevo aquí? ',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
-                    );
-                    if (cuentaCreada == true && context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Revisa tu correo para confirmar tu cuenta.',
+                    ),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: () async {
+                        final cuentaCreada = await Navigator.of(
+                          context,
+                        ).push<bool>(
+                          MaterialPageRoute(
+                            builder: (context) => const CrearCuentaScreen(),
                           ),
-                        ),
-                      );
-                    }
-                  },
-                  child: const Text('Crear cuenta'),
+                        );
+                        if (cuentaCreada == true && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Revisa tu correo para confirmar tu cuenta.',
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      child: const Text('Crear cuenta'),
+                    ),
+                  ],
                 ),
               ],
             ),

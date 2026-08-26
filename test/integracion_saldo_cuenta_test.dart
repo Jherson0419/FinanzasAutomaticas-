@@ -4,8 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:finanzas_automaticas/domain/entities/cuenta.dart';
 import 'package:finanzas_automaticas/domain/entities/deuda.dart';
 import 'package:finanzas_automaticas/domain/entities/transaccion.dart';
+import 'package:finanzas_automaticas/domain/repositories/amistad_repository.dart';
 import 'package:finanzas_automaticas/domain/usecases/editar_transaccion.dart';
 import 'package:finanzas_automaticas/domain/usecases/eliminar_transaccion.dart';
+import 'package:finanzas_automaticas/domain/usecases/registrar_cuenta.dart';
 import 'package:finanzas_automaticas/domain/usecases/registrar_deuda.dart';
 import 'package:finanzas_automaticas/domain/usecases/registrar_gasto.dart';
 import 'package:finanzas_automaticas/domain/usecases/registrar_ingreso.dart';
@@ -15,6 +17,39 @@ import 'package:finanzas_automaticas/infrastructure/persistence/drift/cuenta_rep
 import 'package:finanzas_automaticas/infrastructure/persistence/drift/deuda_repository_drift.dart';
 import 'package:finanzas_automaticas/infrastructure/persistence/drift/pago_deuda_repository_drift.dart';
 import 'package:finanzas_automaticas/infrastructure/persistence/drift/transaccion_repository_drift.dart';
+import 'package:finanzas_automaticas/domain/entities/amistad.dart';
+
+/// `AmistadRepository` no tiene adapter Drift (Fase 63/64, ver `CONTEXTO.md`
+/// — solo Supabase, como `AutomatizacionRepository`): un fake mínimo basta
+/// aquí, `RegistrarPagoDeuda` solo lo usa para notificar a un amigo, algo
+/// ajeno a lo que este archivo verifica (persistencia real de saldos).
+class _FakeAmistadRepository implements AmistadRepository {
+  @override
+  Future<void> notificarPago({
+    required String amigoUsuarioId,
+    required double monto,
+    required String nombreDeuda,
+  }) async {}
+
+  @override
+  Future<PerfilPublico?> buscarPorNick(String nick) async =>
+      throw UnimplementedError();
+  @override
+  Future<void> enviarSolicitud(String paraUsuarioId) async =>
+      throw UnimplementedError();
+  @override
+  Future<List<SolicitudRecibida>> obtenerSolicitudesRecibidas() async =>
+      throw UnimplementedError();
+  @override
+  Future<List<PerfilPublico>> obtenerAmigos() async =>
+      throw UnimplementedError();
+  @override
+  Future<void> aceptarSolicitud(String solicitudId) async =>
+      throw UnimplementedError();
+  @override
+  Future<void> rechazarSolicitud(String solicitudId) async =>
+      throw UnimplementedError();
+}
 
 /// Tests de integración real: contra `AppDatabase` en memoria (Drift real,
 /// sin repositorios fake), para distinguir un bug de escritura real en la
@@ -48,6 +83,7 @@ void main() {
       final registrarIngreso = RegistrarIngreso(
         cuentaRepository: cuentaRepo,
         transaccionRepository: transaccionRepo,
+        deudaRepository: DeudaRepositoryDrift(db),
       );
       await registrarIngreso(
         cuentaId: 'cta-1',
@@ -88,6 +124,7 @@ void main() {
       final registrarGasto = RegistrarGasto(
         cuentaRepository: cuentaRepo,
         transaccionRepository: transaccionRepo,
+        deudaRepository: DeudaRepositoryDrift(db),
       );
       final gasto = await registrarGasto(
         cuentaId: 'cta-2',
@@ -106,6 +143,7 @@ void main() {
       final eliminarTransaccion = EliminarTransaccion(
         transaccionRepository: transaccionRepo,
         cuentaRepository: cuentaRepo,
+        deudaRepository: DeudaRepositoryDrift(db),
       );
       await eliminarTransaccion(transaccionId: gasto.id);
 
@@ -135,6 +173,7 @@ void main() {
       final registrarGasto = RegistrarGasto(
         cuentaRepository: cuentaRepo,
         transaccionRepository: transaccionRepo,
+        deudaRepository: DeudaRepositoryDrift(db),
       );
       final gasto = await registrarGasto(
         cuentaId: 'cta-3',
@@ -148,6 +187,7 @@ void main() {
       final editarTransaccion = EditarTransaccion(
         transaccionRepository: transaccionRepo,
         cuentaRepository: cuentaRepo,
+        deudaRepository: DeudaRepositoryDrift(db),
       );
       await editarTransaccion(
         transaccionId: gasto.id,
@@ -201,6 +241,7 @@ void main() {
         pagoDeudaRepository: pagoDeudaRepo,
         deudaRepository: deudaRepo,
         cuentaRepository: cuentaRepo,
+        amistadRepository: _FakeAmistadRepository(),
       );
       await registrarPagoDeuda(
         deudaId: deuda.id,
@@ -212,6 +253,53 @@ void main() {
         db,
       ).obtenerPorId('cta-4');
       expect(cuentaTrasPago!.saldoActual, 700);
+    },
+  );
+
+  test(
+    'Fase 62: un gasto sobre una tarjeta de crédito recién creada '
+    'actualiza montoPagado de su Deuda vinculada en la base de datos real',
+    () async {
+      final cuentaRepo = CuentaRepositoryDrift(db);
+      final transaccionRepo = TransaccionRepositoryDrift(db);
+      final deudaRepo = DeudaRepositoryDrift(db);
+
+      final registrarCuenta = RegistrarCuenta(
+        cuentaRepository: cuentaRepo,
+        deudaRepository: deudaRepo,
+      );
+      final tarjeta = await registrarCuenta(
+        nombre: 'Visa BCP',
+        tipo: TipoCuenta.credito,
+        moneda: Moneda.pen,
+        lineaCredito: 2000,
+        fechaCorte: DateTime(2026, 1, 10),
+        fechaPago: DateTime(2026, 1, 20),
+      );
+
+      final deudasIniciales = await deudaRepo.obtenerTodas();
+      expect(deudasIniciales, hasLength(1));
+      expect(deudasIniciales.single.cuentaId, tarjeta.id);
+      expect(deudasIniciales.single.montoPagado, 2000);
+
+      final registrarGasto = RegistrarGasto(
+        cuentaRepository: cuentaRepo,
+        transaccionRepository: transaccionRepo,
+        deudaRepository: deudaRepo,
+      );
+      await registrarGasto(
+        cuentaId: tarjeta.id,
+        categoriaId: 'cat-compras',
+        monto: 800,
+        moneda: Moneda.pen,
+        concepto: 'Compra online',
+        metodoPago: MetodoPago.tarjeta,
+      );
+
+      final deudaTrasGasto = (await deudaRepo.obtenerTodas()).single;
+      expect(deudaTrasGasto.montoTotal, 2000);
+      expect(deudaTrasGasto.montoPagado, 1200);
+      expect(deudaTrasGasto.montoTotal - deudaTrasGasto.montoPagado, 800);
     },
   );
 }

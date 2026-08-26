@@ -13,10 +13,17 @@ class Cuentas extends Table {
   RealColumn get saldoActual => real()();
   // Solo aplican a tipo == credito (Fase 29) — ver `Cuenta` en domain/.
   RealColumn get lineaCredito => real().nullable()();
-  IntColumn get diaCorte => integer().nullable()();
-  IntColumn get diaPago => integer().nullable()();
+  // Fecha ancla completa de corte/pago (Fase 62, reemplaza `diaCorte`/
+  // `diaPago` — un `int` 1-31 de la Fase 29). Cada una avanza un mes exacto
+  // de forma independiente hasta la próxima ocurrencia (`domain/
+  // proxima_ocurrencia_mensual.dart`).
+  DateTimeColumn get fechaCorte => dateTime().nullable()();
+  DateTimeColumn get fechaPago => dateTime().nullable()();
   // Últimos 4 dígitos de la tarjeta/cuenta (Fase 57), solo visual.
   TextColumn get ultimosDigitos => text().nullable()();
+  // Pago mínimo mensual (Fase 65) — solo aplica a tipo == credito, y ahí
+  // mismo es opcional (a diferencia de lineaCredito/fechaCorte/fechaPago).
+  RealColumn get pagoMinimo => real().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -84,6 +91,13 @@ class Deudas extends Table {
   RealColumn get tasaInteresMoratorio => real().nullable()();
   TextColumn get estado => text()();
   TextColumn get notas => text().nullable()();
+  // Deuda auto-generada y vinculada 1:1 a una cuenta de crédito (Fase 62)
+  // — `null` para cualquier deuda normal creada a mano.
+  TextColumn get cuentaId => text().nullable()();
+  // `usuario_id` de un amigo de Finzo con quien es esta deuda (Fase 64),
+  // opcional incluso para `tipoAcreedor == personaNatural` — `null` si no
+  // se vinculó a ningún amigo.
+  TextColumn get amigoUsuarioId => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -110,7 +124,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.connection);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -155,13 +169,45 @@ class AppDatabase extends _$AppDatabase {
       if (from < 6) {
         // Línea de crédito / día de corte / día de pago (Fase 29) —
         // nullable, `null` para cuentas que no son de tipo `credito`.
+        // `dia_corte`/`dia_pago` ya no existen como columnas de la Fase 62
+        // en adelante (reemplazadas por `fecha_corte`/`fecha_pago`, ver
+        // `from < 8` más abajo) — sin getters de Dart que referenciar, se
+        // agregan por SQL crudo para que este paso histórico siga
+        // compilando y siga dejando la base intermedia en el estado real
+        // que tuvo en su momento, antes de que `from < 8` las elimine.
         await m.addColumn(cuentas, cuentas.lineaCredito);
-        await m.addColumn(cuentas, cuentas.diaCorte);
-        await m.addColumn(cuentas, cuentas.diaPago);
+        await customStatement('ALTER TABLE cuentas ADD COLUMN dia_corte INTEGER;');
+        await customStatement('ALTER TABLE cuentas ADD COLUMN dia_pago INTEGER;');
       }
       if (from < 7) {
         // Últimos 4 dígitos de la cuenta (Fase 57) — nullable, solo visual.
         await m.addColumn(cuentas, cuentas.ultimosDigitos);
+      }
+      if (from < 8) {
+        // Fecha completa de corte/pago (Fase 62) reemplaza el `int` 1-31
+        // de `diaCorte`/`diaPago` (Fase 29). Un día del mes no alcanza para
+        // reconstruir una fecha ancla real (falta mes y año) — las cuentas
+        // de crédito existentes quedan con `fechaCorte`/`fechaPago` en
+        // `null` tras esta migración; hay que volver a configurarlas desde
+        // "Editar cuenta" (mismo tipo de recorte ya documentado para la
+        // migración a schemaVersion 3 de `deudas`).
+        await m.addColumn(cuentas, cuentas.fechaCorte);
+        await m.addColumn(cuentas, cuentas.fechaPago);
+        await m.dropColumn(cuentas, 'dia_corte');
+        await m.dropColumn(cuentas, 'dia_pago');
+        // Deuda auto-generada y vinculada a una cuenta de crédito — nullable,
+        // `null` para toda deuda ya existente (creada a mano).
+        await m.addColumn(deudas, deudas.cuentaId);
+      }
+      if (from < 9) {
+        // Deuda vinculada a un amigo de Finzo (Fase 64) — nullable, `null`
+        // para toda deuda ya existente.
+        await m.addColumn(deudas, deudas.amigoUsuarioId);
+      }
+      if (from < 10) {
+        // Pago mínimo mensual de tarjetas de crédito (Fase 65) — nullable,
+        // `null` para toda cuenta ya existente hasta que se vuelva a editar.
+        await m.addColumn(cuentas, cuentas.pagoMinimo);
       }
     },
   );

@@ -66,26 +66,26 @@ class $CuentasTable extends Cuentas with TableInfo<$CuentasTable, CuentaRow> {
     type: DriftSqlType.double,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _diaCorteMeta = const VerificationMeta(
-    'diaCorte',
+  static const VerificationMeta _fechaCorteMeta = const VerificationMeta(
+    'fechaCorte',
   );
   @override
-  late final GeneratedColumn<int> diaCorte = GeneratedColumn<int>(
-    'dia_corte',
+  late final GeneratedColumn<DateTime> fechaCorte = GeneratedColumn<DateTime>(
+    'fecha_corte',
     aliasedName,
     true,
-    type: DriftSqlType.int,
+    type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _diaPagoMeta = const VerificationMeta(
-    'diaPago',
+  static const VerificationMeta _fechaPagoMeta = const VerificationMeta(
+    'fechaPago',
   );
   @override
-  late final GeneratedColumn<int> diaPago = GeneratedColumn<int>(
-    'dia_pago',
+  late final GeneratedColumn<DateTime> fechaPago = GeneratedColumn<DateTime>(
+    'fecha_pago',
     aliasedName,
     true,
-    type: DriftSqlType.int,
+    type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
   static const VerificationMeta _ultimosDigitosMeta = const VerificationMeta(
@@ -99,6 +99,17 @@ class $CuentasTable extends Cuentas with TableInfo<$CuentasTable, CuentaRow> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _pagoMinimoMeta = const VerificationMeta(
+    'pagoMinimo',
+  );
+  @override
+  late final GeneratedColumn<double> pagoMinimo = GeneratedColumn<double>(
+    'pago_minimo',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -107,9 +118,10 @@ class $CuentasTable extends Cuentas with TableInfo<$CuentasTable, CuentaRow> {
     moneda,
     saldoActual,
     lineaCredito,
-    diaCorte,
-    diaPago,
+    fechaCorte,
+    fechaPago,
     ultimosDigitos,
+    pagoMinimo,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -172,16 +184,16 @@ class $CuentasTable extends Cuentas with TableInfo<$CuentasTable, CuentaRow> {
         ),
       );
     }
-    if (data.containsKey('dia_corte')) {
+    if (data.containsKey('fecha_corte')) {
       context.handle(
-        _diaCorteMeta,
-        diaCorte.isAcceptableOrUnknown(data['dia_corte']!, _diaCorteMeta),
+        _fechaCorteMeta,
+        fechaCorte.isAcceptableOrUnknown(data['fecha_corte']!, _fechaCorteMeta),
       );
     }
-    if (data.containsKey('dia_pago')) {
+    if (data.containsKey('fecha_pago')) {
       context.handle(
-        _diaPagoMeta,
-        diaPago.isAcceptableOrUnknown(data['dia_pago']!, _diaPagoMeta),
+        _fechaPagoMeta,
+        fechaPago.isAcceptableOrUnknown(data['fecha_pago']!, _fechaPagoMeta),
       );
     }
     if (data.containsKey('ultimos_digitos')) {
@@ -191,6 +203,12 @@ class $CuentasTable extends Cuentas with TableInfo<$CuentasTable, CuentaRow> {
           data['ultimos_digitos']!,
           _ultimosDigitosMeta,
         ),
+      );
+    }
+    if (data.containsKey('pago_minimo')) {
+      context.handle(
+        _pagoMinimoMeta,
+        pagoMinimo.isAcceptableOrUnknown(data['pago_minimo']!, _pagoMinimoMeta),
       );
     }
     return context;
@@ -226,17 +244,21 @@ class $CuentasTable extends Cuentas with TableInfo<$CuentasTable, CuentaRow> {
         DriftSqlType.double,
         data['${effectivePrefix}linea_credito'],
       ),
-      diaCorte: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}dia_corte'],
+      fechaCorte: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}fecha_corte'],
       ),
-      diaPago: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}dia_pago'],
+      fechaPago: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}fecha_pago'],
       ),
       ultimosDigitos: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}ultimos_digitos'],
+      ),
+      pagoMinimo: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}pago_minimo'],
       ),
     );
   }
@@ -254,9 +276,10 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
   final String moneda;
   final double saldoActual;
   final double? lineaCredito;
-  final int? diaCorte;
-  final int? diaPago;
+  final DateTime? fechaCorte;
+  final DateTime? fechaPago;
   final String? ultimosDigitos;
+  final double? pagoMinimo;
   const CuentaRow({
     required this.id,
     required this.nombre,
@@ -264,9 +287,10 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
     required this.moneda,
     required this.saldoActual,
     this.lineaCredito,
-    this.diaCorte,
-    this.diaPago,
+    this.fechaCorte,
+    this.fechaPago,
     this.ultimosDigitos,
+    this.pagoMinimo,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -279,14 +303,17 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
     if (!nullToAbsent || lineaCredito != null) {
       map['linea_credito'] = Variable<double>(lineaCredito);
     }
-    if (!nullToAbsent || diaCorte != null) {
-      map['dia_corte'] = Variable<int>(diaCorte);
+    if (!nullToAbsent || fechaCorte != null) {
+      map['fecha_corte'] = Variable<DateTime>(fechaCorte);
     }
-    if (!nullToAbsent || diaPago != null) {
-      map['dia_pago'] = Variable<int>(diaPago);
+    if (!nullToAbsent || fechaPago != null) {
+      map['fecha_pago'] = Variable<DateTime>(fechaPago);
     }
     if (!nullToAbsent || ultimosDigitos != null) {
       map['ultimos_digitos'] = Variable<String>(ultimosDigitos);
+    }
+    if (!nullToAbsent || pagoMinimo != null) {
+      map['pago_minimo'] = Variable<double>(pagoMinimo);
     }
     return map;
   }
@@ -301,15 +328,18 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
       lineaCredito: lineaCredito == null && nullToAbsent
           ? const Value.absent()
           : Value(lineaCredito),
-      diaCorte: diaCorte == null && nullToAbsent
+      fechaCorte: fechaCorte == null && nullToAbsent
           ? const Value.absent()
-          : Value(diaCorte),
-      diaPago: diaPago == null && nullToAbsent
+          : Value(fechaCorte),
+      fechaPago: fechaPago == null && nullToAbsent
           ? const Value.absent()
-          : Value(diaPago),
+          : Value(fechaPago),
       ultimosDigitos: ultimosDigitos == null && nullToAbsent
           ? const Value.absent()
           : Value(ultimosDigitos),
+      pagoMinimo: pagoMinimo == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pagoMinimo),
     );
   }
 
@@ -325,9 +355,10 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
       moneda: serializer.fromJson<String>(json['moneda']),
       saldoActual: serializer.fromJson<double>(json['saldoActual']),
       lineaCredito: serializer.fromJson<double?>(json['lineaCredito']),
-      diaCorte: serializer.fromJson<int?>(json['diaCorte']),
-      diaPago: serializer.fromJson<int?>(json['diaPago']),
+      fechaCorte: serializer.fromJson<DateTime?>(json['fechaCorte']),
+      fechaPago: serializer.fromJson<DateTime?>(json['fechaPago']),
       ultimosDigitos: serializer.fromJson<String?>(json['ultimosDigitos']),
+      pagoMinimo: serializer.fromJson<double?>(json['pagoMinimo']),
     );
   }
   @override
@@ -340,9 +371,10 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
       'moneda': serializer.toJson<String>(moneda),
       'saldoActual': serializer.toJson<double>(saldoActual),
       'lineaCredito': serializer.toJson<double?>(lineaCredito),
-      'diaCorte': serializer.toJson<int?>(diaCorte),
-      'diaPago': serializer.toJson<int?>(diaPago),
+      'fechaCorte': serializer.toJson<DateTime?>(fechaCorte),
+      'fechaPago': serializer.toJson<DateTime?>(fechaPago),
       'ultimosDigitos': serializer.toJson<String?>(ultimosDigitos),
+      'pagoMinimo': serializer.toJson<double?>(pagoMinimo),
     };
   }
 
@@ -353,9 +385,10 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
     String? moneda,
     double? saldoActual,
     Value<double?> lineaCredito = const Value.absent(),
-    Value<int?> diaCorte = const Value.absent(),
-    Value<int?> diaPago = const Value.absent(),
+    Value<DateTime?> fechaCorte = const Value.absent(),
+    Value<DateTime?> fechaPago = const Value.absent(),
     Value<String?> ultimosDigitos = const Value.absent(),
+    Value<double?> pagoMinimo = const Value.absent(),
   }) => CuentaRow(
     id: id ?? this.id,
     nombre: nombre ?? this.nombre,
@@ -363,11 +396,12 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
     moneda: moneda ?? this.moneda,
     saldoActual: saldoActual ?? this.saldoActual,
     lineaCredito: lineaCredito.present ? lineaCredito.value : this.lineaCredito,
-    diaCorte: diaCorte.present ? diaCorte.value : this.diaCorte,
-    diaPago: diaPago.present ? diaPago.value : this.diaPago,
+    fechaCorte: fechaCorte.present ? fechaCorte.value : this.fechaCorte,
+    fechaPago: fechaPago.present ? fechaPago.value : this.fechaPago,
     ultimosDigitos: ultimosDigitos.present
         ? ultimosDigitos.value
         : this.ultimosDigitos,
+    pagoMinimo: pagoMinimo.present ? pagoMinimo.value : this.pagoMinimo,
   );
   CuentaRow copyWithCompanion(CuentasCompanion data) {
     return CuentaRow(
@@ -381,11 +415,16 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
       lineaCredito: data.lineaCredito.present
           ? data.lineaCredito.value
           : this.lineaCredito,
-      diaCorte: data.diaCorte.present ? data.diaCorte.value : this.diaCorte,
-      diaPago: data.diaPago.present ? data.diaPago.value : this.diaPago,
+      fechaCorte: data.fechaCorte.present
+          ? data.fechaCorte.value
+          : this.fechaCorte,
+      fechaPago: data.fechaPago.present ? data.fechaPago.value : this.fechaPago,
       ultimosDigitos: data.ultimosDigitos.present
           ? data.ultimosDigitos.value
           : this.ultimosDigitos,
+      pagoMinimo: data.pagoMinimo.present
+          ? data.pagoMinimo.value
+          : this.pagoMinimo,
     );
   }
 
@@ -398,9 +437,10 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
           ..write('moneda: $moneda, ')
           ..write('saldoActual: $saldoActual, ')
           ..write('lineaCredito: $lineaCredito, ')
-          ..write('diaCorte: $diaCorte, ')
-          ..write('diaPago: $diaPago, ')
-          ..write('ultimosDigitos: $ultimosDigitos')
+          ..write('fechaCorte: $fechaCorte, ')
+          ..write('fechaPago: $fechaPago, ')
+          ..write('ultimosDigitos: $ultimosDigitos, ')
+          ..write('pagoMinimo: $pagoMinimo')
           ..write(')'))
         .toString();
   }
@@ -413,9 +453,10 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
     moneda,
     saldoActual,
     lineaCredito,
-    diaCorte,
-    diaPago,
+    fechaCorte,
+    fechaPago,
     ultimosDigitos,
+    pagoMinimo,
   );
   @override
   bool operator ==(Object other) =>
@@ -427,9 +468,10 @@ class CuentaRow extends DataClass implements Insertable<CuentaRow> {
           other.moneda == this.moneda &&
           other.saldoActual == this.saldoActual &&
           other.lineaCredito == this.lineaCredito &&
-          other.diaCorte == this.diaCorte &&
-          other.diaPago == this.diaPago &&
-          other.ultimosDigitos == this.ultimosDigitos);
+          other.fechaCorte == this.fechaCorte &&
+          other.fechaPago == this.fechaPago &&
+          other.ultimosDigitos == this.ultimosDigitos &&
+          other.pagoMinimo == this.pagoMinimo);
 }
 
 class CuentasCompanion extends UpdateCompanion<CuentaRow> {
@@ -439,9 +481,10 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
   final Value<String> moneda;
   final Value<double> saldoActual;
   final Value<double?> lineaCredito;
-  final Value<int?> diaCorte;
-  final Value<int?> diaPago;
+  final Value<DateTime?> fechaCorte;
+  final Value<DateTime?> fechaPago;
   final Value<String?> ultimosDigitos;
+  final Value<double?> pagoMinimo;
   final Value<int> rowid;
   const CuentasCompanion({
     this.id = const Value.absent(),
@@ -450,9 +493,10 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
     this.moneda = const Value.absent(),
     this.saldoActual = const Value.absent(),
     this.lineaCredito = const Value.absent(),
-    this.diaCorte = const Value.absent(),
-    this.diaPago = const Value.absent(),
+    this.fechaCorte = const Value.absent(),
+    this.fechaPago = const Value.absent(),
     this.ultimosDigitos = const Value.absent(),
+    this.pagoMinimo = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CuentasCompanion.insert({
@@ -462,9 +506,10 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
     required String moneda,
     required double saldoActual,
     this.lineaCredito = const Value.absent(),
-    this.diaCorte = const Value.absent(),
-    this.diaPago = const Value.absent(),
+    this.fechaCorte = const Value.absent(),
+    this.fechaPago = const Value.absent(),
     this.ultimosDigitos = const Value.absent(),
+    this.pagoMinimo = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        nombre = Value(nombre),
@@ -478,9 +523,10 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
     Expression<String>? moneda,
     Expression<double>? saldoActual,
     Expression<double>? lineaCredito,
-    Expression<int>? diaCorte,
-    Expression<int>? diaPago,
+    Expression<DateTime>? fechaCorte,
+    Expression<DateTime>? fechaPago,
     Expression<String>? ultimosDigitos,
+    Expression<double>? pagoMinimo,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -490,9 +536,10 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
       if (moneda != null) 'moneda': moneda,
       if (saldoActual != null) 'saldo_actual': saldoActual,
       if (lineaCredito != null) 'linea_credito': lineaCredito,
-      if (diaCorte != null) 'dia_corte': diaCorte,
-      if (diaPago != null) 'dia_pago': diaPago,
+      if (fechaCorte != null) 'fecha_corte': fechaCorte,
+      if (fechaPago != null) 'fecha_pago': fechaPago,
       if (ultimosDigitos != null) 'ultimos_digitos': ultimosDigitos,
+      if (pagoMinimo != null) 'pago_minimo': pagoMinimo,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -504,9 +551,10 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
     Value<String>? moneda,
     Value<double>? saldoActual,
     Value<double?>? lineaCredito,
-    Value<int?>? diaCorte,
-    Value<int?>? diaPago,
+    Value<DateTime?>? fechaCorte,
+    Value<DateTime?>? fechaPago,
     Value<String?>? ultimosDigitos,
+    Value<double?>? pagoMinimo,
     Value<int>? rowid,
   }) {
     return CuentasCompanion(
@@ -516,9 +564,10 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
       moneda: moneda ?? this.moneda,
       saldoActual: saldoActual ?? this.saldoActual,
       lineaCredito: lineaCredito ?? this.lineaCredito,
-      diaCorte: diaCorte ?? this.diaCorte,
-      diaPago: diaPago ?? this.diaPago,
+      fechaCorte: fechaCorte ?? this.fechaCorte,
+      fechaPago: fechaPago ?? this.fechaPago,
       ultimosDigitos: ultimosDigitos ?? this.ultimosDigitos,
+      pagoMinimo: pagoMinimo ?? this.pagoMinimo,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -544,14 +593,17 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
     if (lineaCredito.present) {
       map['linea_credito'] = Variable<double>(lineaCredito.value);
     }
-    if (diaCorte.present) {
-      map['dia_corte'] = Variable<int>(diaCorte.value);
+    if (fechaCorte.present) {
+      map['fecha_corte'] = Variable<DateTime>(fechaCorte.value);
     }
-    if (diaPago.present) {
-      map['dia_pago'] = Variable<int>(diaPago.value);
+    if (fechaPago.present) {
+      map['fecha_pago'] = Variable<DateTime>(fechaPago.value);
     }
     if (ultimosDigitos.present) {
       map['ultimos_digitos'] = Variable<String>(ultimosDigitos.value);
+    }
+    if (pagoMinimo.present) {
+      map['pago_minimo'] = Variable<double>(pagoMinimo.value);
     }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
@@ -568,9 +620,10 @@ class CuentasCompanion extends UpdateCompanion<CuentaRow> {
           ..write('moneda: $moneda, ')
           ..write('saldoActual: $saldoActual, ')
           ..write('lineaCredito: $lineaCredito, ')
-          ..write('diaCorte: $diaCorte, ')
-          ..write('diaPago: $diaPago, ')
+          ..write('fechaCorte: $fechaCorte, ')
+          ..write('fechaPago: $fechaPago, ')
           ..write('ultimosDigitos: $ultimosDigitos, ')
+          ..write('pagoMinimo: $pagoMinimo, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2011,6 +2064,28 @@ class $DeudasTable extends Deudas with TableInfo<$DeudasTable, DeudaRow> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _cuentaIdMeta = const VerificationMeta(
+    'cuentaId',
+  );
+  @override
+  late final GeneratedColumn<String> cuentaId = GeneratedColumn<String>(
+    'cuenta_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _amigoUsuarioIdMeta = const VerificationMeta(
+    'amigoUsuarioId',
+  );
+  @override
+  late final GeneratedColumn<String> amigoUsuarioId = GeneratedColumn<String>(
+    'amigo_usuario_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2040,6 +2115,8 @@ class $DeudasTable extends Deudas with TableInfo<$DeudasTable, DeudaRow> {
     tasaInteresMoratorio,
     estado,
     notas,
+    cuentaId,
+    amigoUsuarioId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2281,6 +2358,21 @@ class $DeudasTable extends Deudas with TableInfo<$DeudasTable, DeudaRow> {
         notas.isAcceptableOrUnknown(data['notas']!, _notasMeta),
       );
     }
+    if (data.containsKey('cuenta_id')) {
+      context.handle(
+        _cuentaIdMeta,
+        cuentaId.isAcceptableOrUnknown(data['cuenta_id']!, _cuentaIdMeta),
+      );
+    }
+    if (data.containsKey('amigo_usuario_id')) {
+      context.handle(
+        _amigoUsuarioIdMeta,
+        amigoUsuarioId.isAcceptableOrUnknown(
+          data['amigo_usuario_id']!,
+          _amigoUsuarioIdMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -2398,6 +2490,14 @@ class $DeudasTable extends Deudas with TableInfo<$DeudasTable, DeudaRow> {
         DriftSqlType.string,
         data['${effectivePrefix}notas'],
       ),
+      cuentaId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cuenta_id'],
+      ),
+      amigoUsuarioId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}amigo_usuario_id'],
+      ),
     );
   }
 
@@ -2435,6 +2535,8 @@ class DeudaRow extends DataClass implements Insertable<DeudaRow> {
   final double? tasaInteresMoratorio;
   final String estado;
   final String? notas;
+  final String? cuentaId;
+  final String? amigoUsuarioId;
   const DeudaRow({
     required this.id,
     required this.nombreDeuda,
@@ -2463,6 +2565,8 @@ class DeudaRow extends DataClass implements Insertable<DeudaRow> {
     this.tasaInteresMoratorio,
     required this.estado,
     this.notas,
+    this.cuentaId,
+    this.amigoUsuarioId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2524,6 +2628,12 @@ class DeudaRow extends DataClass implements Insertable<DeudaRow> {
     if (!nullToAbsent || notas != null) {
       map['notas'] = Variable<String>(notas);
     }
+    if (!nullToAbsent || cuentaId != null) {
+      map['cuenta_id'] = Variable<String>(cuentaId);
+    }
+    if (!nullToAbsent || amigoUsuarioId != null) {
+      map['amigo_usuario_id'] = Variable<String>(amigoUsuarioId);
+    }
     return map;
   }
 
@@ -2584,6 +2694,12 @@ class DeudaRow extends DataClass implements Insertable<DeudaRow> {
       notas: notas == null && nullToAbsent
           ? const Value.absent()
           : Value(notas),
+      cuentaId: cuentaId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cuentaId),
+      amigoUsuarioId: amigoUsuarioId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(amigoUsuarioId),
     );
   }
 
@@ -2630,6 +2746,8 @@ class DeudaRow extends DataClass implements Insertable<DeudaRow> {
       ),
       estado: serializer.fromJson<String>(json['estado']),
       notas: serializer.fromJson<String?>(json['notas']),
+      cuentaId: serializer.fromJson<String?>(json['cuentaId']),
+      amigoUsuarioId: serializer.fromJson<String?>(json['amigoUsuarioId']),
     );
   }
   @override
@@ -2665,6 +2783,8 @@ class DeudaRow extends DataClass implements Insertable<DeudaRow> {
       'tasaInteresMoratorio': serializer.toJson<double?>(tasaInteresMoratorio),
       'estado': serializer.toJson<String>(estado),
       'notas': serializer.toJson<String?>(notas),
+      'cuentaId': serializer.toJson<String?>(cuentaId),
+      'amigoUsuarioId': serializer.toJson<String?>(amigoUsuarioId),
     };
   }
 
@@ -2696,6 +2816,8 @@ class DeudaRow extends DataClass implements Insertable<DeudaRow> {
     Value<double?> tasaInteresMoratorio = const Value.absent(),
     String? estado,
     Value<String?> notas = const Value.absent(),
+    Value<String?> cuentaId = const Value.absent(),
+    Value<String?> amigoUsuarioId = const Value.absent(),
   }) => DeudaRow(
     id: id ?? this.id,
     nombreDeuda: nombreDeuda ?? this.nombreDeuda,
@@ -2736,6 +2858,10 @@ class DeudaRow extends DataClass implements Insertable<DeudaRow> {
         : this.tasaInteresMoratorio,
     estado: estado ?? this.estado,
     notas: notas.present ? notas.value : this.notas,
+    cuentaId: cuentaId.present ? cuentaId.value : this.cuentaId,
+    amigoUsuarioId: amigoUsuarioId.present
+        ? amigoUsuarioId.value
+        : this.amigoUsuarioId,
   );
   DeudaRow copyWithCompanion(DeudasCompanion data) {
     return DeudaRow(
@@ -2802,6 +2928,10 @@ class DeudaRow extends DataClass implements Insertable<DeudaRow> {
           : this.tasaInteresMoratorio,
       estado: data.estado.present ? data.estado.value : this.estado,
       notas: data.notas.present ? data.notas.value : this.notas,
+      cuentaId: data.cuentaId.present ? data.cuentaId.value : this.cuentaId,
+      amigoUsuarioId: data.amigoUsuarioId.present
+          ? data.amigoUsuarioId.value
+          : this.amigoUsuarioId,
     );
   }
 
@@ -2834,7 +2964,9 @@ class DeudaRow extends DataClass implements Insertable<DeudaRow> {
           ..write('diasMora: $diasMora, ')
           ..write('tasaInteresMoratorio: $tasaInteresMoratorio, ')
           ..write('estado: $estado, ')
-          ..write('notas: $notas')
+          ..write('notas: $notas, ')
+          ..write('cuentaId: $cuentaId, ')
+          ..write('amigoUsuarioId: $amigoUsuarioId')
           ..write(')'))
         .toString();
   }
@@ -2868,6 +3000,8 @@ class DeudaRow extends DataClass implements Insertable<DeudaRow> {
     tasaInteresMoratorio,
     estado,
     notas,
+    cuentaId,
+    amigoUsuarioId,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -2899,7 +3033,9 @@ class DeudaRow extends DataClass implements Insertable<DeudaRow> {
           other.diasMora == this.diasMora &&
           other.tasaInteresMoratorio == this.tasaInteresMoratorio &&
           other.estado == this.estado &&
-          other.notas == this.notas);
+          other.notas == this.notas &&
+          other.cuentaId == this.cuentaId &&
+          other.amigoUsuarioId == this.amigoUsuarioId);
 }
 
 class DeudasCompanion extends UpdateCompanion<DeudaRow> {
@@ -2930,6 +3066,8 @@ class DeudasCompanion extends UpdateCompanion<DeudaRow> {
   final Value<double?> tasaInteresMoratorio;
   final Value<String> estado;
   final Value<String?> notas;
+  final Value<String?> cuentaId;
+  final Value<String?> amigoUsuarioId;
   final Value<int> rowid;
   const DeudasCompanion({
     this.id = const Value.absent(),
@@ -2959,6 +3097,8 @@ class DeudasCompanion extends UpdateCompanion<DeudaRow> {
     this.tasaInteresMoratorio = const Value.absent(),
     this.estado = const Value.absent(),
     this.notas = const Value.absent(),
+    this.cuentaId = const Value.absent(),
+    this.amigoUsuarioId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   DeudasCompanion.insert({
@@ -2989,6 +3129,8 @@ class DeudasCompanion extends UpdateCompanion<DeudaRow> {
     this.tasaInteresMoratorio = const Value.absent(),
     required String estado,
     this.notas = const Value.absent(),
+    this.cuentaId = const Value.absent(),
+    this.amigoUsuarioId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        nombreDeuda = Value(nombreDeuda),
@@ -3030,6 +3172,8 @@ class DeudasCompanion extends UpdateCompanion<DeudaRow> {
     Expression<double>? tasaInteresMoratorio,
     Expression<String>? estado,
     Expression<String>? notas,
+    Expression<String>? cuentaId,
+    Expression<String>? amigoUsuarioId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -3063,6 +3207,8 @@ class DeudasCompanion extends UpdateCompanion<DeudaRow> {
         'tasa_interes_moratorio': tasaInteresMoratorio,
       if (estado != null) 'estado': estado,
       if (notas != null) 'notas': notas,
+      if (cuentaId != null) 'cuenta_id': cuentaId,
+      if (amigoUsuarioId != null) 'amigo_usuario_id': amigoUsuarioId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3095,6 +3241,8 @@ class DeudasCompanion extends UpdateCompanion<DeudaRow> {
     Value<double?>? tasaInteresMoratorio,
     Value<String>? estado,
     Value<String?>? notas,
+    Value<String?>? cuentaId,
+    Value<String?>? amigoUsuarioId,
     Value<int>? rowid,
   }) {
     return DeudasCompanion(
@@ -3126,6 +3274,8 @@ class DeudasCompanion extends UpdateCompanion<DeudaRow> {
       tasaInteresMoratorio: tasaInteresMoratorio ?? this.tasaInteresMoratorio,
       estado: estado ?? this.estado,
       notas: notas ?? this.notas,
+      cuentaId: cuentaId ?? this.cuentaId,
+      amigoUsuarioId: amigoUsuarioId ?? this.amigoUsuarioId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3218,6 +3368,12 @@ class DeudasCompanion extends UpdateCompanion<DeudaRow> {
     if (notas.present) {
       map['notas'] = Variable<String>(notas.value);
     }
+    if (cuentaId.present) {
+      map['cuenta_id'] = Variable<String>(cuentaId.value);
+    }
+    if (amigoUsuarioId.present) {
+      map['amigo_usuario_id'] = Variable<String>(amigoUsuarioId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3254,6 +3410,8 @@ class DeudasCompanion extends UpdateCompanion<DeudaRow> {
           ..write('tasaInteresMoratorio: $tasaInteresMoratorio, ')
           ..write('estado: $estado, ')
           ..write('notas: $notas, ')
+          ..write('cuentaId: $cuentaId, ')
+          ..write('amigoUsuarioId: $amigoUsuarioId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3825,9 +3983,10 @@ typedef $$CuentasTableCreateCompanionBuilder =
       required String moneda,
       required double saldoActual,
       Value<double?> lineaCredito,
-      Value<int?> diaCorte,
-      Value<int?> diaPago,
+      Value<DateTime?> fechaCorte,
+      Value<DateTime?> fechaPago,
       Value<String?> ultimosDigitos,
+      Value<double?> pagoMinimo,
       Value<int> rowid,
     });
 typedef $$CuentasTableUpdateCompanionBuilder =
@@ -3838,9 +3997,10 @@ typedef $$CuentasTableUpdateCompanionBuilder =
       Value<String> moneda,
       Value<double> saldoActual,
       Value<double?> lineaCredito,
-      Value<int?> diaCorte,
-      Value<int?> diaPago,
+      Value<DateTime?> fechaCorte,
+      Value<DateTime?> fechaPago,
       Value<String?> ultimosDigitos,
+      Value<double?> pagoMinimo,
       Value<int> rowid,
     });
 
@@ -3883,18 +4043,23 @@ class $$CuentasTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<int> get diaCorte => $composableBuilder(
-    column: $table.diaCorte,
+  ColumnFilters<DateTime> get fechaCorte => $composableBuilder(
+    column: $table.fechaCorte,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<int> get diaPago => $composableBuilder(
-    column: $table.diaPago,
+  ColumnFilters<DateTime> get fechaPago => $composableBuilder(
+    column: $table.fechaPago,
     builder: (column) => ColumnFilters(column),
   );
 
   ColumnFilters<String> get ultimosDigitos => $composableBuilder(
     column: $table.ultimosDigitos,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get pagoMinimo => $composableBuilder(
+    column: $table.pagoMinimo,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -3938,18 +4103,23 @@ class $$CuentasTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get diaCorte => $composableBuilder(
-    column: $table.diaCorte,
+  ColumnOrderings<DateTime> get fechaCorte => $composableBuilder(
+    column: $table.fechaCorte,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get diaPago => $composableBuilder(
-    column: $table.diaPago,
+  ColumnOrderings<DateTime> get fechaPago => $composableBuilder(
+    column: $table.fechaPago,
     builder: (column) => ColumnOrderings(column),
   );
 
   ColumnOrderings<String> get ultimosDigitos => $composableBuilder(
     column: $table.ultimosDigitos,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get pagoMinimo => $composableBuilder(
+    column: $table.pagoMinimo,
     builder: (column) => ColumnOrderings(column),
   );
 }
@@ -3985,14 +4155,21 @@ class $$CuentasTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<int> get diaCorte =>
-      $composableBuilder(column: $table.diaCorte, builder: (column) => column);
+  GeneratedColumn<DateTime> get fechaCorte => $composableBuilder(
+    column: $table.fechaCorte,
+    builder: (column) => column,
+  );
 
-  GeneratedColumn<int> get diaPago =>
-      $composableBuilder(column: $table.diaPago, builder: (column) => column);
+  GeneratedColumn<DateTime> get fechaPago =>
+      $composableBuilder(column: $table.fechaPago, builder: (column) => column);
 
   GeneratedColumn<String> get ultimosDigitos => $composableBuilder(
     column: $table.ultimosDigitos,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get pagoMinimo => $composableBuilder(
+    column: $table.pagoMinimo,
     builder: (column) => column,
   );
 }
@@ -4031,9 +4208,10 @@ class $$CuentasTableTableManager
                 Value<String> moneda = const Value.absent(),
                 Value<double> saldoActual = const Value.absent(),
                 Value<double?> lineaCredito = const Value.absent(),
-                Value<int?> diaCorte = const Value.absent(),
-                Value<int?> diaPago = const Value.absent(),
+                Value<DateTime?> fechaCorte = const Value.absent(),
+                Value<DateTime?> fechaPago = const Value.absent(),
                 Value<String?> ultimosDigitos = const Value.absent(),
+                Value<double?> pagoMinimo = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CuentasCompanion(
                 id: id,
@@ -4042,9 +4220,10 @@ class $$CuentasTableTableManager
                 moneda: moneda,
                 saldoActual: saldoActual,
                 lineaCredito: lineaCredito,
-                diaCorte: diaCorte,
-                diaPago: diaPago,
+                fechaCorte: fechaCorte,
+                fechaPago: fechaPago,
                 ultimosDigitos: ultimosDigitos,
+                pagoMinimo: pagoMinimo,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -4055,9 +4234,10 @@ class $$CuentasTableTableManager
                 required String moneda,
                 required double saldoActual,
                 Value<double?> lineaCredito = const Value.absent(),
-                Value<int?> diaCorte = const Value.absent(),
-                Value<int?> diaPago = const Value.absent(),
+                Value<DateTime?> fechaCorte = const Value.absent(),
+                Value<DateTime?> fechaPago = const Value.absent(),
                 Value<String?> ultimosDigitos = const Value.absent(),
+                Value<double?> pagoMinimo = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CuentasCompanion.insert(
                 id: id,
@@ -4066,9 +4246,10 @@ class $$CuentasTableTableManager
                 moneda: moneda,
                 saldoActual: saldoActual,
                 lineaCredito: lineaCredito,
-                diaCorte: diaCorte,
-                diaPago: diaPago,
+                fechaCorte: fechaCorte,
+                fechaPago: fechaPago,
                 ultimosDigitos: ultimosDigitos,
+                pagoMinimo: pagoMinimo,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -4686,6 +4867,8 @@ typedef $$DeudasTableCreateCompanionBuilder =
       Value<double?> tasaInteresMoratorio,
       required String estado,
       Value<String?> notas,
+      Value<String?> cuentaId,
+      Value<String?> amigoUsuarioId,
       Value<int> rowid,
     });
 typedef $$DeudasTableUpdateCompanionBuilder =
@@ -4717,6 +4900,8 @@ typedef $$DeudasTableUpdateCompanionBuilder =
       Value<double?> tasaInteresMoratorio,
       Value<String> estado,
       Value<String?> notas,
+      Value<String?> cuentaId,
+      Value<String?> amigoUsuarioId,
       Value<int> rowid,
     });
 
@@ -4861,6 +5046,16 @@ class $$DeudasTableFilterComposer
 
   ColumnFilters<String> get notas => $composableBuilder(
     column: $table.notas,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cuentaId => $composableBuilder(
+    column: $table.cuentaId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get amigoUsuarioId => $composableBuilder(
+    column: $table.amigoUsuarioId,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -5008,6 +5203,16 @@ class $$DeudasTableOrderingComposer
     column: $table.notas,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get cuentaId => $composableBuilder(
+    column: $table.cuentaId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get amigoUsuarioId => $composableBuilder(
+    column: $table.amigoUsuarioId,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$DeudasTableAnnotationComposer
@@ -5135,6 +5340,14 @@ class $$DeudasTableAnnotationComposer
 
   GeneratedColumn<String> get notas =>
       $composableBuilder(column: $table.notas, builder: (column) => column);
+
+  GeneratedColumn<String> get cuentaId =>
+      $composableBuilder(column: $table.cuentaId, builder: (column) => column);
+
+  GeneratedColumn<String> get amigoUsuarioId => $composableBuilder(
+    column: $table.amigoUsuarioId,
+    builder: (column) => column,
+  );
 }
 
 class $$DeudasTableTableManager
@@ -5192,6 +5405,8 @@ class $$DeudasTableTableManager
                 Value<double?> tasaInteresMoratorio = const Value.absent(),
                 Value<String> estado = const Value.absent(),
                 Value<String?> notas = const Value.absent(),
+                Value<String?> cuentaId = const Value.absent(),
+                Value<String?> amigoUsuarioId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DeudasCompanion(
                 id: id,
@@ -5221,6 +5436,8 @@ class $$DeudasTableTableManager
                 tasaInteresMoratorio: tasaInteresMoratorio,
                 estado: estado,
                 notas: notas,
+                cuentaId: cuentaId,
+                amigoUsuarioId: amigoUsuarioId,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -5252,6 +5469,8 @@ class $$DeudasTableTableManager
                 Value<double?> tasaInteresMoratorio = const Value.absent(),
                 required String estado,
                 Value<String?> notas = const Value.absent(),
+                Value<String?> cuentaId = const Value.absent(),
+                Value<String?> amigoUsuarioId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DeudasCompanion.insert(
                 id: id,
@@ -5281,6 +5500,8 @@ class $$DeudasTableTableManager
                 tasaInteresMoratorio: tasaInteresMoratorio,
                 estado: estado,
                 notas: notas,
+                cuentaId: cuentaId,
+                amigoUsuarioId: amigoUsuarioId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

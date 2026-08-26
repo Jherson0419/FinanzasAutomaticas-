@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:finanzas_automaticas/domain/entities/cuenta.dart';
-import 'package:finanzas_automaticas/domain/proxima_fecha_dia_mes.dart';
+import 'package:finanzas_automaticas/domain/proxima_ocurrencia_mensual.dart';
 import 'package:finanzas_automaticas/domain/repositories/cuenta_repository.dart';
 import 'package:finanzas_automaticas/domain/usecases/dto/alerta_tarjeta_credito.dart';
 import 'package:finanzas_automaticas/domain/usecases/obtener_alertas_tarjetas_credito.dart';
@@ -28,18 +28,16 @@ class _FakeCuentaRepository implements CuentaRepository {
   Future<List<Cuenta>> obtenerTodas() async => cuentas;
 }
 
-/// Día del mes que cae exactamente [diasDesdeHoy] días a partir de hoy —
-/// útil para armar cuentas de prueba sin depender de qué día es "hoy" al
-/// correr el test.
-int _diaEnNDias(int diasDesdeHoy) {
-  final fecha = DateTime.now().add(Duration(days: diasDesdeHoy));
-  return fecha.day;
-}
+/// Fecha completa exactamente [diasDesdeHoy] días a partir de hoy — sirve
+/// como ancla de `fechaCorte`/`fechaPago` (Fase 62) sin depender de qué
+/// fecha es "hoy" al correr el test.
+DateTime _fechaEnNDias(int diasDesdeHoy) =>
+    DateTime.now().add(Duration(days: diasDesdeHoy));
 
 Cuenta _tarjeta({
   required String id,
-  int? diaCorte,
-  int? diaPago,
+  DateTime? fechaCorte,
+  DateTime? fechaPago,
   double saldoActual = 0,
 }) {
   return Cuenta(
@@ -49,8 +47,8 @@ Cuenta _tarjeta({
     moneda: Moneda.pen,
     saldoActual: saldoActual,
     lineaCredito: 5000,
-    diaCorte: diaCorte,
-    diaPago: diaPago,
+    fechaCorte: fechaCorte,
+    fechaPago: fechaPago,
   );
 }
 
@@ -74,9 +72,8 @@ void main() {
   });
 
   test('alerta de corte cuando faltan exactamente 3 días', () async {
-    final diaCorte = _diaEnNDias(3);
     final repo = _FakeCuentaRepository([
-      _tarjeta(id: 't1', diaCorte: diaCorte),
+      _tarjeta(id: 't1', fechaCorte: _fechaEnNDias(3)),
     ]);
 
     final alertas = await ObtenerAlertasTarjetasCredito(
@@ -91,9 +88,8 @@ void main() {
   test(
     'NO alerta cuando faltan 4 días (todavía no entra en el umbral)',
     () async {
-      final diaCorte = _diaEnNDias(4);
       final repo = _FakeCuentaRepository([
-        _tarjeta(id: 't1', diaCorte: diaCorte),
+        _tarjeta(id: 't1', fechaCorte: _fechaEnNDias(4)),
       ]);
 
       final alertas = await ObtenerAlertasTarjetasCredito(
@@ -104,9 +100,10 @@ void main() {
     },
   );
 
-  test('alerta de pago cuando el día de pago es hoy (0 días)', () async {
-    final hoy = DateTime.now();
-    final repo = _FakeCuentaRepository([_tarjeta(id: 't1', diaPago: hoy.day)]);
+  test('alerta de pago cuando la fecha de pago es hoy (0 días)', () async {
+    final repo = _FakeCuentaRepository([
+      _tarjeta(id: 't1', fechaPago: _fechaEnNDias(0)),
+    ]);
 
     final alertas = await ObtenerAlertasTarjetasCredito(
       cuentaRepository: repo,
@@ -118,10 +115,12 @@ void main() {
   });
 
   test('una tarjeta con corte y pago próximos genera 2 alertas', () async {
-    final diaCorte = _diaEnNDias(1);
-    final diaPago = _diaEnNDias(2);
     final repo = _FakeCuentaRepository([
-      _tarjeta(id: 't1', diaCorte: diaCorte, diaPago: diaPago),
+      _tarjeta(
+        id: 't1',
+        fechaCorte: _fechaEnNDias(1),
+        fechaPago: _fechaEnNDias(2),
+      ),
     ]);
 
     final alertas = await ObtenerAlertasTarjetasCredito(
@@ -136,12 +135,12 @@ void main() {
   });
 
   test(
-    'la fecha de la alerta coincide con proximaFecha(diaCorte, hoy)',
+    'la fecha de la alerta coincide con proximaOcurrenciaMensual(fechaCorte, hoy)',
     () async {
       final hoy = DateTime.now();
-      final diaCorte = _diaEnNDias(2);
+      final fechaCorte = _fechaEnNDias(2);
       final repo = _FakeCuentaRepository([
-        _tarjeta(id: 't1', diaCorte: diaCorte),
+        _tarjeta(id: 't1', fechaCorte: fechaCorte),
       ]);
 
       final alertas = await ObtenerAlertasTarjetasCredito(
@@ -149,22 +148,21 @@ void main() {
       )();
 
       final hoySinHora = DateTime(hoy.year, hoy.month, hoy.day);
-      expect(alertas.single.fecha, proximaFecha(diaCorte, hoySinHora));
+      expect(
+        alertas.single.fecha,
+        proximaOcurrenciaMensual(fechaCorte, hoySinHora),
+      );
     },
   );
 
   test(
-    'Fase 57: un diaCorte que ya pasó este mes avanza solo a la próxima '
-    'ocurrencia (mes siguiente) sin que nadie reescriba la cuenta — misma '
-    '`diaCorte` guardada, resultado distinto según pase el tiempo',
+    'Fase 62: una fecha ancla en el pasado avanza sola, mes a mes, hasta la '
+    'próxima ocurrencia futura — misma ancla guardada, nadie la reescribe',
     () async {
       final hoy = DateTime.now();
-      // Si hoy es el día 1, no hay ningún día "ya pasado" distinto de hoy
-      // mismo dentro de este mes — se cae al caso "vence hoy" (0 días),
-      // ya cubierto por el test de "pago cuando el día es hoy" de arriba.
-      final diaCorteQueYaPaso = hoy.day > 1 ? hoy.day - 1 : hoy.day;
+      final anclaPasada = DateTime(hoy.year - 1, 6, 15);
       final repo = _FakeCuentaRepository([
-        _tarjeta(id: 't1', diaCorte: diaCorteQueYaPaso),
+        _tarjeta(id: 't1', fechaCorte: anclaPasada),
       ]);
 
       final alertas = await ObtenerAlertasTarjetasCredito(
@@ -172,15 +170,16 @@ void main() {
       )();
 
       final hoySinHora = DateTime(hoy.year, hoy.month, hoy.day);
-      final proxima = proximaFecha(diaCorteQueYaPaso, hoySinHora);
+      final proxima = proximaOcurrenciaMensual(anclaPasada, hoySinHora);
 
-      if (hoy.day > 1) {
-        // El día ya pasó este mes: `proximaFecha` lo movió sola al mes
-        // siguiente (fuera del umbral de 3 días) — nadie tocó `diaCorte`.
-        expect(proxima.month == hoySinHora.month, isFalse);
+      // La próxima ocurrencia calculada cae en el futuro (nunca en el
+      // pasado): prueba de que "avanza" en vez de quedarse fija en la
+      // fecha ancla original.
+      expect(proxima.isBefore(hoySinHora), isFalse);
+      if (proxima.difference(hoySinHora).inDays > 3) {
         expect(alertas, isEmpty);
       } else {
-        expect(alertas.single.diasRestantes, 0);
+        expect(alertas.single.fecha, proxima);
       }
     },
   );

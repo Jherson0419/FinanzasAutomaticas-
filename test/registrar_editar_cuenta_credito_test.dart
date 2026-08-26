@@ -1,9 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:finanzas_automaticas/domain/entities/cuenta.dart';
+import 'package:finanzas_automaticas/domain/entities/deuda.dart';
 import 'package:finanzas_automaticas/domain/entities/pago_deuda.dart';
 import 'package:finanzas_automaticas/domain/entities/transaccion.dart';
 import 'package:finanzas_automaticas/domain/repositories/cuenta_repository.dart';
+import 'package:finanzas_automaticas/domain/repositories/deuda_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/pago_deuda_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/transaccion_repository.dart';
 import 'package:finanzas_automaticas/domain/usecases/editar_cuenta.dart';
@@ -63,6 +65,38 @@ class _FakePagoDeudaRepository implements PagoDeudaRepository {
   Future<List<PagoDeuda>> obtenerPorDeuda(String deudaId) async => [];
 }
 
+class _FakeDeudaRepository implements DeudaRepository {
+  final List<Deuda> deudas = [];
+
+  @override
+  Future<void> actualizar(Deuda deuda) async {
+    final indice = deudas.indexWhere((d) => d.id == deuda.id);
+    if (indice != -1) deudas[indice] = deuda;
+  }
+
+  @override
+  Future<void> crear(Deuda deuda) async => deudas.add(deuda);
+
+  @override
+  Future<void> eliminar(String id) async =>
+      deudas.removeWhere((d) => d.id == id);
+
+  @override
+  Future<Deuda?> obtenerPorId(String id) async {
+    for (final d in deudas) {
+      if (d.id == id) return d;
+    }
+    return null;
+  }
+
+  @override
+  Future<List<Deuda>> obtenerTodas() async => deudas;
+
+  @override
+  Future<List<Deuda>> obtenerActivas() async =>
+      deudas.where((d) => d.estado == EstadoDeuda.activa).toList();
+}
+
 void main() {
   group('RegistrarCuenta — validación de campos de crédito', () {
     late _FakeCuentaRepository fake;
@@ -70,10 +104,13 @@ void main() {
 
     setUp(() {
       fake = _FakeCuentaRepository();
-      registrarCuenta = RegistrarCuenta(cuentaRepository: fake);
+      registrarCuenta = RegistrarCuenta(
+        cuentaRepository: fake,
+        deudaRepository: _FakeDeudaRepository(),
+      );
     });
 
-    test('exige lineaCredito/diaCorte/diaPago cuando tipo es credito', () {
+    test('exige lineaCredito/fechaCorte/fechaPago cuando tipo es credito', () {
       expect(
         () => registrarCuenta(
           nombre: 'Visa BCP',
@@ -91,7 +128,7 @@ void main() {
           tipo: TipoCuenta.credito,
           moneda: Moneda.pen,
           lineaCredito: 5000,
-          diaCorte: 10,
+          fechaCorte: DateTime(2026, 1, 10),
         ),
         throwsArgumentError,
       );
@@ -103,31 +140,17 @@ void main() {
         tipo: TipoCuenta.credito,
         moneda: Moneda.pen,
         lineaCredito: 5000,
-        diaCorte: 10,
-        diaPago: 20,
+        fechaCorte: DateTime(2026, 1, 10),
+        fechaPago: DateTime(2026, 1, 20),
       );
 
       expect(cuenta.lineaCredito, 5000);
-      expect(cuenta.diaCorte, 10);
-      expect(cuenta.diaPago, 20);
-      expect(fake.cuentas[cuenta.id]!.diaPago, 20);
+      expect(cuenta.fechaCorte, DateTime(2026, 1, 10));
+      expect(cuenta.fechaPago, DateTime(2026, 1, 20));
+      expect(fake.cuentas[cuenta.id]!.fechaPago, DateTime(2026, 1, 20));
     });
 
-    test('rechaza diaCorte/diaPago fuera de 1-31', () {
-      expect(
-        () => registrarCuenta(
-          nombre: 'Visa BCP',
-          tipo: TipoCuenta.credito,
-          moneda: Moneda.pen,
-          lineaCredito: 5000,
-          diaCorte: 32,
-          diaPago: 20,
-        ),
-        throwsArgumentError,
-      );
-    });
-
-    test('rechaza lineaCredito/diaCorte/diaPago si el tipo no es credito', () {
+    test('rechaza lineaCredito/fechaCorte/fechaPago si el tipo no es credito', () {
       expect(
         () => registrarCuenta(
           nombre: 'Efectivo',
@@ -146,9 +169,63 @@ void main() {
         moneda: Moneda.pen,
       );
       expect(cuenta.lineaCredito, isNull);
-      expect(cuenta.diaCorte, isNull);
-      expect(cuenta.diaPago, isNull);
+      expect(cuenta.fechaCorte, isNull);
+      expect(cuenta.fechaPago, isNull);
     });
+
+    test(
+      'Fase 62: crea también una Deuda vinculada (cuentaId) con los montos '
+      'correctos a partir del saldo utilizado',
+      () async {
+        final fakeDeudas = _FakeDeudaRepository();
+        final registrar = RegistrarCuenta(
+          cuentaRepository: fake,
+          deudaRepository: fakeDeudas,
+        );
+
+        final cuenta = await registrar(
+          nombre: 'Visa BCP',
+          tipo: TipoCuenta.credito,
+          moneda: Moneda.pen,
+          saldoInicial: -800,
+          lineaCredito: 2000,
+          fechaCorte: DateTime(2026, 1, 10),
+          fechaPago: DateTime(2026, 1, 20),
+        );
+
+        expect(fakeDeudas.deudas, hasLength(1));
+        final deuda = fakeDeudas.deudas.single;
+        expect(deuda.cuentaId, cuenta.id);
+        expect(deuda.nombreDeuda, 'Visa BCP');
+        expect(deuda.tipoDeuda, TipoDeuda.tarjetaCredito);
+        expect(deuda.estructuraPago, EstructuraPago.pagoLibre);
+        expect(deuda.moneda, Moneda.pen);
+        expect(deuda.montoTotal, 2000);
+        // Crédito disponible (lineaTotal - montoUsado) = 2000 - 800 = 1200.
+        expect(deuda.montoPagado, 1200);
+        expect(deuda.montoTotal - deuda.montoPagado, 800);
+        expect(deuda.estado, EstadoDeuda.activa);
+      },
+    );
+
+    test(
+      'Fase 62: una cuenta no-crédito no crea ninguna Deuda vinculada',
+      () async {
+        final fakeDeudas = _FakeDeudaRepository();
+        final registrar = RegistrarCuenta(
+          cuentaRepository: fake,
+          deudaRepository: fakeDeudas,
+        );
+
+        await registrar(
+          nombre: 'Efectivo',
+          tipo: TipoCuenta.efectivo,
+          moneda: Moneda.pen,
+        );
+
+        expect(fakeDeudas.deudas, isEmpty);
+      },
+    );
   });
 
   group('EditarCuenta — validación de campos de crédito', () {
@@ -161,6 +238,7 @@ void main() {
         cuentaRepository: fake,
         transaccionRepository: _FakeTransaccionRepository(),
         pagoDeudaRepository: _FakePagoDeudaRepository(),
+        deudaRepository: _FakeDeudaRepository(),
       );
     });
 
@@ -185,7 +263,7 @@ void main() {
     });
 
     test(
-      'al cambiar de credito a otro tipo, anula lineaCredito/diaCorte/diaPago',
+      'al cambiar de credito a otro tipo, anula lineaCredito/fechaCorte/fechaPago',
       () async {
         fake.cuentas['c1'] = const Cuenta(
           id: 'c1',
@@ -194,8 +272,8 @@ void main() {
           moneda: Moneda.pen,
           saldoActual: -100,
           lineaCredito: 5000,
-          diaCorte: 10,
-          diaPago: 20,
+          fechaCorte: null,
+          fechaPago: null,
         );
 
         final actualizada = await editarCuenta(
@@ -206,8 +284,8 @@ void main() {
         );
 
         expect(actualizada.lineaCredito, isNull);
-        expect(actualizada.diaCorte, isNull);
-        expect(actualizada.diaPago, isNull);
+        expect(actualizada.fechaCorte, isNull);
+        expect(actualizada.fechaPago, isNull);
         // El saldo histórico no se toca al editar.
         expect(actualizada.saldoActual, -100);
       },
@@ -221,8 +299,6 @@ void main() {
         moneda: Moneda.pen,
         saldoActual: -100,
         lineaCredito: 5000,
-        diaCorte: 10,
-        diaPago: 20,
       );
 
       final actualizada = await editarCuenta(
@@ -231,13 +307,122 @@ void main() {
         tipo: TipoCuenta.credito,
         moneda: Moneda.pen,
         lineaCredito: 8000,
-        diaCorte: 5,
-        diaPago: 25,
+        fechaCorte: DateTime(2026, 1, 5),
+        fechaPago: DateTime(2026, 1, 25),
       );
 
       expect(actualizada.lineaCredito, 8000);
-      expect(actualizada.diaCorte, 5);
-      expect(actualizada.diaPago, 25);
+      expect(actualizada.fechaCorte, DateTime(2026, 1, 5));
+      expect(actualizada.fechaPago, DateTime(2026, 1, 25));
     });
+
+    test(
+      'Fase 62: al cambiar la línea de crédito, sincroniza montoTotal de la '
+      'Deuda vinculada sin tocar el monto usado',
+      () async {
+        final fakeDeudas = _FakeDeudaRepository()
+          ..deudas.add(
+            Deuda(
+              id: 'd1',
+              nombreDeuda: 'Visa BCP',
+              tipoDeuda: TipoDeuda.tarjetaCredito,
+              tipoAcreedor: TipoAcreedor.entidadFinanciera,
+              nombreAcreedor: 'Visa BCP',
+              moneda: Moneda.pen,
+              montoTotal: 5000,
+              // Usado = 5000 - 4200 = 800.
+              montoPagado: 4200,
+              tieneInteres: false,
+              estructuraPago: EstructuraPago.pagoLibre,
+              fechaInicio: DateTime(2026, 1, 1),
+              enMora: false,
+              estado: EstadoDeuda.activa,
+              cuentaId: 'c1',
+            ),
+          );
+        fake.cuentas['c1'] = const Cuenta(
+          id: 'c1',
+          nombre: 'Visa BCP',
+          tipo: TipoCuenta.credito,
+          moneda: Moneda.pen,
+          saldoActual: -800,
+          lineaCredito: 5000,
+        );
+        final editar = EditarCuenta(
+          cuentaRepository: fake,
+          transaccionRepository: _FakeTransaccionRepository(),
+          pagoDeudaRepository: _FakePagoDeudaRepository(),
+          deudaRepository: fakeDeudas,
+        );
+
+        await editar(
+          cuentaId: 'c1',
+          nombre: 'Visa BCP',
+          tipo: TipoCuenta.credito,
+          moneda: Moneda.pen,
+          lineaCredito: 8000,
+          fechaCorte: DateTime(2026, 1, 10),
+          fechaPago: DateTime(2026, 1, 20),
+        );
+
+        final deuda = fakeDeudas.deudas.single;
+        expect(deuda.montoTotal, 8000);
+        // Usado sigue siendo 800 (derivado del mismo saldoActual, no
+        // tocado por EditarCuenta): 8000 - 7200 = 800.
+        expect(deuda.montoPagado, 7200);
+        expect(deuda.montoTotal - deuda.montoPagado, 800);
+      },
+    );
+
+    test(
+      'Fase 62: al cambiar el nombre de la cuenta, sincroniza nombreDeuda',
+      () async {
+        final fakeDeudas = _FakeDeudaRepository()
+          ..deudas.add(
+            Deuda(
+              id: 'd1',
+              nombreDeuda: 'Visa BCP',
+              tipoDeuda: TipoDeuda.tarjetaCredito,
+              tipoAcreedor: TipoAcreedor.entidadFinanciera,
+              nombreAcreedor: 'Visa BCP',
+              moneda: Moneda.pen,
+              montoTotal: 5000,
+              montoPagado: 5000,
+              tieneInteres: false,
+              estructuraPago: EstructuraPago.pagoLibre,
+              fechaInicio: DateTime(2026, 1, 1),
+              enMora: false,
+              estado: EstadoDeuda.activa,
+              cuentaId: 'c1',
+            ),
+          );
+        fake.cuentas['c1'] = const Cuenta(
+          id: 'c1',
+          nombre: 'Visa BCP',
+          tipo: TipoCuenta.credito,
+          moneda: Moneda.pen,
+          saldoActual: 0,
+          lineaCredito: 5000,
+        );
+        final editar = EditarCuenta(
+          cuentaRepository: fake,
+          transaccionRepository: _FakeTransaccionRepository(),
+          pagoDeudaRepository: _FakePagoDeudaRepository(),
+          deudaRepository: fakeDeudas,
+        );
+
+        await editar(
+          cuentaId: 'c1',
+          nombre: 'Visa BCP Oro',
+          tipo: TipoCuenta.credito,
+          moneda: Moneda.pen,
+          lineaCredito: 5000,
+          fechaCorte: DateTime(2026, 1, 10),
+          fechaPago: DateTime(2026, 1, 20),
+        );
+
+        expect(fakeDeudas.deudas.single.nombreDeuda, 'Visa BCP Oro');
+      },
+    );
   });
 }

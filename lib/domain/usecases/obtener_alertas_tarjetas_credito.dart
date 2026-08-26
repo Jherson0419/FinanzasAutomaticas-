@@ -1,11 +1,12 @@
 import '../entities/cuenta.dart';
-import '../proxima_fecha_dia_mes.dart';
+import '../proxima_ocurrencia_mensual.dart';
 import '../repositories/cuenta_repository.dart';
 import 'dto/alerta_tarjeta_credito.dart';
 
 /// Recorre las cuentas tipo `credito` y marca una alerta cuando la próxima
-/// fecha de corte o de pago está a 3 días o menos (Fase 29). Se ejecuta
-/// automáticamente al cargar el dashboard, mismo patrón que
+/// fecha de corte o de pago está a 3 días o menos (Fase 29; `fechaCorte`/
+/// `fechaPago` completas en vez de solo el día del mes desde la Fase 62).
+/// Se ejecuta automáticamente al cargar el dashboard, mismo patrón que
 /// `ActualizarEstadoMora` (`resumenDashboardProvider`).
 class ObtenerAlertasTarjetasCredito {
   static const _umbralDias = 3;
@@ -24,23 +25,23 @@ class ObtenerAlertasTarjetasCredito {
     for (final cuenta in cuentas) {
       if (cuenta.tipo != TipoCuenta.credito) continue;
 
-      final diaCorte = cuenta.diaCorte;
-      if (diaCorte != null) {
+      final fechaCorte = cuenta.fechaCorte;
+      if (fechaCorte != null) {
         final alerta = _alertaSiAplica(
           cuenta,
           TipoAlertaTarjeta.corte,
-          diaCorte,
+          fechaCorte,
           hoy,
         );
         if (alerta != null) alertas.add(alerta);
       }
 
-      final diaPago = cuenta.diaPago;
-      if (diaPago != null) {
+      final fechaPago = cuenta.fechaPago;
+      if (fechaPago != null) {
         final alerta = _alertaSiAplica(
           cuenta,
           TipoAlertaTarjeta.pago,
-          diaPago,
+          fechaPago,
           hoy,
         );
         if (alerta != null) alertas.add(alerta);
@@ -52,10 +53,10 @@ class ObtenerAlertasTarjetasCredito {
   AlertaTarjetaCredito? _alertaSiAplica(
     Cuenta cuenta,
     TipoAlertaTarjeta tipo,
-    int diaDelMes,
+    DateTime ancla,
     DateTime hoy,
   ) {
-    final fecha = proximaFecha(diaDelMes, hoy);
+    final fecha = proximaOcurrenciaMensual(ancla, hoy);
     final diasRestantes = fecha.difference(hoy).inDays;
     if (diasRestantes > _umbralDias) return null;
     return AlertaTarjetaCredito(

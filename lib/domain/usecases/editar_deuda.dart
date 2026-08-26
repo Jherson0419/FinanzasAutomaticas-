@@ -36,10 +36,17 @@ class EditarDeuda {
     required DateTime fechaInicio,
     int? diaPago,
     String? notas,
+    String? amigoUsuarioId,
   }) async {
     final actual = await _deudaRepository.obtenerPorId(deudaId);
     if (actual == null) {
       throw ArgumentError('La deuda $deudaId no existe');
+    }
+    if (actual.cuentaId != null) {
+      throw StateError(
+        'Edita o elimina la cuenta de crédito directamente, esta deuda se '
+        'sincroniza sola.',
+      );
     }
 
     final pagos = await _pagoDeudaRepository.obtenerPorDeuda(deudaId);
@@ -130,6 +137,7 @@ class EditarDeuda {
       tasaInteresMoratorio: actual.tasaInteresMoratorio,
       estado: actual.estado,
       notas: notas,
+      amigoUsuarioId: amigoUsuarioId,
     );
 
     await _deudaRepository.actualizar(actualizada);

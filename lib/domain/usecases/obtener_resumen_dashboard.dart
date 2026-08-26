@@ -55,8 +55,13 @@ class ObtenerResumenDashboard {
         )
         .toList();
 
+    // Fase 62: las tarjetas de crédito NUNCA cuentan como fondos
+    // disponibles — su deuda ya se refleja aparte (en la propia tarjeta y,
+    // desde esta fase, en su `Deuda` vinculada dentro de "Deudas activas").
+    // Mismo criterio ya aplicado al resumen de Consejos en la Fase 60.
     final saldoTotalPorMoneda = <Moneda, double>{};
     for (final cuenta in cuentas) {
+      if (cuenta.tipo == TipoCuenta.credito) continue;
       saldoTotalPorMoneda.update(
         cuenta.moneda,
         (v) => v + cuenta.saldoActual,

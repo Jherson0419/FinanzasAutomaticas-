@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:finanzas_automaticas/domain/entities/tema_app.dart';
 import 'package:finanzas_automaticas/domain/repositories/auth_repository.dart';
+import 'package:finanzas_automaticas/domain/repositories/preferencias_repository.dart';
 import 'package:finanzas_automaticas/presentation/screens/login_screen.dart';
+import 'package:finanzas_automaticas/presentation/screens/olvide_contrasena_screen.dart';
 import 'package:finanzas_automaticas/presentation/state/providers.dart';
 
 class _FakeAuthRepository implements AuthRepository {
@@ -41,6 +44,12 @@ class _FakeAuthRepository implements AuthRepository {
   Future<void> eliminarCuenta() async => _haySesion = false;
 
   @override
+  Future<void> enviarLinkRecuperacion({required String email}) async {}
+
+  @override
+  Future<void> actualizarContrasena({required String nuevaContrasena}) async {}
+
+  @override
   Future<void> iniciarSesionConGoogle() async {
     vecesIniciarSesionConGoogle++;
     if (errorAlIniciarSesionConGoogle != null) {
@@ -52,9 +61,46 @@ class _FakeAuthRepository implements AuthRepository {
   }
 }
 
+/// Fase 65 — solo lo que `LoginScreen`/`OlvideContrasenaScreen` tocan:
+/// `guardarRecordarSesion` (B.2). El resto de `PreferenciasRepository` no
+/// aplica a esta pantalla.
+class _FakePreferenciasRepository implements PreferenciasRepository {
+  bool? recordarSesionGuardado;
+
+  @override
+  Future<bool> recordarSesion() async => recordarSesionGuardado ?? true;
+  @override
+  Future<void> guardarRecordarSesion(bool recordar) async =>
+      recordarSesionGuardado = recordar;
+
+  @override
+  Future<String?> obtenerNombre() async => null;
+  @override
+  Future<void> guardarNombre(String nombre) async {}
+  @override
+  Future<bool> onboardingCompletado() async => true;
+  @override
+  Future<void> marcarOnboardingCompletado() async {}
+  @override
+  Future<TemaApp> obtenerTema() async => TemaApp.oscuro;
+  @override
+  Future<void> guardarTema(TemaApp tema) async {}
+  @override
+  Future<String?> obtenerApiKeyGemini() async => null;
+  @override
+  Future<void> guardarApiKeyGemini(String apiKey) async {}
+  @override
+  Future<bool> datosEnLaNube() async => true;
+  @override
+  Future<void> marcarDatosEnLaNube() async {}
+  @override
+  Future<void> limpiarTodo() async {}
+}
+
 Future<_FakeAuthRepository> _pumpScreen(
   WidgetTester tester, {
   Object? errorAlIniciarSesion,
+  _FakePreferenciasRepository? fakePreferencias,
 }) async {
   tester.view.physicalSize = const Size(1200, 3000);
   tester.view.devicePixelRatio = 1.0;
@@ -66,7 +112,12 @@ Future<_FakeAuthRepository> _pumpScreen(
 
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [authRepositoryProvider.overrideWithValue(fake)],
+      overrides: [
+        authRepositoryProvider.overrideWithValue(fake),
+        preferenciasRepositoryProvider.overrideWithValue(
+          fakePreferencias ?? _FakePreferenciasRepository(),
+        ),
+      ],
       child: const MaterialApp(home: LoginScreen()),
     ),
   );
@@ -257,6 +308,101 @@ void main() {
         ),
         findsOneWidget,
       );
+    },
+  );
+
+  group('Fase 65 — "Recuérdame" (B.2)', () {
+    testWidgets('el checkbox "Recuérdame" empieza marcado por defecto', (
+      WidgetTester tester,
+    ) async {
+      await _pumpScreen(tester);
+
+      final checkbox = tester.widget<Checkbox>(find.byType(Checkbox));
+      expect(checkbox.value, isTrue);
+    });
+
+    testWidgets(
+      'iniciar sesión con "Recuérdame" marcado guarda recordarSesion=true',
+      (WidgetTester tester) async {
+        final fakePreferencias = _FakePreferenciasRepository();
+        await _pumpScreen(tester, fakePreferencias: fakePreferencias);
+
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Correo'),
+          'user@example.com',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Contraseña'),
+          'secreto123',
+        );
+        await tester.pump();
+        await tester.tap(find.widgetWithText(FilledButton, 'Iniciar sesión'));
+        await tester.pumpAndSettle();
+
+        expect(fakePreferencias.recordarSesionGuardado, isTrue);
+      },
+    );
+
+    testWidgets(
+      'desmarcar "Recuérdame" y luego iniciar sesión guarda recordarSesion=false',
+      (WidgetTester tester) async {
+        final fakePreferencias = _FakePreferenciasRepository();
+        await _pumpScreen(tester, fakePreferencias: fakePreferencias);
+
+        await tester.tap(find.byType(Checkbox));
+        await tester.pump();
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Correo'),
+          'user@example.com',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Contraseña'),
+          'secreto123',
+        );
+        await tester.pump();
+        await tester.tap(find.widgetWithText(FilledButton, 'Iniciar sesión'));
+        await tester.pumpAndSettle();
+
+        expect(fakePreferencias.recordarSesionGuardado, isFalse);
+      },
+    );
+
+    testWidgets(
+      'un intento de login fallido no guarda ninguna preferencia de recordarSesion',
+      (WidgetTester tester) async {
+        final fakePreferencias = _FakePreferenciasRepository();
+        await _pumpScreen(
+          tester,
+          fakePreferencias: fakePreferencias,
+          errorAlIniciarSesion: StateError('Correo o contraseña incorrectos.'),
+        );
+
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Correo'),
+          'user@example.com',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Contraseña'),
+          'secreto123',
+        );
+        await tester.pump();
+        await tester.tap(find.widgetWithText(FilledButton, 'Iniciar sesión'));
+        await tester.pumpAndSettle();
+
+        expect(fakePreferencias.recordarSesionGuardado, isNull);
+      },
+    );
+  });
+
+  testWidgets(
+    'Fase 65 (B.3): "¿Olvidaste tu contraseña?" navega a OlvideContrasenaScreen',
+    (WidgetTester tester) async {
+      await _pumpScreen(tester);
+
+      await tester.tap(find.text('¿Olvidaste tu contraseña?'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(OlvideContrasenaScreen), findsOneWidget);
     },
   );
 }

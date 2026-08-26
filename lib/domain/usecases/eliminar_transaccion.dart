@@ -1,16 +1,23 @@
 import '../calculo_saldo.dart';
 import '../repositories/cuenta_repository.dart';
+import '../repositories/deuda_repository.dart';
 import '../repositories/transaccion_repository.dart';
+import 'sincronizar_deuda_tarjeta.dart';
 
 class EliminarTransaccion {
   final TransaccionRepository _transaccionRepository;
   final CuentaRepository _cuentaRepository;
+  final SincronizarDeudaTarjeta _sincronizarDeudaTarjeta;
 
   EliminarTransaccion({
     required TransaccionRepository transaccionRepository,
     required CuentaRepository cuentaRepository,
+    required DeudaRepository deudaRepository,
   }) : _transaccionRepository = transaccionRepository,
-       _cuentaRepository = cuentaRepository;
+       _cuentaRepository = cuentaRepository,
+       _sincronizarDeudaTarjeta = SincronizarDeudaTarjeta(
+         deudaRepository: deudaRepository,
+       );
 
   Future<void> call({required String transaccionId}) async {
     final transaccion = await _transaccionRepository.obtenerPorId(
@@ -30,9 +37,9 @@ class EliminarTransaccion {
       transaccion.tipo,
       transaccion.monto,
     );
-    await _cuentaRepository.actualizar(
-      cuenta.copyWith(saldoActual: saldoRevertido),
-    );
+    final cuentaActualizada = cuenta.copyWith(saldoActual: saldoRevertido);
+    await _cuentaRepository.actualizar(cuentaActualizada);
+    await _sincronizarDeudaTarjeta(cuentaActualizada);
 
     await _transaccionRepository.eliminar(transaccionId);
   }

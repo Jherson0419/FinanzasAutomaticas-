@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:finanzas_automaticas/domain/entities/cuenta.dart';
+import 'package:finanzas_automaticas/domain/entities/deuda.dart';
 import 'package:finanzas_automaticas/domain/entities/pago_deuda.dart';
 import 'package:finanzas_automaticas/domain/entities/transaccion.dart';
 import 'package:finanzas_automaticas/domain/repositories/cuenta_repository.dart';
+import 'package:finanzas_automaticas/domain/repositories/deuda_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/pago_deuda_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/transaccion_repository.dart';
 import 'package:finanzas_automaticas/domain/usecases/editar_cuenta.dart';
@@ -69,6 +71,38 @@ class _FakePagoDeudaRepository implements PagoDeudaRepository {
   Future<List<PagoDeuda>> obtenerPorDeuda(String deudaId) async => [];
 }
 
+class _FakeDeudaRepository implements DeudaRepository {
+  final List<Deuda> deudas = [];
+
+  @override
+  Future<void> actualizar(Deuda deuda) async {
+    final indice = deudas.indexWhere((d) => d.id == deuda.id);
+    if (indice != -1) deudas[indice] = deuda;
+  }
+
+  @override
+  Future<void> crear(Deuda deuda) async => deudas.add(deuda);
+
+  @override
+  Future<void> eliminar(String id) async =>
+      deudas.removeWhere((d) => d.id == id);
+
+  @override
+  Future<Deuda?> obtenerPorId(String id) async {
+    for (final d in deudas) {
+      if (d.id == id) return d;
+    }
+    return null;
+  }
+
+  @override
+  Future<List<Deuda>> obtenerTodas() async => deudas;
+
+  @override
+  Future<List<Deuda>> obtenerActivas() async =>
+      deudas.where((d) => d.estado == EstadoDeuda.activa).toList();
+}
+
 Future<void> _pump(WidgetTester tester, Cuenta cuenta) async {
   await tester.pumpWidget(
     MaterialApp(home: Scaffold(body: WalletAccountCard(cuenta: cuenta))),
@@ -91,6 +125,7 @@ Future<_FakeCuentaRepository> _pumpScreen(
       overrides: [
         datosEnLaNubeProvider.overrideWithValue(false),
         cuentaRepositoryProvider.overrideWithValue(repo),
+        deudaRepositoryProvider.overrideWithValue(_FakeDeudaRepository()),
       ],
       child: MaterialApp(home: CuentaNuevaScreen(cuentaId: cuentaId)),
     ),
@@ -110,7 +145,10 @@ void main() {
   group('RegistrarCuenta/EditarCuenta — ultimosDigitos (Fase 57)', () {
     test('RegistrarCuenta guarda ultimosDigitos para cualquier tipo', () async {
       final fake = _FakeCuentaRepository();
-      final registrarCuenta = RegistrarCuenta(cuentaRepository: fake);
+      final registrarCuenta = RegistrarCuenta(
+        cuentaRepository: fake,
+        deudaRepository: _FakeDeudaRepository(),
+      );
 
       final cuenta = await registrarCuenta(
         nombre: 'Ahorros',
@@ -125,7 +163,10 @@ void main() {
 
     test('RegistrarCuenta deja ultimosDigitos en null si no se pasa', () async {
       final fake = _FakeCuentaRepository();
-      final registrarCuenta = RegistrarCuenta(cuentaRepository: fake);
+      final registrarCuenta = RegistrarCuenta(
+        cuentaRepository: fake,
+        deudaRepository: _FakeDeudaRepository(),
+      );
 
       final cuenta = await registrarCuenta(
         nombre: 'Ahorros',
@@ -150,6 +191,7 @@ void main() {
         cuentaRepository: fake,
         transaccionRepository: _FakeTransaccionRepository(),
         pagoDeudaRepository: _FakePagoDeudaRepository(),
+        deudaRepository: _FakeDeudaRepository(),
       );
 
       final actualizada = await editarCuenta(
@@ -324,14 +366,14 @@ void main() {
           find.widgetWithText(TextFormField, 'Línea de crédito'),
           '2000',
         );
-        await tester.enterText(
-          find.widgetWithText(TextFormField, 'Día de corte'),
-          '10',
-        );
-        await tester.enterText(
-          find.widgetWithText(TextFormField, 'Día de pago'),
-          '20',
-        );
+        await tester.tap(find.text('Fecha de corte'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('OK'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Fecha de pago'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('OK'));
+        await tester.pumpAndSettle();
         await tester.enterText(
           find.widgetWithText(TextFormField, 'Saldo utilizado'),
           '800',

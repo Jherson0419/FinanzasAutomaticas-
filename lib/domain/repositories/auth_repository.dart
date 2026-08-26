@@ -24,6 +24,19 @@ abstract class AuthRepository {
 
   Future<void> cerrarSesion();
 
+  /// Envía el correo de recuperación de contraseña (Fase 65) — el link que
+  /// trae redirige a `finzo://reset-password`, que `supabase_flutter`
+  /// reconoce internamente (arma sola una sesión de recuperación y emite
+  /// `AuthChangeEvent.passwordRecovery`) igual que ya hace con
+  /// `login-callback` desde la Fase 54.
+  Future<void> enviarLinkRecuperacion({required String email});
+
+  /// Cambia la contraseña del usuario de la sesión activa — solo tiene
+  /// sentido llamarlo con una sesión de recuperación recién armada por el
+  /// deep link de arriba, pero funciona igual con cualquier sesión activa
+  /// (el SDK no distingue).
+  Future<void> actualizarContrasena({required String nuevaContrasena});
+
   /// Borra permanentemente la cuenta de autenticación del usuario actual
   /// (Fase 22, requisito de Apple — Guideline 5.1.1(v)). Solo puede borrar
   /// la sesión propia: nunca recibe ni acepta un id de usuario distinto.

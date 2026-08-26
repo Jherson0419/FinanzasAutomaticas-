@@ -28,6 +28,15 @@ abstract class PreferenciasRepository {
   Future<bool> datosEnLaNube();
   Future<void> marcarDatosEnLaNube();
 
+  /// "Recuérdame" del login (Fase 65) — `true` por defecto (incluido si
+  /// nunca se guardó nada, ej. instalaciones/sesiones de antes de esta
+  /// fase): así nadie pierde su sesión ya iniciada solo por actualizar la
+  /// app. Si queda en `false`, el próximo arranque en frío cierra la
+  /// sesión de Supabase automáticamente aunque siga técnicamente vigente
+  /// (ver el punto de arranque en `main.dart`), forzando el login de nuevo.
+  Future<bool> recordarSesion();
+  Future<void> guardarRecordarSesion(bool recordar);
+
   /// Borra TODAS las preferencias locales (nombre, API key de Gemini,
   /// onboarding completado, datos en la nube) — usado únicamente por
   /// `EliminarCuentaDeUsuario` (Fase 22) tras borrar

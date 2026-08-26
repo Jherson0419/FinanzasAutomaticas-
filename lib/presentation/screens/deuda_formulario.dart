@@ -9,6 +9,7 @@ import '../shared/formatters.dart';
 import '../shared/mensajes_error.dart';
 import '../state/dashboard/dashboard_providers.dart';
 import '../state/providers.dart';
+import '../theme/app_theme.dart';
 
 /// Formulario de deuda, reutilizado por [DeudaNuevaScreen] (crear/editar,
 /// según [deudaId]) y por el paso de deudas del wizard de onboarding
@@ -50,6 +51,13 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
   PeriodicidadCuota _periodicidadCuotas = PeriodicidadCuota.mensual;
   bool _guardando = false;
   bool _valoresPrecargados = false;
+
+  /// Fase 64: vincular la deuda a un amigo de Finzo, solo disponible con
+  /// `_tipoAcreedor == personaNatural` — opcional incluso ahí (la mayoría
+  /// de las deudas con una persona natural no son con un amigo dentro de
+  /// la app).
+  bool _esAmigo = false;
+  String? _amigoUsuarioId;
 
   bool get _editando => widget.deudaId != null;
 
@@ -132,6 +140,12 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
       if (tasa == null || tasa <= 0) return false;
     }
 
+    if (_tipoAcreedor == TipoAcreedor.personaNatural &&
+        _esAmigo &&
+        _amigoUsuarioId == null) {
+      return false;
+    }
+
     return true;
   }
 
@@ -154,6 +168,8 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
     _tipoTasa = deuda.tipoTasa ?? TipoTasa.fija;
     _estructuraPago = deuda.estructuraPago;
     _periodicidadCuotas = deuda.periodicidadCuotas ?? PeriodicidadCuota.mensual;
+    _esAmigo = deuda.amigoUsuarioId != null;
+    _amigoUsuarioId = deuda.amigoUsuarioId;
   }
 
   Future<void> _seleccionarFechaInicio() async {
@@ -184,6 +200,8 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
       _tipoTasa = TipoTasa.fija;
       _estructuraPago = EstructuraPago.cuotasFijas;
       _periodicidadCuotas = PeriodicidadCuota.mensual;
+      _esAmigo = false;
+      _amigoUsuarioId = null;
     });
   }
 
@@ -207,6 +225,10 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
           ? _parseDouble(_tasaInteresController.text)
           : null;
       final notas = _notasController.text.trim();
+      final amigoUsuarioId =
+          (_tipoAcreedor == TipoAcreedor.personaNatural && _esAmigo)
+          ? _amigoUsuarioId
+          : null;
 
       if (_editando) {
         await ref.read(editarDeudaProvider)(
@@ -228,6 +250,7 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
           fechaInicio: _fechaInicio,
           diaPago: null,
           notas: notas.isEmpty ? null : notas,
+          amigoUsuarioId: amigoUsuarioId,
         );
         ref.invalidate(deudaPorIdProvider(widget.deudaId!));
       } else {
@@ -249,6 +272,7 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
           fechaInicio: _fechaInicio,
           diaPago: null,
           notas: notas.isEmpty ? null : notas,
+          amigoUsuarioId: amigoUsuarioId,
         );
       }
 
@@ -347,6 +371,19 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
           ),
           onChanged: (_) => setState(() {}),
         ),
+        if (_tipoAcreedor == TipoAcreedor.personaNatural) ...[
+          const SizedBox(height: 8),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('¿Es un amigo de Finzo?'),
+            value: _esAmigo,
+            onChanged: (valor) => setState(() {
+              _esAmigo = valor;
+              if (!valor) _amigoUsuarioId = null;
+            }),
+          ),
+          if (_esAmigo) _construirSelectorAmigo(theme),
+        ],
         const SizedBox(height: 16),
         DropdownButtonFormField<Moneda>(
           initialValue: _moneda,
@@ -431,6 +468,60 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
               : Text(_editando ? 'Guardar cambios' : 'Guardar'),
         ),
       ],
+    );
+  }
+
+  /// Fase 64 — selector de amigo cuando `¿Es un amigo de Finzo?` está
+  /// activo: reutiliza `amigosProvider` (Fase 63) en vez de una búsqueda
+  /// nueva, porque solo tiene sentido vincular a alguien que ya es amigo
+  /// aceptado, no a cualquier usuario de la app.
+  Widget _construirSelectorAmigo(ThemeData theme) {
+    final amigosAsync = ref.watch(amigosProvider);
+    return amigosAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: LinearProgressIndicator(),
+      ),
+      error: (error, stackTrace) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Text(
+          'No se pudo cargar tu lista de amigos.',
+          style: theme.textTheme.bodySmall?.copyWith(color: colorDanger),
+        ),
+      ),
+      data: (amigos) {
+        if (amigos.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              'Todavía no tienes amigos agregados en Finzo.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: DropdownButtonFormField<String>(
+            initialValue: _amigoUsuarioId,
+            decoration: const InputDecoration(
+              labelText: 'Selecciona a tu amigo',
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              for (final amigo in amigos)
+                DropdownMenuItem(
+                  value: amigo.usuarioId,
+                  child: Text(
+                    amigo.nick != null ? '@${amigo.nick}' : 'Sin nick',
+                  ),
+                ),
+            ],
+            onChanged: (valor) => setState(() => _amigoUsuarioId = valor),
+          ),
+        );
+      },
     );
   }
 

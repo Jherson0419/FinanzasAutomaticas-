@@ -40,6 +40,12 @@ class DashboardScreen extends ConsumerWidget {
 
     final resumenAsync = ref.watch(resumenDashboardProvider);
     final nombreAsync = ref.watch(nombreUsuarioProvider);
+    // Fase 63: conteo de notificaciones no leídas para el badge de la
+    // campana — `valueOrNull` deja el badge sin número mientras el stream
+    // de Realtime todavía no emitió su primer snapshot, en vez de mostrar
+    // un "0" que después salta a un número distinto.
+    final conteoNoLeidas =
+        ref.watch(notificacionesNoLeidasProvider).valueOrNull?.length ?? 0;
     final theme = Theme.of(context);
     final saludo = nombreAsync.maybeWhen(
       data: (nombre) =>
@@ -66,8 +72,14 @@ class DashboardScreen extends ConsumerWidget {
             child: Icon(Icons.gpp_good_outlined, color: colorSuccess),
           ),
           IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.notifications_none),
+            tooltip: 'Notificaciones',
+            onPressed: () =>
+                Navigator.of(context).pushNamed('/notificaciones'),
+            icon: Badge(
+              label: Text('$conteoNoLeidas'),
+              isLabelVisible: conteoNoLeidas > 0,
+              child: const Icon(Icons.notifications_none),
+            ),
           ),
         ],
       ),

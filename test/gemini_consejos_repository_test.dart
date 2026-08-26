@@ -35,6 +35,10 @@ class _FakePreferenciasRepository implements PreferenciasRepository {
   @override
   Future<void> marcarDatosEnLaNube() async {}
   @override
+  Future<bool> recordarSesion() async => true;
+  @override
+  Future<void> guardarRecordarSesion(bool recordar) async {}
+  @override
   Future<void> limpiarTodo() async {}
 }
 

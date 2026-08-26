@@ -1,12 +1,57 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:finanzas_automaticas/domain/entities/amistad.dart';
 import 'package:finanzas_automaticas/domain/entities/cuenta.dart';
 import 'package:finanzas_automaticas/domain/entities/deuda.dart';
 import 'package:finanzas_automaticas/domain/entities/pago_deuda.dart';
+import 'package:finanzas_automaticas/domain/repositories/amistad_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/cuenta_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/deuda_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/pago_deuda_repository.dart';
 import 'package:finanzas_automaticas/domain/usecases/registrar_pago_deuda.dart';
+
+/// Fase 64 — fake mínimo: `RegistrarPagoDeuda` solo llama a `notificarPago`,
+/// el resto de métodos de `AmistadRepository` no le competen a este caso de
+/// uso y no deberían invocarse desde aquí.
+class _FakeAmistadRepository implements AmistadRepository {
+  _FakeAmistadRepository({this.errorAlNotificar});
+
+  final Object? errorAlNotificar;
+  final List<Map<String, Object?>> notificacionesEnviadas = [];
+
+  @override
+  Future<void> notificarPago({
+    required String amigoUsuarioId,
+    required double monto,
+    required String nombreDeuda,
+  }) async {
+    if (errorAlNotificar != null) throw errorAlNotificar!;
+    notificacionesEnviadas.add({
+      'amigoUsuarioId': amigoUsuarioId,
+      'monto': monto,
+      'nombreDeuda': nombreDeuda,
+    });
+  }
+
+  @override
+  Future<PerfilPublico?> buscarPorNick(String nick) async =>
+      throw UnimplementedError();
+  @override
+  Future<void> enviarSolicitud(String paraUsuarioId) async =>
+      throw UnimplementedError();
+  @override
+  Future<List<SolicitudRecibida>> obtenerSolicitudesRecibidas() async =>
+      throw UnimplementedError();
+  @override
+  Future<List<PerfilPublico>> obtenerAmigos() async =>
+      throw UnimplementedError();
+  @override
+  Future<void> aceptarSolicitud(String solicitudId) async =>
+      throw UnimplementedError();
+  @override
+  Future<void> rechazarSolicitud(String solicitudId) async =>
+      throw UnimplementedError();
+}
 
 class _FakeDeudaRepository implements DeudaRepository {
   final Map<String, Deuda> deudas;
@@ -111,6 +156,7 @@ void main() {
         pagoDeudaRepository: fakePagos,
         deudaRepository: fakeDeudas,
         cuentaRepository: fakeCuentas,
+        amistadRepository: _FakeAmistadRepository(),
       );
 
       await registrarPagoDeuda(
@@ -161,6 +207,7 @@ void main() {
         pagoDeudaRepository: fakePagos,
         deudaRepository: fakeDeudas,
         cuentaRepository: fakeCuentas,
+        amistadRepository: _FakeAmistadRepository(),
       );
 
       await registrarPagoDeuda(
@@ -210,6 +257,7 @@ void main() {
         pagoDeudaRepository: fakePagos,
         deudaRepository: fakeDeudas,
         cuentaRepository: fakeCuentas,
+        amistadRepository: _FakeAmistadRepository(),
       );
 
       await expectLater(
@@ -256,6 +304,7 @@ void main() {
         pagoDeudaRepository: fakePagos,
         deudaRepository: fakeDeudas,
         cuentaRepository: fakeCuentas,
+        amistadRepository: _FakeAmistadRepository(),
       );
 
       final pago = await registrarPagoDeuda(
@@ -308,6 +357,7 @@ void main() {
         pagoDeudaRepository: fakePagos,
         deudaRepository: fakeDeudas,
         cuentaRepository: fakeCuentas,
+        amistadRepository: _FakeAmistadRepository(),
       );
 
       await registrarPagoDeuda(
@@ -337,6 +387,7 @@ void main() {
           pagoDeudaRepository: fakePagos,
           deudaRepository: fakeDeudas,
           cuentaRepository: fakeCuentas,
+          amistadRepository: _FakeAmistadRepository(),
         );
 
         await expectLater(
@@ -372,6 +423,7 @@ void main() {
           pagoDeudaRepository: fakePagos,
           deudaRepository: fakeDeudas,
           cuentaRepository: fakeCuentas,
+          amistadRepository: _FakeAmistadRepository(),
         );
 
         await expectLater(
@@ -417,6 +469,7 @@ void main() {
           pagoDeudaRepository: fakePagos,
           deudaRepository: fakeDeudas,
           cuentaRepository: fakeCuentas,
+          amistadRepository: _FakeAmistadRepository(),
         );
 
         final pago = await registrarPagoDeuda(
@@ -442,6 +495,7 @@ void main() {
           pagoDeudaRepository: fakePagos,
           deudaRepository: fakeDeudas,
           cuentaRepository: fakeCuentas,
+          amistadRepository: _FakeAmistadRepository(),
         );
 
         final pago = await registrarPagoDeuda(
@@ -468,6 +522,7 @@ void main() {
           pagoDeudaRepository: fakePagos,
           deudaRepository: fakeDeudas,
           cuentaRepository: fakeCuentas,
+          amistadRepository: _FakeAmistadRepository(),
         );
 
         final pago = await registrarPagoDeuda(
@@ -478,6 +533,193 @@ void main() {
 
         expect(pago.numeroCuota, isNull);
         expect(fakePagos.pagos, hasLength(1));
+      },
+    );
+  });
+
+  group('Fase 62 — rechazo de deudas vinculadas a una tarjeta de crédito', () {
+    test(
+      'rechaza con un error explícito si la deuda tiene cuentaId (está '
+      'vinculada a una tarjeta de crédito)',
+      () async {
+        final deudaVinculada = Deuda(
+          id: 'd7',
+          nombreDeuda: 'Visa BCP',
+          tipoDeuda: TipoDeuda.tarjetaCredito,
+          tipoAcreedor: TipoAcreedor.entidadFinanciera,
+          nombreAcreedor: 'Visa BCP',
+          moneda: Moneda.pen,
+          montoTotal: 2000,
+          montoPagado: 1200,
+          tieneInteres: false,
+          estructuraPago: EstructuraPago.pagoLibre,
+          fechaInicio: DateTime(2026, 1, 1),
+          enMora: false,
+          estado: EstadoDeuda.activa,
+          cuentaId: 'cta-credito',
+        );
+        final fakeDeudas = _FakeDeudaRepository({'d7': deudaVinculada});
+        final fakeCuentas = _FakeCuentaRepository({
+          'cta-1': const Cuenta(
+            id: 'cta-1',
+            nombre: 'BCP Cuenta sueldo',
+            tipo: TipoCuenta.debito,
+            moneda: Moneda.pen,
+            saldoActual: 1000,
+          ),
+        });
+        final fakePagos = _FakePagoDeudaRepository();
+        final registrarPagoDeuda = RegistrarPagoDeuda(
+          pagoDeudaRepository: fakePagos,
+          deudaRepository: fakeDeudas,
+          cuentaRepository: fakeCuentas,
+          amistadRepository: _FakeAmistadRepository(),
+        );
+
+        await expectLater(
+          () => registrarPagoDeuda(
+            deudaId: 'd7',
+            cuentaId: 'cta-1',
+            montoPagado: 100,
+          ),
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'message',
+              contains('se actualiza automáticamente'),
+            ),
+          ),
+        );
+        expect(fakePagos.pagos, isEmpty);
+      },
+    );
+  });
+
+  group('Fase 64 — notificar a un amigo cuando se le paga', () {
+    Deuda deudaConAmigo() => Deuda(
+      id: 'd8',
+      nombreDeuda: 'Préstamo de un amigo',
+      tipoDeuda: TipoDeuda.deudaInformal,
+      tipoAcreedor: TipoAcreedor.personaNatural,
+      nombreAcreedor: 'jherson23',
+      moneda: Moneda.pen,
+      montoTotal: 300,
+      montoPagado: 0,
+      tieneInteres: false,
+      estructuraPago: EstructuraPago.pagoLibre,
+      fechaInicio: DateTime(2026, 1, 1),
+      enMora: false,
+      estado: EstadoDeuda.activa,
+      amigoUsuarioId: 'user-amigo',
+    );
+
+    Cuenta cuentaPen() => const Cuenta(
+      id: 'cta-1',
+      nombre: 'BCP Cuenta sueldo',
+      tipo: TipoCuenta.debito,
+      moneda: Moneda.pen,
+      saldoActual: 1000,
+    );
+
+    test(
+      'un pago a una deuda vinculada a un amigo invoca notificarPago con los datos correctos',
+      () async {
+        final fakeDeudas = _FakeDeudaRepository({'d8': deudaConAmigo()});
+        final fakeCuentas = _FakeCuentaRepository({'cta-1': cuentaPen()});
+        final fakePagos = _FakePagoDeudaRepository();
+        final fakeAmistad = _FakeAmistadRepository();
+        final registrarPagoDeuda = RegistrarPagoDeuda(
+          pagoDeudaRepository: fakePagos,
+          deudaRepository: fakeDeudas,
+          cuentaRepository: fakeCuentas,
+          amistadRepository: fakeAmistad,
+        );
+
+        await registrarPagoDeuda(
+          deudaId: 'd8',
+          cuentaId: 'cta-1',
+          montoPagado: 150,
+        );
+
+        expect(fakeAmistad.notificacionesEnviadas, [
+          {
+            'amigoUsuarioId': 'user-amigo',
+            'monto': 150.0,
+            'nombreDeuda': 'Préstamo de un amigo',
+          },
+        ]);
+      },
+    );
+
+    test(
+      'un pago a una deuda sin amigoUsuarioId nunca llama a notificarPago',
+      () async {
+        final deudaSinAmigo = deudaConAmigo().copyWith();
+        final fakeDeudas = _FakeDeudaRepository({
+          'd9': Deuda(
+            id: 'd9',
+            nombreDeuda: deudaSinAmigo.nombreDeuda,
+            tipoDeuda: deudaSinAmigo.tipoDeuda,
+            tipoAcreedor: deudaSinAmigo.tipoAcreedor,
+            nombreAcreedor: deudaSinAmigo.nombreAcreedor,
+            moneda: deudaSinAmigo.moneda,
+            montoTotal: deudaSinAmigo.montoTotal,
+            montoPagado: deudaSinAmigo.montoPagado,
+            tieneInteres: deudaSinAmigo.tieneInteres,
+            estructuraPago: deudaSinAmigo.estructuraPago,
+            fechaInicio: deudaSinAmigo.fechaInicio,
+            enMora: deudaSinAmigo.enMora,
+            estado: deudaSinAmigo.estado,
+          ),
+        });
+        final fakeCuentas = _FakeCuentaRepository({'cta-1': cuentaPen()});
+        final fakePagos = _FakePagoDeudaRepository();
+        final fakeAmistad = _FakeAmistadRepository();
+        final registrarPagoDeuda = RegistrarPagoDeuda(
+          pagoDeudaRepository: fakePagos,
+          deudaRepository: fakeDeudas,
+          cuentaRepository: fakeCuentas,
+          amistadRepository: fakeAmistad,
+        );
+
+        await registrarPagoDeuda(
+          deudaId: 'd9',
+          cuentaId: 'cta-1',
+          montoPagado: 150,
+        );
+
+        expect(fakeAmistad.notificacionesEnviadas, isEmpty);
+      },
+    );
+
+    test(
+      'si notificarPago falla, el pago ya registrado no se revierte ni se '
+      'propaga el error',
+      () async {
+        final fakeDeudas = _FakeDeudaRepository({'d8': deudaConAmigo()});
+        final fakeCuentas = _FakeCuentaRepository({'cta-1': cuentaPen()});
+        final fakePagos = _FakePagoDeudaRepository();
+        final fakeAmistad = _FakeAmistadRepository(
+          errorAlNotificar: StateError('sin red'),
+        );
+        final registrarPagoDeuda = RegistrarPagoDeuda(
+          pagoDeudaRepository: fakePagos,
+          deudaRepository: fakeDeudas,
+          cuentaRepository: fakeCuentas,
+          amistadRepository: fakeAmistad,
+        );
+
+        // No debe lanzar, aunque el RPC de notificación falle.
+        final pago = await registrarPagoDeuda(
+          deudaId: 'd8',
+          cuentaId: 'cta-1',
+          montoPagado: 150,
+        );
+
+        expect(pago.montoPagado, 150);
+        expect(fakePagos.pagos, hasLength(1));
+        expect(fakeDeudas.deudas['d8']!.montoPagado, 150);
+        expect(fakeCuentas.cuentas['cta-1']!.saldoActual, 850);
       },
     );
   });

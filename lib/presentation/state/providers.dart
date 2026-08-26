@@ -2,20 +2,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../domain/entities/amistad.dart';
 import '../../domain/entities/categoria.dart';
 import '../../domain/entities/cuenta.dart';
 import '../../domain/entities/deuda.dart';
 import '../../domain/entities/mensaje_consejo.dart';
+import '../../domain/entities/notificacion.dart';
 import '../../domain/entities/pago_deuda.dart';
 import '../../domain/entities/perfil.dart';
 import '../../domain/entities/tema_app.dart';
 import '../../domain/entities/transaccion.dart';
+import '../../domain/repositories/amistad_repository.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/automatizacion_repository.dart';
 import '../../domain/repositories/categoria_repository.dart';
 import '../../domain/repositories/chat_consejos_repository.dart';
 import '../../domain/repositories/cuenta_repository.dart';
 import '../../domain/repositories/deuda_repository.dart';
+import '../../domain/repositories/notificacion_repository.dart';
 import '../../domain/repositories/pago_deuda_repository.dart';
 import '../../domain/repositories/perfil_repository.dart';
 import '../../domain/repositories/preferencias_repository.dart';
@@ -50,10 +54,12 @@ import '../../infrastructure/persistence/drift/deuda_repository_drift.dart';
 import '../../infrastructure/persistence/drift/pago_deuda_repository_drift.dart';
 import '../../infrastructure/persistence/drift/transaccion_repository_drift.dart';
 import '../../infrastructure/persistence/preferencias_repository_shared_prefs.dart';
+import '../../infrastructure/persistence/supabase/amistad_repository_supabase.dart';
 import '../../infrastructure/persistence/supabase/automatizacion_repository_supabase.dart';
 import '../../infrastructure/persistence/supabase/categoria_repository_supabase.dart';
 import '../../infrastructure/persistence/supabase/cuenta_repository_supabase.dart';
 import '../../infrastructure/persistence/supabase/deuda_repository_supabase.dart';
+import '../../infrastructure/persistence/supabase/notificacion_repository_supabase.dart';
 import '../../infrastructure/persistence/supabase/pago_deuda_repository_supabase.dart';
 import '../../infrastructure/persistence/supabase/perfil_repository_supabase.dart';
 import '../../infrastructure/persistence/supabase/transaccion_repository_supabase.dart';
@@ -233,6 +239,7 @@ final registrarGastoProvider = Provider<RegistrarGasto>((ref) {
   return RegistrarGasto(
     cuentaRepository: ref.watch(cuentaRepositoryProvider),
     transaccionRepository: ref.watch(transaccionRepositoryProvider),
+    deudaRepository: ref.watch(deudaRepositoryProvider),
   );
 });
 
@@ -240,11 +247,15 @@ final registrarIngresoProvider = Provider<RegistrarIngreso>((ref) {
   return RegistrarIngreso(
     cuentaRepository: ref.watch(cuentaRepositoryProvider),
     transaccionRepository: ref.watch(transaccionRepositoryProvider),
+    deudaRepository: ref.watch(deudaRepositoryProvider),
   );
 });
 
 final registrarCuentaProvider = Provider<RegistrarCuenta>((ref) {
-  return RegistrarCuenta(cuentaRepository: ref.watch(cuentaRepositoryProvider));
+  return RegistrarCuenta(
+    cuentaRepository: ref.watch(cuentaRepositoryProvider),
+    deudaRepository: ref.watch(deudaRepositoryProvider),
+  );
 });
 
 final registrarDeudaProvider = Provider<RegistrarDeuda>((ref) {
@@ -256,6 +267,7 @@ final registrarPagoDeudaProvider = Provider<RegistrarPagoDeuda>((ref) {
     pagoDeudaRepository: ref.watch(pagoDeudaRepositoryProvider),
     deudaRepository: ref.watch(deudaRepositoryProvider),
     cuentaRepository: ref.watch(cuentaRepositoryProvider),
+    amistadRepository: ref.watch(amistadRepositoryProvider),
   );
 });
 
@@ -282,6 +294,7 @@ final editarTransaccionProvider = Provider<EditarTransaccion>((ref) {
   return EditarTransaccion(
     transaccionRepository: ref.watch(transaccionRepositoryProvider),
     cuentaRepository: ref.watch(cuentaRepositoryProvider),
+    deudaRepository: ref.watch(deudaRepositoryProvider),
   );
 });
 
@@ -289,6 +302,7 @@ final eliminarTransaccionProvider = Provider<EliminarTransaccion>((ref) {
   return EliminarTransaccion(
     transaccionRepository: ref.watch(transaccionRepositoryProvider),
     cuentaRepository: ref.watch(cuentaRepositoryProvider),
+    deudaRepository: ref.watch(deudaRepositoryProvider),
   );
 });
 
@@ -311,6 +325,7 @@ final editarCuentaProvider = Provider<EditarCuenta>((ref) {
     cuentaRepository: ref.watch(cuentaRepositoryProvider),
     transaccionRepository: ref.watch(transaccionRepositoryProvider),
     pagoDeudaRepository: ref.watch(pagoDeudaRepositoryProvider),
+    deudaRepository: ref.watch(deudaRepositoryProvider),
   );
 });
 
@@ -319,6 +334,7 @@ final eliminarCuentaProvider = Provider<EliminarCuenta>((ref) {
     cuentaRepository: ref.watch(cuentaRepositoryProvider),
     transaccionRepository: ref.watch(transaccionRepositoryProvider),
     pagoDeudaRepository: ref.watch(pagoDeudaRepositoryProvider),
+    deudaRepository: ref.watch(deudaRepositoryProvider),
   );
 });
 
@@ -347,6 +363,7 @@ final ajustarSaldoCuentaProvider = Provider<AjustarSaldoCuenta>((ref) {
     cuentaRepository: ref.watch(cuentaRepositoryProvider),
     transaccionRepository: ref.watch(transaccionRepositoryProvider),
     categoriaRepository: ref.watch(categoriaRepositoryProvider),
+    deudaRepository: ref.watch(deudaRepositoryProvider),
   );
 });
 
@@ -500,6 +517,28 @@ final haySesionActivaProvider = Provider<bool>((ref) {
   return ref.watch(authRepositoryProvider).haySesionActiva;
 });
 
+/// Fase 65 — emite cuando `supabase_flutter` arma sola una sesión de
+/// recuperación a partir del deep link `finzo://reset-password`
+/// (`AuthChangeEvent.passwordRecovery`, ver `config/supabase_config.dart`).
+/// `FinanzasAutomaticasApp` lo escucha con `ref.listen` para navegar a
+/// `NuevaContrasenaScreen`. Envuelto en `try/catch`: sin `Supabase.
+/// initialize()` real (tests de widgets que montan `FinanzasAutomaticasApp`
+/// completa, como `app_theme_mode_test.dart`), `Supabase.instance` lanza un
+/// `AssertionError` síncrono al leerlo — se degrada a un stream vacío en
+/// vez de tumbar esos tests, mismo criterio que
+/// `notificacionesNoLeidasProvider` (Fase 63).
+final eventoRecuperacionContrasenaProvider = StreamProvider<AuthChangeEvent>((
+  ref,
+) {
+  try {
+    return Supabase.instance.client.auth.onAuthStateChange.map(
+      (state) => state.event,
+    );
+  } catch (_) {
+    return const Stream.empty();
+  }
+});
+
 /// Token de webhook por usuario (Fase 25) — igual que `authRepositoryProvider`,
 /// siempre apunta a Supabase directo (no bifurca Drift/Supabase: el token
 /// solo existe una vez que hay una cuenta en la nube).
@@ -526,6 +565,61 @@ final perfilRepositoryProvider = Provider<PerfilRepository>((ref) {
 /// invalida manualmente tras guardar el nick/avatar/Instagram.
 final perfilProvider = FutureProvider<Perfil>((ref) {
   return ref.watch(perfilRepositoryProvider).obtenerPerfil();
+});
+
+/// Amigos por nick (Fase 63) — igual que `perfilRepositoryProvider`,
+/// siempre apunta a Supabase directo: es una tabla que solo existe en la
+/// nube, no bifurca Drift/Supabase.
+final amistadRepositoryProvider = Provider<AmistadRepository>((ref) {
+  return AmistadRepositorySupabase(Supabase.instance.client);
+});
+
+/// Solicitudes de amistad pendientes recibidas, leído por `MisAmigosScreen`.
+/// Se invalida manualmente tras aceptar/rechazar una.
+final solicitudesRecibidasProvider = FutureProvider<List<SolicitudRecibida>>((
+  ref,
+) {
+  return ref.watch(amistadRepositoryProvider).obtenerSolicitudesRecibidas();
+});
+
+/// Amigos ya aceptados, leído por `MisAmigosScreen`. Se invalida
+/// manualmente tras aceptar una solicitud nueva.
+final amigosProvider = FutureProvider<List<PerfilPublico>>((ref) {
+  return ref.watch(amistadRepositoryProvider).obtenerAmigos();
+});
+
+/// Notificaciones dentro de la app (Fase 63) — mismo criterio que
+/// `amistadRepositoryProvider`, siempre Supabase directo.
+final notificacionRepositoryProvider = Provider<NotificacionRepository>((
+  ref,
+) {
+  return NotificacionRepositorySupabase(Supabase.instance.client);
+});
+
+/// Lista completa (leídas y no leídas) para `NotificacionesScreen`. Se
+/// invalida manualmente al marcar una como leída.
+final notificacionesProvider = FutureProvider<List<Notificacion>>((ref) {
+  return ref.watch(notificacionRepositoryProvider).obtenerTodas();
+});
+
+/// Escucha `notificaciones` en tiempo real (Supabase Realtime, mismo
+/// patrón que `transaccionesEnVivoProvider` de la Fase 25.5) filtrada a
+/// las no leídas del usuario actual — el dashboard solo necesita el
+/// conteo para el badge de la campana, así que expone la lista cruda en
+/// vez de duplicar lógica de agregación en un provider aparte. Solo se
+/// activa con datos en la nube: notificaciones es una tabla que no existe
+/// en Drift, no tiene sentido en modo local.
+final notificacionesNoLeidasProvider = StreamProvider<List<Map<String, dynamic>>>((
+  ref,
+) {
+  if (!ref.watch(datosEnLaNubeProvider)) return const Stream.empty();
+  final userId = Supabase.instance.client.auth.currentUser?.id;
+  if (userId == null) return const Stream.empty();
+  return Supabase.instance.client
+      .from('notificaciones')
+      .stream(primaryKey: ['id'])
+      .eq('usuario_id', userId)
+      .eq('leida', false);
 });
 
 /// Borrado de cuenta (Fase 22, requisito de Apple — Guideline 5.1.1(v)).

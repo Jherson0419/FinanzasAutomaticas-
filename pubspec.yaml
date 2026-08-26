@@ -43,6 +43,14 @@ dependencies:
   http: ^1.2.0
   supabase_flutter: ^2.8.0
   image_picker: ^1.1.2
+  # Fase 64: "Compartir mi perfil" (mi_perfil_screen.dart) usa el selector
+  # nativo del sistema para compartir el link `finzo://agregar-amigo?nick=`.
+  share_plus: ^11.0.0
+  # Fase 64: escucha ese mismo deep link cuando la app ya está abierta o se
+  # abre por él (app.dart) — ya llegaba como dependencia transitiva de
+  # `supabase_flutter` (que lo usa internamente para `finzo://login-callback`,
+  # Fase 54), ahora se declara directo porque esta app también lo usa.
+  app_links: ^7.0.0
 
 dev_dependencies:
   flutter_test:

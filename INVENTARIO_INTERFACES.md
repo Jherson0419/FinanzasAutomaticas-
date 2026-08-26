@@ -33,19 +33,20 @@
 **Propósito:** autenticar con correo y contraseña contra Supabase Auth para poder entrar a la app.
 **Cómo se llega aquí:** automáticamente al abrir la app sin sesión activa (puerta 1 de `RootScreen`); también al cerrar sesión desde `MiPerfilScreen`.
 
-**Elementos visibles:**
-- Ícono decorativo + título "Finzo" (nombre corto — Fase 27, antes decía "Finanzas Automáticas").
+**Elementos visibles (rediseño estilo "Flow", Fase 65):**
+- Ícono dentro de un círculo (`theme.colorScheme.primaryContainer`/`primary`, tokens existentes — no colores sueltos) + título "Finzo" + subtítulo "Tus finanzas, en un solo lugar".
 - `TextFormField` Correo — texto, obligatorio, validado con regex de email en vivo (sin `errorText` visible, solo condiciona el botón).
 - `TextFormField` Contraseña — texto oculto, obligatorio (mínimo 6 caracteres), botón de mostrar/ocultar.
+- **Fase 65 (B.2)** — fila con `Checkbox` "Recuérdame" (marcado por defecto) y, a la derecha, `TextButton` "¿Olvidaste tu contraseña?" → `Navigator.push` a `OlvideContrasenaScreen`. Si el checkbox queda desmarcado al iniciar sesión, se guarda `recordarSesion: false` (`PreferenciasRepository`) — el próximo arranque en frío (`main.dart`) cierra esa sesión automáticamente aunque siga vigente en Supabase, forzando el login de nuevo. La preferencia se guarda siempre tras un login exitoso (no solo cuando queda desmarcado), para que volver a marcarlo revierta un `false` guardado antes.
 - Botón "Iniciar sesión" (`FilledButton`) — deshabilitado hasta que el correo sea válido y la contraseña tenga ≥6 caracteres; invoca `AuthRepository.iniciarSesion`.
-- **Fase 56** — separador "o", y botón "Continuar con Google" (`OutlinedButton.icon`) → `AuthRepository.iniciarSesionConGoogle()`, que abre el navegador externo con la pantalla de consentimiento de Google (`signInWithOAuth`, parte de `supabase_flutter` — sin paquete nativo aparte). No deja la sesión activa al volver de ese método: la sesión llega después, sola, por el mismo deep link `finzo://login-callback` de la Fase 54; esta pantalla no espera nada ni navega a mano, `RootScreen` reacciona solo cuando `haySesionActivaProvider` cambie.
-- Botón de texto "Crear cuenta" → `Navigator.push` a `CrearCuentaScreen`.
+- Separador "o continúa con", y botón "Continuar con Google" (`OutlinedButton.icon`, Fase 56) → `AuthRepository.iniciarSesionConGoogle()`, que abre el navegador externo con la pantalla de consentimiento de Google (`signInWithOAuth`, parte de `supabase_flutter` — sin paquete nativo aparte). No deja la sesión activa al volver de ese método: la sesión llega después, sola, por el mismo deep link `finzo://login-callback` de la Fase 54; esta pantalla no espera nada ni navega a mano, `RootScreen` reacciona solo cuando `haySesionActivaProvider` cambie. El checkbox "Recuérdame" NO aplica a este flujo (solo al login con correo/contraseña).
+- Fila final "¿Nuevo aquí? " + botón de texto "Crear cuenta" → `Navigator.push` a `CrearCuentaScreen`.
 
 **Estados que maneja:** cargando SÍ (spinner dentro del botón mientras `_iniciandoSesion`, o dentro del botón de Google mientras `_iniciandoConGoogle`). Vacío no aplica. Error SÍ (`SnackBar` con `mensajeDeError`, mensajes traducidos — verificado por `login_screen_test.dart`, incluido el error de Google). Éxito: NO hay confirmación visual propia — solo `ref.invalidate(haySesionActivaProvider)` (login normal) o la llegada reactiva de la sesión por el deep link (Google); es `RootScreen` quien reactivamente navega a la siguiente puerta; no hay ningún mensaje "Sesión iniciada".
 
-**Sistema de diseño:** consistente — usa `Theme.of(context).colorScheme` correctamente, sin `Colors.*` crudos. No usa `AppCard` (no le hace falta, es un formulario centrado simple).
+**Sistema de diseño:** consistente — usa `Theme.of(context).colorScheme` correctamente, sin `Colors.*` crudos (el círculo del logo usa `primaryContainer`/`primary`, ya parte del esquema de la Fase 19/31). No usa `AppCard` (no le hace falta, es un formulario centrado simple).
 
-**Limitaciones conocidas:** no hay "Olvidé mi contraseña" ni ningún flujo de recuperación de cuenta por correo. Login social (Fase 56): solo Google, no Apple — puede ser un requisito de Apple para apps con login social si ofrecen alguno (Guideline 4.8). El error de validación del correo nunca se muestra como texto (`errorText`); el usuario solo ve que el botón está deshabilitado, sin saber por qué. No hay biometría en el login inicial ni en ningún otro punto de la app (el bloqueo local por PIN/biométrico de la Fase 18 se eliminó por completo en la Fase 55). El botón de Google no tiene el logo oficial de Google (usa un ícono genérico, `Icons.login`) — evita usar una versión incorrecta/desactualizada del logo sin agregar un asset de marca al proyecto.
+**Limitaciones conocidas:** login social (Fase 56): solo Google, no Apple — puede ser un requisito de Apple para apps con login social si ofrecen alguno (Guideline 4.8). El error de validación del correo nunca se muestra como texto (`errorText`); el usuario solo ve que el botón está deshabilitado, sin saber por qué. No hay biometría en el login inicial ni en ningún otro punto de la app (el bloqueo local por PIN/biométrico de la Fase 18 se eliminó por completo en la Fase 55). El botón de Google no tiene el logo oficial de Google (usa un ícono genérico, `Icons.login`) — evita usar una versión incorrecta/desactualizada del logo sin agregar un asset de marca al proyecto. **Fase 65:** "Recuérdame" solo se aplica en el próximo arranque en frío (`main.dart`) — desmarcarlo y seguir usando la app sin cerrarla del todo no cierra la sesión de inmediato, solo la próxima vez que se abra la app desde cero.
 
 ---
 
@@ -241,7 +242,7 @@
 **Cómo se llega aquí:** puerta 3 de `RootScreen` tras onboarding completo; destino de retorno (`pop`) tras completar prácticamente cualquier acción (crear cuenta, guardar transacción, registrar pago, etc.).
 
 **Elementos visibles:**
-- `AppBar`: saludo dinámico "Hola, {nombre}" (`nombreUsuarioProvider`, con fallback a "Hola" si no hay nombre) + ícono billetera → `/cuentas` + ícono escudo decorativo `gpp_good_outlined` sin acción + ícono campana `notifications_none` sin acción (`onPressed: () {}`, `dashboard_screen.dart:49-52`).
+- `AppBar`: saludo dinámico "Hola, {nombre}" (`nombreUsuarioProvider`, con fallback a "Hola" si no hay nombre) + ícono billetera → `/cuentas` + ícono escudo decorativo `gpp_good_outlined` sin acción + ícono campana `notifications_none` con `tooltip` "Notificaciones" → `/notificaciones` (`NotificacionesScreen`). **Fase 63:** la campana ya no es decorativa — un `Badge` de Material 3 muestra el conteo de notificaciones no leídas (`notificacionesNoLeidasProvider`, `StreamProvider` con Supabase Realtime sobre `notificaciones` filtrado por `leida = false`, mismo patrón que `transaccionesEnVivoProvider` de la Fase 25.5), oculto (`isLabelVisible: false`) cuando el conteo es 0.
 - `CuentasCarrusel` (embebido, ver Verificación) — **tercer rediseño de este componente (Fase 33): fila con peek en la Fase 8 → carrusel horizontal `PageView` con página "agregar" en la Fase 17/18 → esta pila vertical con gesto de deslizar hacia arriba.**
   - **Estructura:** `Stack` vertical — la cuenta activa va al frente, a tamaño completo; hasta 2 cuentas siguientes asoman detrás, desplazadas 16px y 32px hacia arriba con opacidad 0.75 y 0.5 respectivamente (nunca más de 3 tarjetas visibles a la vez, sin importar cuántas cuentas tenga el usuario). Con 1 sola cuenta no hay ninguna tarjeta fantasma; con 2, solo la primera. El orden de la pila es independiente del que devuelva el repositorio — se conserva entre refrescos del provider (p. ej. tras editar el saldo de una cuenta desde otra pantalla) en vez de resetear cuál tarjeta está al frente.
   - **Gesto de deslizar hacia arriba:** un `GestureDetector` sobre toda la pila detecta un swipe vertical hacia arriba (por velocidad mínima o por distancia acumulada, lo que ocurra primero) y rota la pila — la cuenta al frente pasa al final del orden, la siguiente cuenta avanza al frente. Deslizar hacia abajo, o insuficientemente hacia arriba, no hace nada. La rotación se anima (~280ms, `AnimationController` + `Curves.easeOutCubic`): la tarjeta saliente sube y se desvanece mientras el resto de la pila avanza un puesto, sin sentirse abrupto.
@@ -252,7 +253,7 @@
 - `SaldoTotalCard` (embebido).
 - `IngresosGastosSection` (embebido, dos `AppCard` lado a lado).
 - `GastoPorCategoriaSection` (embebido).
-- `DeudasActivasSection` (embebido, acordeón expandible por defecto). **Fase 60:** el contenido expandido ya no es una sola lista con todas las deudas activas — se separa en 2 páginas deslizables por swipe horizontal según `estructuraPago` (cuotas fijas / pago libre), con un subtítulo que cambia según la página activa ("Cuotas fijas"/"Pago libre") y 2 puntitos indicadores tocables debajo del encabezado. El título "Deudas activas" y el total adeudado no cambian ni se duplican por página. Si una categoría no tiene ninguna deuda, esa página muestra "No tienes deudas de este tipo." — el mensaje general "No tienes deudas activas registradas." solo aparece si NO hay ninguna deuda activa de ningún tipo (ahí no se muestra el selector de páginas).
+- `DeudasActivasSection` (embebido, acordeón expandible por defecto). **Fase 60:** el contenido expandido ya no es una sola lista con todas las deudas activas — se separa en 2 páginas deslizables por swipe horizontal según `estructuraPago` (cuotas fijas / pago libre), con un subtítulo que cambia según la página activa ("Cuotas fijas"/"Pago libre") y 2 puntitos indicadores tocables debajo del encabezado. El título "Deudas activas" y el total adeudado no cambian ni se duplican por página. Si una categoría no tiene ninguna deuda, esa página muestra "No tienes deudas de este tipo." — el mensaje general "No tienes deudas activas registradas." solo aparece si NO hay ninguna deuda activa de ningún tipo (ahí no se muestra el selector de páginas). **Fase 62:** la `Deuda` auto-generada de cada tarjeta de crédito (`estructuraPago = pagoLibre`) aparece como una fila más en la página "Pago libre", igual que cualquier otra — sin ningún ícono ni marca que la distinga como "vinculada a una cuenta" hasta que el usuario intenta pagarla/editarla/eliminarla y recibe el rechazo (ver `PagoDeudaNuevoScreen`/`DeudaDetalleScreen`).
 - `MovimientosRecientesSection` (embebido, acordeón expandible, "Ver todos" → `/transacciones/todas`).
 - `AppBottomBar` fijo (Fase 32 — pasó de 4 a 5 botones, con estilo "glass" estilo iOS): "Gasto" → `/transacciones/nueva`, "Deuda" → `/deudas/nueva`, "Inicio" (nuevo, círculo central) → sin acción aquí (`Navigator.popUntil` a la primera ruta, no-op porque ya se está en el dashboard), "Consejos" → `/consejos`, "Perfil" → `/perfil`. Ver el párrafo dedicado abajo para el rediseño completo — Consejos/Perfil (entradas 24/25) solo enlazan aquí en vez de repetir la descripción.
   - **Rediseño "glass" de la Fase 32:** el fondo sólido de la barra se reemplazó por un efecto de vidrio esmerilado — `BackdropFilter` (`ImageFilter.blur`, sigma 18) acotado con `ClipRect` al área fija de la barra (nunca a la pantalla completa) más un tinte semitransparente (`bgCard` al 75% de opacidad) y un borde superior sutil (`borderCard` al 60%), ambos leídos del token de tema activo — se ve correcto en claro y oscuro sin cambiar el blur, solo el tinte. Envuelto en `RepaintBoundary` para que el scroll del contenido del dashboard (un widget completamente distinto, fuera de este árbol) no fuerce un repintado del filtro.
@@ -263,7 +264,7 @@
 
 **Sistema de diseño:** consistente — usa `AppCard`/`SectionLabel` en cada sección salvo `CuentasCarrusel` (que usa `WalletAccountCard` con su propio degradado por tipo de cuenta, documentado y correcto por diseño desde la Fase 8/19).
 
-**Limitaciones conocidas:** la campana de notificaciones no hace nada y no tiene ni siquiera un `tooltip` que aclare "Próximamente" — el usuario puede tocarla esperando algo y no pasa absolutamente nada, sin ninguna pista. El ícono de escudo tampoco tiene acción ni tooltip. No hay selector de mes/periodo (siempre el mes calendario actual — confirmado, vigente desde el informe anterior). No hay gesto de "pull to refresh" manual — el dashboard solo se refresca cuando algo invalida sus providers desde otra pantalla. Las secciones acordeón ("Deudas activas"/"Movimientos recientes") pierden su estado expandido/colapsado si se navega fuera del dashboard y se vuelve (se resetean a expandido).
+**Limitaciones conocidas:** el ícono de escudo no tiene acción ni tooltip. No hay selector de mes/periodo (siempre el mes calendario actual — confirmado, vigente desde el informe anterior). No hay gesto de "pull to refresh" manual — el dashboard solo se refresca cuando algo invalida sus providers desde otra pantalla. Las secciones acordeón ("Deudas activas"/"Movimientos recientes") pierden su estado expandido/colapsado si se navega fuera del dashboard y se vuelve (se resetean a expandido).
 
 ---
 
@@ -297,8 +298,9 @@
 
 **Elementos visibles (delegados a `CuentaFormulario`, documentados aquí porque es lo único que el usuario ve en esta ruta — ver Verificación):**
 - *Modo creación:* `TextFormField` Nombre (obligatorio), `TextFormField` Últimos 4 dígitos (opcional, Fase 57 — ver abajo), `DropdownButtonFormField` Tipo de cuenta, campos de crédito (ver abajo, solo si el tipo es Crédito), `DropdownButtonFormField` Moneda, `TextFormField` **"Saldo inicial"** (tipos no-crédito) o **"Saldo utilizado"** (tipo Crédito, Fase 57 — ver abajo) (numérico, obligatorio, prefijo de símbolo de moneda), botón "Guardar".
-- *Modo edición:* `WalletAccountCard` de la cuenta; `TextFormField` Nombre; `TextFormField` Últimos 4 dígitos (opcional, Fase 57); `DropdownButtonFormField` Tipo; campos de crédito (ver abajo); `DropdownButtonFormField` Moneda (bloqueado, con `helperText`, si la cuenta ya tiene transacciones o pagos de deuda asociados — `transaccionesPorCuentaProvider`/`pagosPorCuentaProvider`); bloque de solo lectura "Saldo actual" + botón "Ajustar" (abre un modal `_ModalAjusteSaldo` con un único campo "Saldo real" → invoca `AjustarSaldoCuenta`, que registra la diferencia como una transacción de ajuste); botón "Ver movimientos de esta cuenta" → `/cuentas/movimientos`; botón "Guardar cambios"; separador; botón "Eliminar cuenta" (rojo, invoca `EliminarCuenta` — falla con un diálogo de error si la cuenta tiene movimientos).
-- **Campos de crédito (Fase 29):** cuando el tipo elegido es "Crédito", aparecen con una transición animada (`AnimatedSize`, mismo patrón que los campos condicionales de `DeudaFormulario`) `TextFormField` Línea de crédito (numérico, obligatorio, prefijo de moneda), `TextFormField` Día de corte y `TextFormField` Día de pago (ambos numéricos, obligatorios, 1-31). A diferencia de la moneda, estos 3 campos se pueden seguir editando aunque la cuenta ya tenga movimientos — no afectan el saldo histórico. Al cambiar el tipo de Crédito a otro, los 3 valores se descartan (se guardan como `null`).
+- *Modo edición:* `WalletAccountCard` de la cuenta (rediseñada en la Fase 65: ya no muestra el texto "Corte: dd/mm · Pago: dd/mm", ver más abajo); **si la cuenta es Crédito**, justo debajo, `TarjetaCreditoPagosSection` (Fase 65 — ver su propia lógica al final de esta entrada); `TextFormField` Nombre; `TextFormField` Últimos 4 dígitos (opcional, Fase 57); `DropdownButtonFormField` Tipo; campos de crédito (ver abajo); `DropdownButtonFormField` Moneda (bloqueado, con `helperText`, si la cuenta ya tiene transacciones o pagos de deuda asociados — `transaccionesPorCuentaProvider`/`pagosPorCuentaProvider`); bloque de solo lectura "Saldo actual" + botón "Ajustar" (abre un modal `_ModalAjusteSaldo` con un único campo "Saldo real" → invoca `AjustarSaldoCuenta`, que registra la diferencia como una transacción de ajuste); botón "Ver movimientos de esta cuenta" → `/cuentas/movimientos`; botón "Guardar cambios"; separador; botón "Eliminar cuenta" (rojo, invoca `EliminarCuenta` — falla con un diálogo de error si la cuenta tiene movimientos).
+- **Campos de crédito (Fase 29; fecha completa desde la Fase 62; pago mínimo desde la Fase 65):** cuando el tipo elegido es "Crédito", aparecen con una transición animada (`AnimatedSize`, mismo patrón que los campos condicionales de `DeudaFormulario`) `TextFormField` Línea de crédito (numérico, obligatorio, prefijo de moneda), `ListTile` "Fecha de corte" y `ListTile` "Fecha de pago" (ambos abren `showDatePicker`, obligatorios — mismo patrón que "Fecha de inicio" en `deuda_formulario.dart`; antes de la Fase 62 eran `TextFormField` numéricos "Día de corte"/"Día de pago", 1-31), y `TextFormField` "Pago mínimo (opcional)" (Fase 65 — a diferencia de los 3 anteriores, este es opcional incluso en Crédito; si se llena debe ser > 0, con `errorText` inline si no). A diferencia de la moneda, estos campos se pueden seguir editando aunque la cuenta ya tenga movimientos — no afectan el saldo histórico. Al cambiar el tipo de Crédito a otro, los valores se descartan (se guardan como `null`). **Fase 62 — deuda automática:** crear una cuenta de crédito también crea, en la misma operación, una `Deuda` vinculada (`cuentaId`) que aparece sola en "Deudas activas" — el usuario no hace nada aparte para que exista.
+- **`TarjetaCreditoPagosSection` (Fase 65, rediseño estilo Amex):** `AppCard` con un `SegmentedButton` de 3 pestañas — "Pago del mes", "Pago mínimo" (ambas muestran el mismo campo `Cuenta.pagoMinimo`, "No configurado" si es `null` en vez de un S/ 0.00 engañoso — el modelo no distingue ciclos de facturación individuales, simplificación explícita) y "Deuda total" (`|saldoActual|` cuando es negativo, o 0 — nunca "No configurado", es un monto real aunque sea cero). Debajo del monto, "Vence el dd/mm" con la próxima fecha de pago ya calculada (`proximaOcurrenciaMensual` sobre `fechaPago`), igual sin importar la pestaña activa. Botón "Ver mis fechas de pago" (ícono de calendario) → `showModalBottomSheet` con el próximo corte Y el próximo pago juntos (las fechas que la Fase 65 quitó de `WalletAccountCard`).
 - **Últimos 4 dígitos (Fase 57):** campo opcional para **cualquier** tipo de cuenta (no solo Crédito), con validación de formato — si se llena, debe ser exactamente 4 dígitos numéricos, si no "Guardar" se deshabilita con un texto de error inline. Se muestra luego en `WalletAccountCard` junto a la etiqueta del tipo de cuenta (ej. "CRÉDITO •••• 4821"). Puramente informativo, no identifica la cuenta.
 - **"Saldo utilizado" en Crédito (Fase 57):** solo en modo creación (en edición el saldo nunca fue editable). Con tipo Crédito, la etiqueta del campo de saldo cambia de "Saldo inicial" a "Saldo utilizado"; el número que ingresa el usuario se interpreta como el monto ya gastado de la línea y se guarda como `saldoActual` negativo (`-valor.abs()`), consistente con el resto del modelo (Fase 29: saldo negativo en una tarjeta = usado).
 
@@ -306,7 +308,7 @@
 
 **Sistema de diseño:** casi consistente — el texto de ayuda bajo "Saldo actual" usa `Theme.of(context).colorScheme.onSurfaceVariant` en vez del token semántico `textSecondary` directamente (`cuenta_formulario.dart:271-273`); funciona igual porque el `ColorScheme` mapea `onSurfaceVariant → textSecondary`, pero es una fuente de color distinta a la que usan las pantallas que sí importan `app_theme.dart` explícitamente.
 
-**Limitaciones conocidas:** el diálogo de confirmación de "Eliminar cuenta" dice "Esta acción no se puede deshacer" incluso cuando la cuenta tiene movimientos y en realidad **no se podrá eliminar** — el usuario confirma primero y recién después, en un segundo diálogo, se entera de que la operación falló. No hay forma de fusionar/transferir el saldo de una cuenta a otra antes de eliminarla. El modal de ajuste de saldo no muestra un ejemplo numérico de cómo se calculará la diferencia. No se puede personalizar la cuenta con una foto/ícono propio (a diferencia de las categorías, que sí tienen selector de ícono). Los últimos 4 dígitos no se validan contra duplicados entre cuentas (Fase 57) ni tienen ninguna verificación de que correspondan a una tarjeta real.
+**Limitaciones conocidas:** el diálogo de confirmación de "Eliminar cuenta" dice "Esta acción no se puede deshacer" incluso cuando la cuenta tiene movimientos y en realidad **no se podrá eliminar** — el usuario confirma primero y recién después, en un segundo diálogo, se entera de que la operación falló. No hay forma de fusionar/transferir el saldo de una cuenta a otra antes de eliminarla. El modal de ajuste de saldo no muestra un ejemplo numérico de cómo se calculará la diferencia. No se puede personalizar la cuenta con una foto/ícono propio (a diferencia de las categorías, que sí tienen selector de ícono). Los últimos 4 dígitos no se validan contra duplicados entre cuentas (Fase 57) ni tienen ninguna verificación de que correspondan a una tarjeta real. **Fase 62:** "Eliminar cuenta" en una tarjeta de crédito borra también su `Deuda` vinculada, sin ningún aviso adicional de que eso va a pasar (el diálogo de confirmación es genérico, no menciona la deuda). Si el usuario cambia el tipo de una cuenta de Crédito a otro, la `Deuda` vinculada queda huérfana (nadie la desvincula ni la elimina) — caso no cubierto. **Fase 65:** "Pago del mes" y "Pago mínimo" son literalmente el mismo dato (`pagoMinimo`) mostrado dos veces con etiquetas distintas — el modelo no tiene tracking de ciclos de facturación individuales para calcular un "pago del mes" real y separado; documentado como simplificación explícita, no como bug. Cuentas de crédito creadas antes de esta fase quedan con `pagoMinimo == null` hasta que se editen de nuevo (mismo patrón de migración ya visto con `fechaCorte`/`fechaPago` en la Fase 62).
 
 ---
 
@@ -384,6 +386,7 @@
 **Elementos visibles:**
 - (Solo edición) `ListTile` "Ver historial de pagos" → `/deudas/historial`.
 - (Delegado a `DeudaFormulario`, ver Verificación): `TextFormField` Nombre de la deuda (obligatorio); `DropdownButtonFormField` Tipo de deuda; `DropdownButtonFormField` Tipo de acreedor; `TextFormField` Nombre del acreedor (obligatorio, con `hintText` dinámico según el tipo de acreedor); `DropdownButtonFormField` Moneda; `TextFormField` Monto total (numérico, obligatorio >0); selector de Fecha de inicio (`showDatePicker`); `SegmentedButton` Cuotas fijas / Pago libre.
+  - **Fase 64 — con `tipoAcreedor == personaNatural`:** `SwitchListTile` "¿Es un amigo de Finzo?" — si se activa, `DropdownButtonFormField` "Selecciona a tu amigo" con la lista de `amigosProvider` (Fase 63; mensaje si todavía no tiene ninguno) y guarda el `usuario_id` elegido en `Deuda.amigoUsuarioId`. Vincular a un amigo es opcional incluso con `personaNatural` — la mayoría de esas deudas no lo estarán. Un pago posterior a esta deuda (`PagoDeudaNuevoScreen`) notifica al amigo automáticamente (`RegistrarPagoDeuda`, RPC `notificar_pago_a_amigo`).
   - Si **cuotas fijas**: `TextFormField` Número de cuotas (obligatorio >0), `TextFormField` Monto de cuota (obligatorio >0), `DropdownButtonFormField` Periodicidad (mensual/quincenal), bloque de solo lectura con "Interés total" y "Fecha de vencimiento estimada" calculados en vivo (`generarCronogramaCuotas`).
   - Si **pago libre**: `SwitchListTile` "¿Tiene interés?" → si se activa, `TextFormField` Tasa de interés (%) (obligatorio >0) + `DropdownButtonFormField` Tipo de tasa; `TextFormField` Pago mínimo (opcional).
 - `TextFormField` Notas — opcional, multilínea.
@@ -394,7 +397,7 @@
 
 **Sistema de diseño:** casi consistente — el bloque "Interés total / Fecha de vencimiento estimada" (`deuda_formulario.dart:481-512`, dentro de `_construirCamposCuotasFijas`) usa `colorScheme.surfaceContainerHigh` + `BorderRadius.circular(14)` a mano en vez de `AppCard` — el mismo patrón de escape se repite en varias otras pantallas (ver Candidatos a nueva funcionalidad).
 
-**Limitaciones conocidas:** eliminar una deuda con pagos falla (mensaje en diálogo) sin ofrecer ninguna alternativa — por ejemplo "eliminar la deuda y sus pagos" o "marcarla como cancelada" en vez de borrarla. No se puede adjuntar el contrato/comprobante de la deuda. El campo "Nombre del acreedor" no tiene autocompletado de acreedores usados antes. No hay forma de convertir una deuda de pago libre a cuotas fijas (o viceversa) sin perder los datos ya ingresados — cambiar el `SegmentedButton` solo oculta/muestra campos, no migra valores entre modos. "Interés total"/"Fecha de vencimiento estimada" muestran "—" sin explicar qué dato falta para poder calcularlos.
+**Limitaciones conocidas:** eliminar una deuda con pagos falla (mensaje en diálogo) sin ofrecer ninguna alternativa — por ejemplo "eliminar la deuda y sus pagos" o "marcarla como cancelada" en vez de borrarla. No se puede adjuntar el contrato/comprobante de la deuda. El campo "Nombre del acreedor" no tiene autocompletado de acreedores usados antes. No hay forma de convertir una deuda de pago libre a cuotas fijas (o viceversa) sin perder los datos ya ingresados — cambiar el `SegmentedButton` solo oculta/muestra campos, no migra valores entre modos. "Interés total"/"Fecha de vencimiento estimada" muestran "—" sin explicar qué dato falta para poder calcularlos. **Fase 64:** cambiar `tipoAcreedor` de "Persona natural" a cualquier otro tipo mientras el switch "¿Es un amigo de Finzo?" está activo desvincula el amigo en silencio al guardar (el campo deja de mostrarse, así que no hay forma de notar el cambio antes de tocar "Guardar cambios").
 
 ---
 
@@ -417,7 +420,7 @@
 
 **Sistema de diseño:** el mini-dashboard usa `AppCard` correctamente, pero `_FilaCuota` (`deuda_detalle_screen.dart:296-301`) usa `colorScheme.surfaceContainerHigh` + `BorderRadius.circular(14)` en un `Container` a mano en vez de `AppCard` — mismo patrón de escape que se repite en varios lugares (ver Candidatos).
 
-**Limitaciones conocidas:** el gesto de swipe para pagar una cuota no tiene ninguna pista visual permanente — solo aparece el fondo verde al empezar a deslizar; un usuario nuevo puede no descubrir que existe. No hay forma de eliminar un pago individual desde aquí (ni desde ningún otro lugar de la app, confirmado — ver limitación de `HistorialPagosDeudaScreen`). El banner de mora no tiene ninguna acción directa (por ejemplo "Registrar pago ahora" dentro del propio banner).
+**Limitaciones conocidas:** el gesto de swipe para pagar una cuota no tiene ninguna pista visual permanente — solo aparece el fondo verde al empezar a deslizar; un usuario nuevo puede no descubrir que existe. No hay forma de eliminar un pago individual desde aquí (ni desde ningún otro lugar de la app, confirmado — ver limitación de `HistorialPagosDeudaScreen`). El banner de mora no tiene ninguna acción directa (por ejemplo "Registrar pago ahora" dentro del propio banner). **Fase 62:** para la `Deuda` auto-generada de una tarjeta de crédito (`cuentaId != null`), el botón "Editar deuda" sigue visible y tocable igual que para cualquier otra — al intentar guardar, `EditarDeuda` rechaza con un error ("Edita o elimina la cuenta de crédito directamente...") que recién se ve como `SnackBar` en `DeudaNuevaScreen`, no aquí; no hay ninguna pista en esta pantalla de que esa deuda es especial antes de llegar a ese punto.
 
 ---
 
@@ -443,7 +446,9 @@
 
 **Sistema de diseño:** consistente, usa `AppCard`.
 
-**Limitaciones conocidas:** si no hay ninguna cuenta en la moneda de la deuda, el único texto disponible dice "créala desde 'Mis cuentas' o marca este pago como ya ocurrido" — pero no es un enlace tocable, solo texto plano; no hay atajo directo a "Mis cuentas" ni a "Agregar cuenta". El campo "Número de cuota" es texto libre (no un selector de las cuotas pendientes reales del cronograma, salvo cuando llega precargado desde el swipe de `DeudaDetalleScreen`) — se puede escribir cualquier número sin validar que corresponda a una cuota real, **salvo el orden**: desde la Fase 58, si la deuda es `cuotasFijas`, no es retroactivo y hay un número de cuota, `RegistrarPagoDeuda` rechaza el pago (`SnackBar` con "Debes pagar primero la cuota X antes de esta") cuando existe alguna cuota anterior sin pagar — el botón "Guardar" no se deshabilita de antemano para este caso (a diferencia del resto de validaciones del formulario), el error solo aparece después de intentar guardar. No se puede adjuntar comprobante del pago.
+**Fase 64 — notificación silenciosa a un amigo.** Si la deuda tiene `amigoUsuarioId` (vinculada a un amigo desde `DeudaFormulario`), guardar el pago dispara además el RPC `notificar_pago_a_amigo` — no hay ningún indicio visual de esto en esta pantalla (ni un ícono, ni texto "se le avisará a tu amigo"), y si esa notificación falla la pantalla no se entera: `RegistrarPagoDeuda` la registra en el log y sigue como si nada, a propósito (el pago ya guardado es lo importante).
+
+**Limitaciones conocidas:** si no hay ninguna cuenta en la moneda de la deuda, el único texto disponible dice "créala desde 'Mis cuentas' o marca este pago como ya ocurrido" — pero no es un enlace tocable, solo texto plano; no hay atajo directo a "Mis cuentas" ni a "Agregar cuenta". El campo "Número de cuota" es texto libre (no un selector de las cuotas pendientes reales del cronograma, salvo cuando llega precargado desde el swipe de `DeudaDetalleScreen`) — se puede escribir cualquier número sin validar que corresponda a una cuota real, **salvo el orden**: desde la Fase 58, si la deuda es `cuotasFijas`, no es retroactivo y hay un número de cuota, `RegistrarPagoDeuda` rechaza el pago (`SnackBar` con "Debes pagar primero la cuota X antes de esta") cuando existe alguna cuota anterior sin pagar — el botón "Guardar" no se deshabilita de antemano para este caso (a diferencia del resto de validaciones del formulario), el error solo aparece después de intentar guardar. No se puede adjuntar comprobante del pago. **Fase 62:** este formulario se puede abrir igual sobre la `Deuda` auto-generada de una tarjeta de crédito (vía el ícono "Registrar pago" de `DeudasActivasSection`) — al guardar, `RegistrarPagoDeuda` rechaza con `SnackBar` ("Esta deuda se actualiza automáticamente desde los movimientos de la tarjeta...") sin ningún aviso previo en el formulario de que esa deuda en particular no acepta pagos manuales.
 
 ---
 
@@ -543,6 +548,7 @@
 **Elementos visibles:**
 - **Fase 31, foto real desde la Fase 56** — Avatar actual (`AvatarCirculo`, 88px) centrado arriba de todo, tocable (con un pequeño ícono de lápiz superpuesto en la esquina) → abre la galería (`package:image_picker`, `ImageSource.gallery`, redimensionada a máx. 800×800 y calidad 85 — sin recorte exacto a cuadrado, `AvatarCirculo` ya la muestra con `BoxFit.cover` dentro de un círculo) → sube la foto a Supabase Storage (`PerfilRepository.subirFotoAvatar`, bucket `avatares`, ruta `<user_id>/avatar.<extensión>`, siempre el mismo nombre así no se acumulan fotos viejas) → guarda la URL pública devuelta con `guardarAvatarId`. Si el usuario cierra la galería sin elegir nada, no cambia nada. Cuentas con un id de avatar viejo (catálogo prediseñado, Fase 31, antes de cambiar de foto por primera vez) siguen viendo su ícono de siempre — `AvatarCirculo` decide según si el valor guardado empieza con `http`.
 - **Fase 31** — Nick de solo lectura, centrado bajo el avatar (`@nick`, o "Sin nick" si por alguna razón no se guardó en el onboarding) + texto "El nick no se puede cambiar" (decisión explícita: así un futuro sistema social siempre encuentra al usuario por el mismo nick que usó desde el principio; no hay ningún campo editable para él en esta pantalla).
+- **Fase 64** — (solo si hay nick) botón "Compartir mi perfil" (`OutlinedButton.icon`, debajo del nick) → genera `finzo://agregar-amigo?nick=<nick>` (`construirLinkAgregarAmigo`) y abre el selector nativo de compartir (`share_plus`) con un texto tipo "Agrégame en Finzo: <link>". Si `share_plus` falla, `SnackBar` con el mensaje traducido.
 - `TextFormField` Nombre — sin validación de vacío, se puede guardar en blanco. (Nombre corto, local — distinto del nombre completo de abajo.)
 - **Fase 56** — `TextFormField` "Nombre completo (opcional)" → `PerfilRepository.guardarNombreCompleto`.
 - **Fase 56** — `TextFormField` "Celular (opcional)" → `PerfilRepository.guardarCelular`; valida formato en vivo (`^\+?[0-9]{7,15}$`, tras quitar espacios/guiones) con `errorText` inline "Formato de celular inválido" — deshabilita "Guardar" mientras no sea válido (vacío sí es válido, el campo es opcional).
@@ -552,6 +558,7 @@
 - **Fase 31** — Sección "Apariencia": `SegmentedButton<TemaApp>` con 3 opciones (Claro/Oscuro/Sistema) → `PreferenciasRepository.guardarTema` + invalida `temaProvider`, que `FinanzasAutomaticasApp` (`app.dart`) observa para fijar `MaterialApp.themeMode` en tiempo real — cambiar la selección aquí recolorea toda la app al instante, sin reiniciar.
 - `ListTile` "Mis categorías" → `/categorias`.
 - **Fase 25** — `ListTile` "Automatización" → `/automatizacion` (`AutomatizacionScreen`, ver entrada más abajo).
+- **Fase 63** — `ListTile` "Mis amigos" → `/amigos` (`MisAmigosScreen`, ver entrada más abajo).
 - Botón "Cerrar sesión" (`OutlinedButton.icon`) — con diálogo de confirmación que aclara que no se borran datos.
 - Sección "Zona de peligro" (título en `colorDanger`) + texto explicativo + botón "Eliminar mi cuenta" (`FilledButton.icon`, fondo `colorDanger`, ícono `delete_forever`) → diálogo `confirmarEliminarCuenta` (exige escribir literalmente "ELIMINAR" para habilitar el botón de confirmar) → `EliminarCuentaDeUsuario` + `PreferenciasRepository.limpiarTodo()`.
 - `AppBottomBar` con "Perfil" resaltado (Fase 32: barra de 5 botones con efecto "glass" — ver el detalle completo en la entrada 12, DashboardScreen).
@@ -594,6 +601,108 @@
 
 ---
 
+## 27. AgregarAmigoScreen
+
+**Archivo:** `lib/presentation/screens/agregar_amigo_screen.dart`
+**Ruta de navegación:** sin ruta nombrada propia — se llega vía `Navigator.push` (ícono "+" del `AppBar` de `MisAmigosScreen`, entrada 28).
+**Propósito:** buscar a otro usuario por su nick (Fase 63) y enviarle una solicitud de amistad, sin exponer de él más que nick y avatar públicos.
+**Cómo se llega aquí:** botón "+" (tooltip "Agregar amigo") en el `AppBar` de `MisAmigosScreen`; **Fase 64** — también directo desde el deep link `finzo://agregar-amigo?nick=<nick>` que genera "Compartir mi perfil" en `MiPerfilScreen` (`app.dart` escucha ese link con `app_links` y hace `Navigator.push` a esta pantalla con `nickInicial`).
+
+**Elementos visibles:**
+- `TextFormField` "Nick de tu amigo" + botón `FilledButton` "Buscar" → `AmistadRepository.buscarPorNick(nick)` (RPC `buscar_usuario_por_nick`, `SECURITY DEFINER`).
+- Si encuentra un usuario: tarjeta con `AvatarCirculo`, `@nick` y botón `FilledButton` "Enviar solicitud" → `enviarSolicitud(usuarioId)`.
+- Si no encuentra ninguno (tras buscar): texto "No se encontró ningún usuario con ese nick."
+- `SnackBar` "Solicitud enviada" al enviar con éxito, o el mensaje traducido del error (p. ej. "Ya le enviaste una solicitud a este usuario.") si falla.
+- **Fase 64 — `nickInicial` (constructor):** si no es `null` (llegó por el deep link), precarga el campo y dispara la búsqueda sola en `initState` — así solo falta un toque en "Enviar solicitud". Nunca envía la solicitud automáticamente, eso siempre requiere ese toque explícito.
+
+**Estados que maneja:** cargando SÍ (mientras busca y mientras envía, ambos con spinner en el botón correspondiente). Vacío SÍ (mensaje de "no encontrado" tras buscar, distinto del estado inicial sin buscar todavía). Error SÍ (`SnackBar` con el mensaje traducido por `AmistadRepositorySupabase.traducirErrorEnviarSolicitud`). Éxito: `SnackBar` "Solicitud enviada".
+
+**Sistema de diseño:** consistente — reutiliza `AvatarCirculo` y el patrón de `TextFormField` + botón de acción ya usado en otros formularios simples de la app.
+
+**Limitaciones conocidas:** la búsqueda es exacta (no hay autocompletar ni sugerencias mientras se escribe) y solo permite un nick a la vez — no hay forma de buscar por nombre visible ni de invitar a alguien que todavía no tiene cuenta en la app. No valida si ya son amigos o si ya existe una solicitud pendiente antes de mostrar el botón "Enviar solicitud" (el error llega recién al tocarlo, traducido desde el código `23505` de la restricción `unique` de `solicitudes_amistad`).
+
+---
+
+## 28. MisAmigosScreen
+
+**Archivo:** `lib/presentation/screens/mis_amigos_screen.dart`
+**Ruta de navegación:** `'/amigos'`
+**Propósito:** ver las solicitudes de amistad recibidas (con Aceptar/Rechazar) y la lista de amigos ya aceptados (Fase 63).
+**Cómo se llega aquí:** `ListTile` "Mis amigos" en `MiPerfilScreen`.
+
+**Elementos visibles:**
+- `AppBar` con ícono "+" (tooltip "Agregar amigo") → `AgregarAmigoScreen` (entrada 27); al volver, invalida `solicitudesRecibidasProvider` y `amigosProvider` para refrescar ambas listas.
+- Sección "Solicitudes recibidas": una fila por solicitud pendiente (`AvatarCirculo` + `@nick` + `IconButton` "Aceptar"/"Rechazar"). Aceptar llama a `aceptarSolicitud` (RPC `aceptar_solicitud_amistad`, que además crea la notificación para quien la envió) y mueve la fila a "Mis amigos"; rechazar llama a `rechazarSolicitud` y la quita de la lista. Ambas muestran `SnackBar` de confirmación ("Solicitud aceptada"/"Solicitud rechazada").
+- Sección "Mis amigos": una fila por amigo aceptado (`AvatarCirculo` + `@nick`), sin acciones.
+- Mensajes vacíos independientes por sección: "No tienes solicitudes pendientes." y "Todavía no tienes amigos agregados."
+
+**Estados que maneja:** cargando SÍ (cada sección depende de su propio `FutureProvider`, `solicitudesRecibidasProvider`/`amigosProvider`). Vacío SÍ (mensaje por sección). Error: sin manejo específico más allá del que ya da `FutureProvider.when` (no hay un texto de error dedicado a esta pantalla). Éxito: `SnackBar` al aceptar/rechazar.
+
+**Sistema de diseño:** consistente — reutiliza `AvatarCirculo` y `IconButton` con tooltip, mismo patrón de listas de la app.
+
+**Limitaciones conocidas:** no hay forma de eliminar a un amigo ya aceptado ni de cancelar una solicitud propia ya enviada (solo quien la recibe puede aceptarla/rechazarla). No hay buscador dentro de la lista de amigos si esta crece mucho. Las solicitudes "rechazadas" no se pueden reintentar automáticamente — la restricción `unique(de_usuario_id, para_usuario_id)` de `solicitudes_amistad` bloquearía un nuevo intento con el mismo par de usuarios a menos que se borre o actualice la fila existente, algo que ningún flujo de la app hace todavía.
+
+---
+
+## 29. NotificacionesScreen
+
+**Archivo:** `lib/presentation/screens/notificaciones_screen.dart`
+**Ruta de navegación:** `'/notificaciones'`
+**Propósito:** listar las notificaciones dentro de la app (por ahora, solo `tipo: 'solicitud_aceptada'`, Fase 63) y marcarlas como leídas al tocarlas.
+**Cómo se llega aquí:** ícono de campana del `DashboardScreen` (con badge de conteo de no leídas, ver entrada 12).
+
+**Elementos visibles:**
+- `ListView.separated` con una fila por notificación (`notificacionesProvider`), más reciente primero.
+- Las no leídas se distinguen con un punto de color `colorSuccess` y texto en negrita; al tocarlas llaman a `NotificacionRepository.marcarLeida(id)` y refrescan la lista (tocar una ya leída no vuelve a llamar al repositorio).
+- Mensaje vacío: "No tienes notificaciones todavía."
+
+**Estados que maneja:** cargando SÍ (`FutureProvider` estándar). Vacío SÍ (mensaje dedicado). Error: sin texto dedicado más allá del `when` de Riverpod. Éxito: no hay `SnackBar` — la notificación deja de verse en negrita/con punto como confirmación visual de que quedó leída.
+
+**Sistema de diseño:** consistente — usa `colorSuccess` del sistema de tokens de la Fase 19/31 para el punto de no leída.
+
+**Limitaciones conocidas:** no hay botón "Marcar todas como leídas", ni acción de eliminar una notificación individual. El badge de la campana (`notificacionesNoLeidasProvider`, Realtime) no se actualiza en tiempo real dentro de esta misma pantalla mientras está abierta — solo al volver al dashboard, porque `marcarLeida` invalida `notificacionesProvider` (la lista) pero el conteo del badge depende del stream de Realtime, que sí reacciona al `UPDATE` en la tabla pero con la latencia propia de Realtime en vez de una actualización optimista local. Tocar una notificación no navega a ningún destino relacionado (p. ej. abrir `MisAmigosScreen` al tocar una de tipo `solicitud_aceptada`), solo la marca como leída.
+
+---
+
+## 30. OlvideContrasenaScreen
+
+**Archivo:** `lib/presentation/screens/olvide_contrasena_screen.dart`
+**Ruta de navegación:** sin ruta con nombre (empujada directamente desde `LoginScreen` con `Navigator.push`)
+**Propósito:** paso 1 de "¿Olvidaste tu contraseña?" (Fase 65) — pide el correo y envía el link de recuperación.
+**Cómo se llega aquí:** link "¿Olvidaste tu contraseña?" en `LoginScreen`.
+
+**Elementos visibles:**
+- Texto explicativo + `TextFormField` Correo (obligatorio, regex de email).
+- Botón "Enviar link de recuperación" (`FilledButton`) → `AuthRepository.enviarLinkRecuperacion` (`resetPasswordForEmail` con `redirectTo: finzo://reset-password`).
+
+**Estados que maneja:** cargando SÍ (spinner en el botón). Vacío no aplica. Error SÍ (`SnackBar` con `mensajeDeError`). Éxito: `SnackBar` "Revisa tu correo para continuar." + `Navigator.pop()` de vuelta a `LoginScreen`.
+
+**Sistema de diseño:** consistente, mismo patrón de formulario simple que `CrearCuentaScreen`.
+
+**Limitaciones conocidas:** no hay confirmación de que el correo ingresado exista realmente como cuenta (por diseño de Supabase/seguridad: no se debe revelar si un correo está registrado) — el mensaje de éxito es el mismo exista o no la cuenta. No hay límite visible de reintentos ni cooldown mostrado en la UI si el usuario pide el link varias veces seguidas.
+
+---
+
+## 31. NuevaContrasenaScreen
+
+**Archivo:** `lib/presentation/screens/nueva_contrasena_screen.dart`
+**Ruta de navegación:** sin ruta con nombre — la abre `FinanzasAutomaticasApp` (`app.dart`) con `Navigator.push` sobre el `navigatorKey` raíz, nunca una pantalla directamente.
+**Propósito:** paso 2 de "¿Olvidaste tu contraseña?" (Fase 65) — elegir la nueva contraseña dentro de la sesión de recuperación que `supabase_flutter` ya armó sola.
+**Cómo se llega aquí:** automáticamente cuando llega el deep link `finzo://reset-password` y `eventoRecuperacionContrasenaProvider` emite `AuthChangeEvent.passwordRecovery` (`app.dart`, `ref.listen`) — nunca por un botón dentro de la app.
+
+**Elementos visibles:**
+- `TextFormField` Nueva contraseña (mínimo 6, `helperText`, toggle de mostrar/ocultar).
+- `TextFormField` Confirmar contraseña (`errorText` inline "Las contraseñas no coinciden" si no calzan — mismo patrón que `CrearCuentaScreen`).
+- Botón "Guardar" (`FilledButton`) → `AuthRepository.actualizarContrasena` (`updateUser(UserAttributes(password: ...))`).
+
+**Estados que maneja:** cargando SÍ (spinner en el botón). Vacío no aplica. Error SÍ (`SnackBar` con `mensajeDeError`). Éxito: `SnackBar` "Contraseña actualizada" + `Navigator.popUntil((route) => route.isFirst)` — la sesión de recuperación ya quedó como la sesión activa normal, así que `RootScreen` reacciona solo y muestra el dashboard, sin pedir login de nuevo.
+
+**Sistema de diseño:** consistente, mismo patrón que `CrearCuentaScreen`.
+
+**Limitaciones conocidas:** no hay forma de probar el flujo real de principio a fin sin el SO abriendo el deep link (mismo límite ya documentado para `login-callback`/`agregar-amigo`) — `eventoRecuperacionContrasenaProvider` está pensado para overridearse en tests. Si el usuario cierra la app entre tocar el link de recuperación y llegar a esta pantalla, no hay ningún mecanismo de reintento explícito más allá de volver a pedir un link nuevo desde `OlvideContrasenaScreen`.
+
+---
+
 ## Matriz resumen
 
 | Pantalla | Carga | Vacío | Error | Diseño consistente |
@@ -623,12 +732,17 @@
 | ConsejosFinancierosScreen | Sí | Sí | Sí | Sí |
 | MiPerfilScreen | Sí | — | Sí | Sí |
 | AutomatizacionScreen | Sí | — | Sí | Sí |
+| AgregarAmigoScreen | Sí | Sí | Sí | Sí |
+| MisAmigosScreen | Sí | Sí | Parcial (sin texto dedicado) | Sí |
+| NotificacionesScreen | Sí | Sí | Parcial (sin texto dedicado) | Sí |
+| OlvideContrasenaScreen | Sí | — | Sí | Sí |
+| NuevaContrasenaScreen | Sí | — | Sí | Sí |
 
 ---
 
 ## Candidatos a nueva funcionalidad
 
-Ordenados de mayor a menor impacto para el usuario, agrupando patrones que se repiten en varias pantallas. No se repiten aquí los pendientes ya señalados por `INFORME_PROYECTO.md` §7 (selector de mes, manejo de errores de BD genérico, eliminación de cuenta — ya resuelta, campana/escudo decorativos) salvo con un ángulo específico de interfaz que ese informe no cubre.
+Ordenados de mayor a menor impacto para el usuario, agrupando patrones que se repiten en varias pantallas. No se repiten aquí los pendientes ya señalados por `INFORME_PROYECTO.md` §7 (selector de mes, manejo de errores de BD genérico, eliminación de cuenta — ya resuelta, campana — ya resuelta en la Fase 63, escudo decorativo — todavía pendiente) salvo con un ángulo específico de interfaz que ese informe no cubre.
 
 1. ~~**Confirmación visual de guardado, ausente o inconsistente en casi todos los formularios.** La inmensa mayoría de las pantallas de creación/edición (transacción, deuda, cuenta, pago de deuda, categoría) solo hacen `Navigator.pop()` al guardar con éxito — sin `SnackBar`/toast.~~ — **resuelto en la Fase 23.1**: `TransaccionNuevaScreen`, `DeudaNuevaScreen`, `CuentaFormulario` (crear/editar y el modal "Ajustar saldo"), `PagoDeudaNuevoScreen` y `CategoriaFormulario` (incluye el modo rápido embebido en `TransaccionNuevaScreen`) ahora muestran un `SnackBar` con texto específico por acción ("Gasto guardado", "Deuda actualizada", "Saldo ajustado", "Pago registrado", "Categoría creada", etc.) justo antes de `pop()`/`onGuardadoExitoso()`. Decisión explícita para "Cerrar sesión" y "Eliminar cuenta" (el botón dentro de `CuentaFormulario`, no la cuenta de usuario): se dejaron sin `SnackBar` de éxito porque la navegación resultante (volver al login, volver a la lista) ya es señal suficiente de que la acción se completó.
 
@@ -648,11 +762,11 @@ Ordenados de mayor a menor impacto para el usuario, agrupando patrones que se re
 
 ## Verificación
 
-**Pantallas documentadas en detalle:** 26 (secciones 1 a 26 de este documento — se sumó `AutomatizacionScreen` en la Fase 25; se restaron `ConfigurarBloqueoScreen` y `DesbloqueoScreen`, eliminadas junto con todo el bloqueo local por PIN/biométrico en la Fase 55).
+**Pantallas documentadas en detalle:** 31 (secciones 1 a 31 de este documento — se sumaron `OlvideContrasenaScreen` y `NuevaContrasenaScreen` en la Fase 65; antes, `AgregarAmigoScreen`, `MisAmigosScreen` y `NotificacionesScreen` en la Fase 63; antes, `AutomatizacionScreen` en la Fase 25; se restaron `ConfigurarBloqueoScreen` y `DesbloqueoScreen`, eliminadas junto con todo el bloqueo local por PIN/biométrico en la Fase 55).
 
-**Archivos `.dart` bajo `lib/presentation/screens/` (recursivo):** 41 al momento de esta actualización (Fase 55) — verificado de nuevo contra el sistema de archivos real, no asumido. Los 41 se reparten así: 26 documentados como pantallas reales (arriba) + 15 excluidos por ser widgets/formularios compartidos sin `Scaffold` ni ruta propia (ver lista abajo). 26 + 15 = 41, cuadra con el recuento real. De paso, esta revisión corrigió dos desfases menores que traía el documento desde antes de la Fase 55 y que se cancelaban entre sí en el total: el conteo de "documentadas" decía 27 cuando en realidad ya había 28 secciones (con `AutomatizacionScreen` como la 28°, no la 27°), y a la lista de excluidos le faltaba `alertas_tarjetas_credito_banner.dart` (Fase 29). Con ambos corregidos, antes de la Fase 55 eran 28 documentadas + 15 excluidos = 43 archivos — la Fase 55 borró 2 de los documentados (`ConfigurarBloqueoScreen`, `DesbloqueoScreen`), dejando 26 + 15 = 41.
+**Archivos `.dart` bajo `lib/presentation/screens/` (recursivo):** 47 al momento de esta actualización (Fase 65) — verificado de nuevo contra el sistema de archivos real, no asumido. Los 47 se reparten así: 31 documentados como pantallas reales (arriba) + 16 excluidos por ser widgets/formularios compartidos sin `Scaffold` ni ruta propia (ver lista abajo). 31 + 16 = 47, cuadra con el recuento real. Antes de la Fase 65 eran 29 documentadas + 15 excluidos = 44; la Fase 65 sumó 2 pantallas nuevas (`olvide_contrasena_screen.dart`, `nueva_contrasena_screen.dart`) y 1 archivo nuevo a la lista de excluidos (`tarjeta_credito_pagos_section.dart`, embebido en `CuentaFormulario`).
 
-**Los 15 archivos NO documentados como pantalla independiente, con el motivo exacto de cada uno:**
+**Los 16 archivos NO documentados como pantalla independiente, con el motivo exacto de cada uno:**
 
 1. `lib/presentation/screens/dashboard/dashboard_fixtures.dart` — no es ni siquiera un widget, son constantes de datos de prueba (`cuentasDashboardFixture`, `resumenDashboardFixture`, `resumenDashboardVacioFixture`) usadas solo por `lib/main_dev.dart` para previsualizar el dashboard con datos falsos. Sin `Scaffold`, sin `build()`.
 2. `lib/presentation/screens/dashboard/widgets/accesos_rapidos_section.dart` — fila de 2 botones ("Gasto/ingreso", "Nueva deuda"), embebida únicamente dentro de `DashboardEmptyState`. Sin `Scaffold` ni ruta propia.
@@ -669,5 +783,6 @@ Ordenados de mayor a menor impacto para el usuario, agrupando patrones que se re
 13. `lib/presentation/screens/deuda_formulario.dart` — formulario de deuda, reutilizado por `DeudaNuevaScreen` (entrada 18) y `OnboardingDeudasStep` (entrada 10). Mismo criterio que `cuenta_formulario.dart`.
 14. `lib/presentation/screens/categoria_formulario.dart` — formulario de categoría, reutilizado por `CategoriaNuevaScreen` (entrada 23) y por el modo rápido embebido (bottom sheet) de `TransaccionNuevaScreen` (entrada 15). Mismo criterio.
 15. `lib/presentation/screens/dashboard/widgets/alertas_tarjetas_credito_banner.dart` (Fase 29) — banner de alerta de corte/pago próximo para cuentas tipo crédito, embebido en `DashboardScreen`. Sin `Scaffold` ni ruta propia; documentado como parte de los elementos visibles de la entrada 12 (DashboardScreen) — faltaba en esta lista desde la Fase 29, corregido en esta revisión (Fase 55).
+16. `lib/presentation/screens/dashboard/widgets/tarjeta_credito_pagos_section.dart` (Fase 65) — bloque de 3 pestañas "Pago del mes/Pago mínimo/Deuda total" + "Ver mis fechas de pago", embebido en `CuentaFormulario` (modo edición, solo cuentas tipo crédito). Sin `Scaffold` ni ruta propia; documentado como parte de los elementos visibles de la entrada 14 (CuentaNuevaScreen).
 
-Los 26 archivos restantes corresponden exactamente a las 26 pantallas documentadas en detalle arriba (incluyendo `RootScreen`, que aunque es principalmente un despachador reactivo sin UI propia persistente, sí tiene estados de carga/error reales y visibles que valía la pena catalogar, y los 5 pasos del onboarding + su contenedor, tal como pide el orden de pantallas del encargo).
+Los 31 archivos restantes corresponden exactamente a las 31 pantallas documentadas en detalle arriba (incluyendo `RootScreen`, que aunque es principalmente un despachador reactivo sin UI propia persistente, sí tiene estados de carga/error reales y visibles que valía la pena catalogar, y los 5 pasos del onboarding + su contenedor, tal como pide el orden de pantallas del encargo).

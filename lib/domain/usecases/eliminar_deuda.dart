@@ -12,6 +12,17 @@ class EliminarDeuda {
        _pagoDeudaRepository = pagoDeudaRepository;
 
   Future<void> call({required String deudaId}) async {
+    final actual = await _deudaRepository.obtenerPorId(deudaId);
+    if (actual == null) {
+      throw ArgumentError('La deuda $deudaId no existe');
+    }
+    if (actual.cuentaId != null) {
+      throw StateError(
+        'Edita o elimina la cuenta de crédito directamente, esta deuda se '
+        'sincroniza sola.',
+      );
+    }
+
     final pagos = await _pagoDeudaRepository.obtenerPorDeuda(deudaId);
     if (pagos.isNotEmpty) {
       throw StateError('No se puede eliminar una deuda con pagos registrados');

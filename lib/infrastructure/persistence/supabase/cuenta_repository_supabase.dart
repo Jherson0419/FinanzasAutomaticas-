@@ -82,9 +82,10 @@ class CuentaRepositorySupabase implements CuentaRepository {
       'moneda': monedaAFila(cuenta.moneda),
       'saldo_actual': cuenta.saldoActual,
       'linea_credito': cuenta.lineaCredito,
-      'dia_corte': cuenta.diaCorte,
-      'dia_pago': cuenta.diaPago,
+      'fecha_corte': cuenta.fechaCorte?.toIso8601String(),
+      'fecha_pago': cuenta.fechaPago?.toIso8601String(),
       'ultimos_digitos': cuenta.ultimosDigitos,
+      'pago_minimo': cuenta.pagoMinimo,
     };
   }
 
@@ -97,9 +98,14 @@ class CuentaRepositorySupabase implements CuentaRepository {
       moneda: monedaDeFila(fila['moneda'] as String),
       saldoActual: (fila['saldo_actual'] as num).toDouble(),
       lineaCredito: (fila['linea_credito'] as num?)?.toDouble(),
-      diaCorte: fila['dia_corte'] as int?,
-      diaPago: fila['dia_pago'] as int?,
+      fechaCorte: fila['fecha_corte'] == null
+          ? null
+          : DateTime.parse(fila['fecha_corte'] as String),
+      fechaPago: fila['fecha_pago'] == null
+          ? null
+          : DateTime.parse(fila['fecha_pago'] as String),
       ultimosDigitos: fila['ultimos_digitos'] as String?,
+      pagoMinimo: (fila['pago_minimo'] as num?)?.toDouble(),
     );
   }
 }

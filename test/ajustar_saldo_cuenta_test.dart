@@ -2,9 +2,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:finanzas_automaticas/domain/entities/categoria.dart';
 import 'package:finanzas_automaticas/domain/entities/cuenta.dart';
+import 'package:finanzas_automaticas/domain/entities/deuda.dart';
 import 'package:finanzas_automaticas/domain/entities/transaccion.dart';
 import 'package:finanzas_automaticas/domain/repositories/categoria_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/cuenta_repository.dart';
+import 'package:finanzas_automaticas/domain/repositories/deuda_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/transaccion_repository.dart';
 import 'package:finanzas_automaticas/domain/usecases/ajustar_saldo_cuenta.dart';
 
@@ -90,6 +92,38 @@ class _FakeCategoriaRepository implements CategoriaRepository {
   Future<void> eliminar(String id) async {}
 }
 
+class _FakeDeudaRepository implements DeudaRepository {
+  final List<Deuda> deudas = [];
+
+  @override
+  Future<void> actualizar(Deuda deuda) async {
+    final indice = deudas.indexWhere((d) => d.id == deuda.id);
+    if (indice != -1) deudas[indice] = deuda;
+  }
+
+  @override
+  Future<void> crear(Deuda deuda) async => deudas.add(deuda);
+
+  @override
+  Future<void> eliminar(String id) async =>
+      deudas.removeWhere((d) => d.id == id);
+
+  @override
+  Future<Deuda?> obtenerPorId(String id) async {
+    for (final d in deudas) {
+      if (d.id == id) return d;
+    }
+    return null;
+  }
+
+  @override
+  Future<List<Deuda>> obtenerTodas() async => deudas;
+
+  @override
+  Future<List<Deuda>> obtenerActivas() async =>
+      deudas.where((d) => d.estado == EstadoDeuda.activa).toList();
+}
+
 final _categoriasAjuste = const [
   Categoria(
     id: 'cat-ajuste-ingreso',
@@ -123,6 +157,7 @@ void main() {
         cuentaRepository: fakeCuentas,
         transaccionRepository: fakeTransacciones,
         categoriaRepository: _FakeCategoriaRepository(_categoriasAjuste),
+        deudaRepository: _FakeDeudaRepository(),
       );
 
       final resultado = await ajustarSaldo(cuentaId: 'cta-1', saldoReal: 150);
@@ -154,6 +189,7 @@ void main() {
         cuentaRepository: fakeCuentas,
         transaccionRepository: fakeTransacciones,
         categoriaRepository: _FakeCategoriaRepository(_categoriasAjuste),
+        deudaRepository: _FakeDeudaRepository(),
       );
 
       final resultado = await ajustarSaldo(cuentaId: 'cta-1', saldoReal: 30);
@@ -184,6 +220,7 @@ void main() {
         cuentaRepository: fakeCuentas,
         transaccionRepository: fakeTransacciones,
         categoriaRepository: _FakeCategoriaRepository(_categoriasAjuste),
+        deudaRepository: _FakeDeudaRepository(),
       );
 
       final resultado = await ajustarSaldo(cuentaId: 'cta-1', saldoReal: 100);

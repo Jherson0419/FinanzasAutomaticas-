@@ -4,19 +4,26 @@ import '../calculo_saldo.dart';
 import '../entities/cuenta.dart';
 import '../entities/transaccion.dart';
 import '../repositories/cuenta_repository.dart';
+import '../repositories/deuda_repository.dart';
 import '../repositories/transaccion_repository.dart';
+import 'sincronizar_deuda_tarjeta.dart';
 
 class RegistrarGasto {
   final CuentaRepository _cuentaRepository;
   final TransaccionRepository _transaccionRepository;
+  final SincronizarDeudaTarjeta _sincronizarDeudaTarjeta;
   final Uuid _uuid;
 
   RegistrarGasto({
     required CuentaRepository cuentaRepository,
     required TransaccionRepository transaccionRepository,
+    required DeudaRepository deudaRepository,
     Uuid? uuid,
   }) : _cuentaRepository = cuentaRepository,
        _transaccionRepository = transaccionRepository,
+       _sincronizarDeudaTarjeta = SincronizarDeudaTarjeta(
+         deudaRepository: deudaRepository,
+       ),
        _uuid = uuid ?? const Uuid();
 
   Future<Transaccion> call({
@@ -52,15 +59,15 @@ class RegistrarGasto {
     );
 
     await _transaccionRepository.crear(transaccion);
-    await _cuentaRepository.actualizar(
-      cuenta.copyWith(
-        saldoActual: aplicarEfectoTransaccion(
-          cuenta.saldoActual,
-          TipoTransaccion.gasto,
-          monto,
-        ),
+    final cuentaActualizada = cuenta.copyWith(
+      saldoActual: aplicarEfectoTransaccion(
+        cuenta.saldoActual,
+        TipoTransaccion.gasto,
+        monto,
       ),
     );
+    await _cuentaRepository.actualizar(cuentaActualizada);
+    await _sincronizarDeudaTarjeta(cuentaActualizada);
 
     return transaccion;
   }

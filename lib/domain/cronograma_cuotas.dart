@@ -106,12 +106,13 @@ DateTime _sumarPeriodos(
   if (periodicidad == PeriodicidadCuota.quincenal) {
     return fechaInicio.add(Duration(days: 15 * periodos));
   }
-  return _sumarMeses(fechaInicio, periodos);
+  return sumarMeses(fechaInicio, periodos);
 }
 
 /// Suma [meses] calendario a [fecha] respetando fin de mes (ej. 31 de enero
-/// + 1 mes = 28/29 de febrero, no 3 de marzo).
-DateTime _sumarMeses(DateTime fecha, int meses) {
+/// + 1 mes = 28/29 de febrero, no 3 de marzo). Pública (Fase 62) para que
+/// `proxima_ocurrencia_mensual.dart` la reutilice en vez de reescribirla.
+DateTime sumarMeses(DateTime fecha, int meses) {
   final totalMeses = fecha.month - 1 + meses;
   final anio = fecha.year + totalMeses ~/ 12;
   final mes = totalMeses % 12 + 1;

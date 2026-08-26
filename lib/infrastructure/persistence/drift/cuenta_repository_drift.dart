@@ -46,9 +46,10 @@ class CuentaRepositoryDrift implements CuentaRepository {
       moneda: Moneda.values.byName(row.moneda),
       saldoActual: row.saldoActual,
       lineaCredito: row.lineaCredito,
-      diaCorte: row.diaCorte,
-      diaPago: row.diaPago,
+      fechaCorte: row.fechaCorte,
+      fechaPago: row.fechaPago,
       ultimosDigitos: row.ultimosDigitos,
+      pagoMinimo: row.pagoMinimo,
     );
   }
 
@@ -60,9 +61,10 @@ class CuentaRepositoryDrift implements CuentaRepository {
       moneda: cuenta.moneda.name,
       saldoActual: cuenta.saldoActual,
       lineaCredito: Value(cuenta.lineaCredito),
-      diaCorte: Value(cuenta.diaCorte),
-      diaPago: Value(cuenta.diaPago),
+      fechaCorte: Value(cuenta.fechaCorte),
+      fechaPago: Value(cuenta.fechaPago),
       ultimosDigitos: Value(cuenta.ultimosDigitos),
+      pagoMinimo: Value(cuenta.pagoMinimo),
     );
   }
 }

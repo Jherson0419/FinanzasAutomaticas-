@@ -41,6 +41,26 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="finzo" android:host="login-callback"/>
             </intent-filter>
+            <!-- Fase 64: deep link para compartir el perfil (finzo://agregar-amigo?nick=),
+                 generado por "Compartir mi perfil" en mi_perfil_screen.dart. A diferencia
+                 del de arriba, este lo escucha la propia app (app_links, ver app.dart),
+                 no supabase_flutter. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="finzo" android:host="agregar-amigo"/>
+            </intent-filter>
+            <!-- Fase 65: deep link de recuperación de contraseña (finzo://reset-password),
+                 usado como `redirectTo` en `resetPasswordForEmail` — igual que
+                 login-callback, supabase_flutter lo intercepta para armar la sesión de
+                 recuperación (AuthChangeEvent.passwordRecovery). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="finzo" android:host="reset-password"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

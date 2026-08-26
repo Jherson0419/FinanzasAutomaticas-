@@ -160,4 +160,47 @@ void main() {
       expect(deuda.fechaVencimientoFinal, isNull);
     },
   );
+
+  test(
+    'Fase 64: amigoUsuarioId se guarda tal cual cuando se vincula a un amigo',
+    () async {
+      final fake = _FakeDeudaRepository();
+      final registrarDeuda = RegistrarDeuda(deudaRepository: fake);
+
+      final deuda = await registrarDeuda(
+        nombreDeuda: 'Préstamo de un amigo',
+        tipoDeuda: TipoDeuda.deudaInformal,
+        tipoAcreedor: TipoAcreedor.personaNatural,
+        nombreAcreedor: 'jherson23',
+        moneda: Moneda.pen,
+        montoTotal: 100,
+        estructuraPago: EstructuraPago.pagoLibre,
+        fechaInicio: DateTime(2026, 1, 1),
+        amigoUsuarioId: 'user-amigo',
+      );
+
+      expect(deuda.amigoUsuarioId, 'user-amigo');
+    },
+  );
+
+  test(
+    'Fase 64: amigoUsuarioId queda null cuando no se pasa (default)',
+    () async {
+      final fake = _FakeDeudaRepository();
+      final registrarDeuda = RegistrarDeuda(deudaRepository: fake);
+
+      final deuda = await registrarDeuda(
+        nombreDeuda: 'Préstamo de un conocido',
+        tipoDeuda: TipoDeuda.deudaInformal,
+        tipoAcreedor: TipoAcreedor.personaNatural,
+        nombreAcreedor: 'Alguien',
+        moneda: Moneda.pen,
+        montoTotal: 100,
+        estructuraPago: EstructuraPago.pagoLibre,
+        fechaInicio: DateTime(2026, 1, 1),
+      );
+
+      expect(deuda.amigoUsuarioId, isNull);
+    },
+  );
 }

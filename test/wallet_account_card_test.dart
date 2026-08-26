@@ -18,15 +18,15 @@ void main() {
     (WidgetTester tester) async {
       await _pump(
         tester,
-        const Cuenta(
+        Cuenta(
           id: 'c1',
           nombre: 'Visa BCP',
           tipo: TipoCuenta.credito,
           moneda: Moneda.pen,
           saldoActual: -350,
           lineaCredito: 2000,
-          diaCorte: 10,
-          diaPago: 20,
+          fechaCorte: DateTime(2026, 1, 10),
+          fechaPago: DateTime(2026, 1, 20),
         ),
       );
 
@@ -45,19 +45,43 @@ void main() {
     (WidgetTester tester) async {
       await _pump(
         tester,
-        const Cuenta(
+        Cuenta(
           id: 'c1',
           nombre: 'Visa BCP',
           tipo: TipoCuenta.credito,
           moneda: Moneda.pen,
           saldoActual: 0,
           lineaCredito: 2000,
-          diaCorte: 10,
-          diaPago: 20,
+          fechaCorte: DateTime(2026, 1, 10),
+          fechaPago: DateTime(2026, 1, 20),
         ),
       );
 
       expect(find.text('Usado S/ 0.00 de S/ 2,000.00'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Fase 65: ya no muestra el texto de fechas de corte/pago (se movió a '
+    'TarjetaCreditoPagosSection)',
+    (WidgetTester tester) async {
+      final hoy = DateTime.now();
+      await _pump(
+        tester,
+        Cuenta(
+          id: 'c1',
+          nombre: 'Visa BCP',
+          tipo: TipoCuenta.credito,
+          moneda: Moneda.pen,
+          saldoActual: -350,
+          lineaCredito: 2000,
+          fechaCorte: hoy.add(const Duration(days: 5)),
+          fechaPago: hoy.add(const Duration(days: 12)),
+        ),
+      );
+
+      expect(find.textContaining('Corte:'), findsNothing);
+      expect(find.textContaining('Pago:'), findsNothing);
     },
   );
 

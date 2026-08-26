@@ -84,6 +84,8 @@ class DeudaRepositoryDrift implements DeudaRepository {
       tasaInteresMoratorio: row.tasaInteresMoratorio,
       estado: EstadoDeuda.values.byName(row.estado),
       notas: row.notas,
+      cuentaId: row.cuentaId,
+      amigoUsuarioId: row.amigoUsuarioId,
     );
   }
 
@@ -116,6 +118,8 @@ class DeudaRepositoryDrift implements DeudaRepository {
       tasaInteresMoratorio: Value(deuda.tasaInteresMoratorio),
       estado: deuda.estado.name,
       notas: Value(deuda.notas),
+      cuentaId: Value(deuda.cuentaId),
+      amigoUsuarioId: Value(deuda.amigoUsuarioId),
     );
   }
 }

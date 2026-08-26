@@ -1,8 +1,11 @@
+import 'dart:developer' as developer;
+
 import 'package:uuid/uuid.dart';
 
 import '../cronograma_cuotas.dart';
 import '../entities/deuda.dart';
 import '../entities/pago_deuda.dart';
+import '../repositories/amistad_repository.dart';
 import '../repositories/cuenta_repository.dart';
 import '../repositories/deuda_repository.dart';
 import '../repositories/pago_deuda_repository.dart';
@@ -11,16 +14,19 @@ class RegistrarPagoDeuda {
   final PagoDeudaRepository _pagoDeudaRepository;
   final DeudaRepository _deudaRepository;
   final CuentaRepository _cuentaRepository;
+  final AmistadRepository _amistadRepository;
   final Uuid _uuid;
 
   RegistrarPagoDeuda({
     required PagoDeudaRepository pagoDeudaRepository,
     required DeudaRepository deudaRepository,
     required CuentaRepository cuentaRepository,
+    required AmistadRepository amistadRepository,
     Uuid? uuid,
   }) : _pagoDeudaRepository = pagoDeudaRepository,
        _deudaRepository = deudaRepository,
        _cuentaRepository = cuentaRepository,
+       _amistadRepository = amistadRepository,
        _uuid = uuid ?? const Uuid();
 
   /// Si [cuentaId] es `null`, el pago se trata como retroactivo: ya ocurrió
@@ -41,6 +47,12 @@ class RegistrarPagoDeuda {
     }
     if (deuda.estado == EstadoDeuda.pagada) {
       throw StateError('La deuda "${deuda.nombreDeuda}" ya está pagada');
+    }
+    if (deuda.cuentaId != null) {
+      throw StateError(
+        'Esta deuda se actualiza automáticamente desde los movimientos de '
+        'la tarjeta, no se registra un pago aquí.',
+      );
     }
 
     // Pago secuencial obligatorio (Fase 58): solo aplica a `cuotasFijas` con
@@ -147,6 +159,7 @@ class RegistrarPagoDeuda {
         tasaInteresMoratorio: deuda.tasaInteresMoratorio,
         estado: nuevoEstado,
         notas: deuda.notas,
+        cuentaId: deuda.cuentaId,
       ),
     );
 
@@ -154,6 +167,26 @@ class RegistrarPagoDeuda {
       await _cuentaRepository.actualizar(
         cuenta.copyWith(saldoActual: cuenta.saldoActual - montoPagado),
       );
+    }
+
+    // Fase 64: si la deuda está vinculada a un amigo de Finzo, se le avisa
+    // del pago (RPC `notificar_pago_a_amigo`). El pago ya quedó guardado
+    // arriba — si esta notificación falla (sin red, RPC caído, etc.) no
+    // debe revertirlo ni propagarse como si el pago hubiera fallado, solo
+    // se registra el error: es secundaria frente al pago en sí.
+    if (deuda.amigoUsuarioId != null) {
+      try {
+        await _amistadRepository.notificarPago(
+          amigoUsuarioId: deuda.amigoUsuarioId!,
+          monto: montoPagado,
+          nombreDeuda: deuda.nombreDeuda,
+        );
+      } catch (error) {
+        developer.log(
+          'No se pudo notificar el pago al amigo: $error',
+          name: 'RegistrarPagoDeuda',
+        );
+      }
     }
 
     return pago;

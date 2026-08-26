@@ -155,20 +155,22 @@ void main() {
 
     test('Fase 57: aFila incluye ultimos_digitos', () {
       final fila = repoAutenticado.aFila(
-        const Cuenta(
+        Cuenta(
           id: 'cta-1',
           nombre: 'Visa BCP',
           tipo: TipoCuenta.credito,
           moneda: Moneda.pen,
           saldoActual: -100,
           lineaCredito: 2000,
-          diaCorte: 10,
-          diaPago: 20,
+          fechaCorte: DateTime(2026, 1, 10),
+          fechaPago: DateTime(2026, 1, 20),
           ultimosDigitos: '4821',
         ),
       );
 
       expect(fila['ultimos_digitos'], '4821');
+      expect(fila['fecha_corte'], DateTime(2026, 1, 10).toIso8601String());
+      expect(fila['fecha_pago'], DateTime(2026, 1, 20).toIso8601String());
     });
 
     test('Fase 57: aDominio mapea ultimos_digitos cuando viene presente', () {
@@ -196,6 +198,65 @@ void main() {
       });
 
       expect(cuenta.ultimosDigitos, isNull);
+    });
+
+    test('Fase 65: aFila manda pago_minimo null por defecto, y el valor real '
+        'cuando está configurado', () {
+      final sinPagoMinimo = repoAutenticado.aFila(
+        Cuenta(
+          id: 'cta-1',
+          nombre: 'Visa BCP',
+          tipo: TipoCuenta.credito,
+          moneda: Moneda.pen,
+          saldoActual: -100,
+          lineaCredito: 2000,
+          fechaCorte: DateTime(2026, 1, 10),
+          fechaPago: DateTime(2026, 1, 20),
+        ),
+      );
+      expect(sinPagoMinimo['pago_minimo'], isNull);
+
+      final conPagoMinimo = repoAutenticado.aFila(
+        Cuenta(
+          id: 'cta-1',
+          nombre: 'Visa BCP',
+          tipo: TipoCuenta.credito,
+          moneda: Moneda.pen,
+          saldoActual: -100,
+          lineaCredito: 2000,
+          fechaCorte: DateTime(2026, 1, 10),
+          fechaPago: DateTime(2026, 1, 20),
+          pagoMinimo: 120,
+        ),
+      );
+      expect(conPagoMinimo['pago_minimo'], 120);
+    });
+
+    test('Fase 65: aDominio mapea pago_minimo cuando viene presente', () {
+      final cuenta = repo.aDominio({
+        'id': 'cta-1',
+        'user_id': 'user-1',
+        'nombre': 'Visa BCP',
+        'tipo': 'debito',
+        'moneda': 'PEN',
+        'saldo_actual': 100,
+        'pago_minimo': 120,
+      });
+
+      expect(cuenta.pagoMinimo, 120.0);
+    });
+
+    test('Fase 65: aDominio deja pagoMinimo en null si la columna no viene', () {
+      final cuenta = repo.aDominio({
+        'id': 'cta-1',
+        'user_id': 'user-1',
+        'nombre': 'Visa BCP',
+        'tipo': 'debito',
+        'moneda': 'PEN',
+        'saldo_actual': 100,
+      });
+
+      expect(cuenta.pagoMinimo, isNull);
     });
   });
 
@@ -395,6 +456,8 @@ void main() {
       EstructuraPago estructuraPago = EstructuraPago.cuotasFijas,
       PeriodicidadCuota? periodicidadCuotas = PeriodicidadCuota.mensual,
       EstadoDeuda estado = EstadoDeuda.activa,
+      String? cuentaId,
+      String? amigoUsuarioId,
     }) => Deuda(
       id: 'deuda-1',
       nombreDeuda: 'Préstamo',
@@ -411,6 +474,39 @@ void main() {
       fechaInicio: DateTime.parse('2026-01-01T00:00:00.000Z'),
       enMora: false,
       estado: estado,
+      cuentaId: cuentaId,
+      amigoUsuarioId: amigoUsuarioId,
+    );
+
+    test(
+      'Fase 64: aFila manda amigo_usuario_id null por defecto, y el id real '
+      'cuando la deuda está vinculada a un amigo',
+      () {
+        expect(
+          repoAutenticado.aFila(deudaFixture())['amigo_usuario_id'],
+          isNull,
+        );
+        expect(
+          repoAutenticado.aFila(
+            deudaFixture(amigoUsuarioId: 'user-amigo'),
+          )['amigo_usuario_id'],
+          'user-amigo',
+        );
+      },
+    );
+
+    test(
+      'Fase 62: aFila manda cuenta_id null para una deuda normal, y el id '
+      'real para una deuda vinculada a una tarjeta de crédito',
+      () {
+        expect(repoAutenticado.aFila(deudaFixture())['cuenta_id'], isNull);
+        expect(
+          repoAutenticado.aFila(
+            deudaFixture(cuentaId: 'cta-1'),
+          )['cuenta_id'],
+          'cta-1',
+        );
+      },
     );
 
     test(
@@ -536,7 +632,88 @@ void main() {
         DateTime.parse('2026-04-01T00:00:00.000Z'),
       );
       expect(deuda.estado, EstadoDeuda.activa);
+      expect(deuda.cuentaId, isNull);
     });
+
+    test(
+      'Fase 62: aDominio mapea cuenta_id cuando la deuda está vinculada a '
+      'una tarjeta de crédito',
+      () {
+        final deuda = repo.aDominio({
+          'id': 'deuda-1',
+          'user_id': 'user-1',
+          'nombre_deuda': 'Visa BCP',
+          'tipo_deuda': 'tarjeta_credito',
+          'tipo_acreedor': 'entidad_financiera',
+          'nombre_acreedor': 'Visa BCP',
+          'moneda': 'PEN',
+          'monto_total': 2000.0,
+          'monto_pagado': 1200.0,
+          'tiene_interes': false,
+          'tasa_interes': null,
+          'tipo_tasa': null,
+          'estructura_pago': 'pago_libre',
+          'numero_cuotas_total': null,
+          'numero_cuotas_pagadas': null,
+          'monto_cuota': null,
+          'pago_minimo': null,
+          'periodicidad_cuotas': null,
+          'interes_total': null,
+          'fecha_inicio': '2026-01-01T00:00:00.000Z',
+          'fecha_vencimiento_final': null,
+          'dia_pago': null,
+          'proxima_fecha_pago': null,
+          'en_mora': false,
+          'dias_mora': null,
+          'tasa_interes_moratorio': null,
+          'estado': 'activa',
+          'notas': null,
+          'cuenta_id': 'cta-1',
+        });
+
+        expect(deuda.cuentaId, 'cta-1');
+      },
+    );
+
+    test(
+      'Fase 64: aDominio mapea amigo_usuario_id cuando la deuda está '
+      'vinculada a un amigo de Finzo',
+      () {
+        final deuda = repo.aDominio({
+          'id': 'deuda-1',
+          'user_id': 'user-1',
+          'nombre_deuda': 'Préstamo de un amigo',
+          'tipo_deuda': 'deuda_informal',
+          'tipo_acreedor': 'persona_natural',
+          'nombre_acreedor': 'jherson23',
+          'moneda': 'PEN',
+          'monto_total': 300.0,
+          'monto_pagado': 0.0,
+          'tiene_interes': false,
+          'tasa_interes': null,
+          'tipo_tasa': null,
+          'estructura_pago': 'pago_libre',
+          'numero_cuotas_total': null,
+          'numero_cuotas_pagadas': null,
+          'monto_cuota': null,
+          'pago_minimo': null,
+          'periodicidad_cuotas': null,
+          'interes_total': null,
+          'fecha_inicio': '2026-01-01T00:00:00.000Z',
+          'fecha_vencimiento_final': null,
+          'dia_pago': null,
+          'proxima_fecha_pago': null,
+          'en_mora': false,
+          'dias_mora': null,
+          'tasa_interes_moratorio': null,
+          'estado': 'activa',
+          'notas': null,
+          'amigo_usuario_id': 'user-amigo',
+        });
+
+        expect(deuda.amigoUsuarioId, 'user-amigo');
+      },
+    );
 
     test(
       'aDominio mapea "en_mora" snake_case real a EstadoDeuda.enMora '

@@ -34,4 +34,37 @@ void main() {
       expect(contenido, contains('android:scheme="$esquema"'));
     },
   );
+
+  test(
+    'Fase 64: el host agregar-amigo (compartir perfil) también está '
+    'registrado en el AndroidManifest, junto al de login-callback',
+    () {
+      final contenido = File(
+        'android/app/src/main/AndroidManifest.xml',
+      ).readAsStringSync();
+      expect(contenido, contains('android:host="login-callback"'));
+      expect(contenido, contains('android:host="agregar-amigo"'));
+    },
+  );
+
+  test(
+    'Fase 65: el host reset-password (recuperar contraseña) también está '
+    'registrado en el AndroidManifest',
+    () {
+      expect(authResetPasswordRedirectUrl, 'finzo://reset-password');
+
+      final contenido = File(
+        'android/app/src/main/AndroidManifest.xml',
+      ).readAsStringSync();
+      expect(contenido, contains('android:host="reset-password"'));
+      expect(
+        contenido,
+        contains(authResetPasswordRedirectUrl),
+        reason:
+            'authResetPasswordRedirectUrl debe estar documentado en el '
+            'comentario junto al intent-filter, para que quede evidente '
+            'por qué existe ese host.',
+      );
+    },
+  );
 }

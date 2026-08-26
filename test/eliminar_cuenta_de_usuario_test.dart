@@ -178,6 +178,10 @@ class _FakeAuthRepository implements AuthRepository {
   @override
   Future<void> iniciarSesionConGoogle() async {}
   @override
+  Future<void> enviarLinkRecuperacion({required String email}) async {}
+  @override
+  Future<void> actualizarContrasena({required String nuevaContrasena}) async {}
+  @override
   Future<void> eliminarCuenta() async {
     vecesLlamado++;
     if (fallaAlEliminar) {

@@ -5,7 +5,9 @@ import '../entities/categoria.dart';
 import '../entities/transaccion.dart';
 import '../repositories/categoria_repository.dart';
 import '../repositories/cuenta_repository.dart';
+import '../repositories/deuda_repository.dart';
 import '../repositories/transaccion_repository.dart';
+import 'sincronizar_deuda_tarjeta.dart';
 
 /// Nombre de las categorías "Ajuste de saldo" (ingreso y gasto) sembradas
 /// por `AppDatabase` — ver `_seedCategoriasAjuste`.
@@ -19,16 +21,21 @@ class AjustarSaldoCuenta {
   final CuentaRepository _cuentaRepository;
   final TransaccionRepository _transaccionRepository;
   final CategoriaRepository _categoriaRepository;
+  final SincronizarDeudaTarjeta _sincronizarDeudaTarjeta;
   final Uuid _uuid;
 
   AjustarSaldoCuenta({
     required CuentaRepository cuentaRepository,
     required TransaccionRepository transaccionRepository,
     required CategoriaRepository categoriaRepository,
+    required DeudaRepository deudaRepository,
     Uuid? uuid,
   }) : _cuentaRepository = cuentaRepository,
        _transaccionRepository = transaccionRepository,
        _categoriaRepository = categoriaRepository,
+       _sincronizarDeudaTarjeta = SincronizarDeudaTarjeta(
+         deudaRepository: deudaRepository,
+       ),
        _uuid = uuid ?? const Uuid();
 
   /// Devuelve la `Transaccion` de ajuste creada, o `null` si `saldoReal` ya
@@ -83,15 +90,15 @@ class AjustarSaldoCuenta {
     );
 
     await _transaccionRepository.crear(transaccion);
-    await _cuentaRepository.actualizar(
-      cuenta.copyWith(
-        saldoActual: aplicarEfectoTransaccion(
-          cuenta.saldoActual,
-          tipo,
-          diferencia.abs(),
-        ),
+    final cuentaActualizada = cuenta.copyWith(
+      saldoActual: aplicarEfectoTransaccion(
+        cuenta.saldoActual,
+        tipo,
+        diferencia.abs(),
       ),
     );
+    await _cuentaRepository.actualizar(cuentaActualizada);
+    await _sincronizarDeudaTarjeta(cuentaActualizada);
 
     return transaccion;
   }

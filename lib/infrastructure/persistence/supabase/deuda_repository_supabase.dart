@@ -114,6 +114,8 @@ class DeudaRepositorySupabase implements DeudaRepository {
       'tasa_interes_moratorio': deuda.tasaInteresMoratorio,
       'estado': estadoDeudaAFila(deuda.estado),
       'notas': deuda.notas,
+      'cuenta_id': deuda.cuentaId,
+      'amigo_usuario_id': deuda.amigoUsuarioId,
     };
   }
 
@@ -156,6 +158,8 @@ class DeudaRepositorySupabase implements DeudaRepository {
           ?.toDouble(),
       estado: estadoDeudaDeFila(fila['estado'] as String),
       notas: fila['notas'] as String?,
+      cuentaId: fila['cuenta_id'] as String?,
+      amigoUsuarioId: fila['amigo_usuario_id'] as String?,
     );
   }
 }

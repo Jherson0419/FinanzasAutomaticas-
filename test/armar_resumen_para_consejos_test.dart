@@ -226,15 +226,15 @@ void main() {
           moneda: Moneda.pen,
           saldoActual: 500,
         );
-        final tarjeta = const Cuenta(
+        final tarjeta = Cuenta(
           id: 'cta-credito',
           nombre: 'Visa BCP',
           tipo: TipoCuenta.credito,
           moneda: Moneda.pen,
           saldoActual: -800,
           lineaCredito: 2000,
-          diaCorte: 10,
-          diaPago: 20,
+          fechaCorte: DateTime(2026, 1, 10),
+          fechaPago: DateTime(2026, 1, 20),
         );
 
         final armarResumen = ArmarResumenParaConsejos(
@@ -263,15 +263,15 @@ void main() {
       'una tarjeta sin uso (saldoActual >= 0) reporta montoUsado en 0 y '
       'todo el crédito como disponible',
       () async {
-        final tarjeta = const Cuenta(
+        final tarjeta = Cuenta(
           id: 'cta-credito',
           nombre: 'Visa BCP',
           tipo: TipoCuenta.credito,
           moneda: Moneda.pen,
           saldoActual: 0,
           lineaCredito: 2000,
-          diaCorte: 10,
-          diaPago: 20,
+          fechaCorte: DateTime(2026, 1, 10),
+          fechaPago: DateTime(2026, 1, 20),
         );
 
         final armarResumen = ArmarResumenParaConsejos(

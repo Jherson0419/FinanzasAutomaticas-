@@ -152,6 +152,10 @@ class _FakePreferenciasRepository implements PreferenciasRepository {
   @override
   Future<void> marcarDatosEnLaNube() async {}
   @override
+  Future<bool> recordarSesion() async => true;
+  @override
+  Future<void> guardarRecordarSesion(bool recordar) async {}
+  @override
   Future<void> limpiarTodo() async {}
 }
 
@@ -210,6 +214,12 @@ class _FakeAuthRepository implements AuthRepository {
 
   @override
   Future<void> iniciarSesionConGoogle() async {}
+
+  @override
+  Future<void> enviarLinkRecuperacion({required String email}) async {}
+
+  @override
+  Future<void> actualizarContrasena({required String nuevaContrasena}) async {}
 
   @override
   Future<void> eliminarCuenta() async {}

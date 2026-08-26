@@ -1,13 +1,19 @@
 import 'entities/cuenta.dart';
 
-/// Compartida por `RegistrarCuenta` y `EditarCuenta` (Fase 29):
-/// `lineaCredito`/`diaCorte`/`diaPago` son obligatorios cuando
+/// Compartida por `RegistrarCuenta` y `EditarCuenta` (Fase 29; `fechaCorte`/
+/// `fechaPago` reemplazan a `diaCorte`/`diaPago` en la Fase 62):
+/// `lineaCredito`/`fechaCorte`/`fechaPago` son obligatorios cuando
 /// `tipo == credito` y deben quedar en `null` para cualquier otro tipo.
+/// `pagoMinimo` (Fase 65) sigue la misma regla de "solo crédito", pero a
+/// diferencia de los otros 3 es opcional incluso ahí — no se exige, para no
+/// forzar un dato que muchas cuentas (sobre todo las ya existentes antes de
+/// esta fase) todavía no tienen.
 void validarCamposDeCredito({
   required TipoCuenta tipo,
   required double? lineaCredito,
-  required int? diaCorte,
-  required int? diaPago,
+  required DateTime? fechaCorte,
+  required DateTime? fechaPago,
+  required double? pagoMinimo,
 }) {
   if (tipo == TipoCuenta.credito) {
     if (lineaCredito == null) {
@@ -15,22 +21,20 @@ void validarCamposDeCredito({
         'lineaCredito es obligatorio para cuentas de crédito',
       );
     }
-    if (diaCorte == null) {
-      throw ArgumentError('diaCorte es obligatorio para cuentas de crédito');
+    if (fechaCorte == null) {
+      throw ArgumentError('fechaCorte es obligatorio para cuentas de crédito');
     }
-    if (diaPago == null) {
-      throw ArgumentError('diaPago es obligatorio para cuentas de crédito');
-    }
-    if (diaCorte < 1 || diaCorte > 31) {
-      throw ArgumentError('diaCorte debe estar entre 1 y 31');
-    }
-    if (diaPago < 1 || diaPago > 31) {
-      throw ArgumentError('diaPago debe estar entre 1 y 31');
+    if (fechaPago == null) {
+      throw ArgumentError('fechaPago es obligatorio para cuentas de crédito');
     }
   } else {
-    if (lineaCredito != null || diaCorte != null || diaPago != null) {
+    if (lineaCredito != null ||
+        fechaCorte != null ||
+        fechaPago != null ||
+        pagoMinimo != null) {
       throw ArgumentError(
-        'lineaCredito/diaCorte/diaPago solo aplican a cuentas de crédito',
+        'lineaCredito/fechaCorte/fechaPago/pagoMinimo solo aplican a cuentas '
+        'de crédito',
       );
     }
   }

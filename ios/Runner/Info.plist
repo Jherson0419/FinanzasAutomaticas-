@@ -32,7 +32,17 @@
 	<string>Usamos tu galería para elegir la foto de tu avatar en el perfil.</string>
 	<!-- Fase 54: esquema de URL para el deep link de confirmación de correo
 	     (finzo://login-callback) — usado como `emailRedirectTo` al crear una
-	     cuenta; supabase_flutter lo intercepta solo para resolver la sesión. -->
+	     cuenta; supabase_flutter lo intercepta solo para resolver la sesión.
+	     Fase 64: el mismo esquema `finzo` también cubre
+	     finzo://agregar-amigo?nick=<nick> ("Compartir mi perfil",
+	     mi_perfil_screen.dart) — iOS no distingue hosts a este nivel (a
+	     diferencia del `<intent-filter>` de Android, que sí declara cada host
+	     por separado), así que no hace falta una entrada aparte aquí; la
+	     propia app decide qué hacer con cada host en `app.dart`
+	     (`parsearNickDesdeLinkAgregarAmigo`).
+	     Fase 65: también cubre finzo://reset-password (recuperar
+	     contraseña, olvide_contrasena_screen.dart) — igual que
+	     login-callback, lo intercepta supabase_flutter internamente. -->
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

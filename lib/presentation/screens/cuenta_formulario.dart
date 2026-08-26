@@ -8,6 +8,7 @@ import '../shared/formatters.dart';
 import '../shared/mensajes_error.dart';
 import '../state/dashboard/dashboard_providers.dart';
 import '../state/providers.dart';
+import 'dashboard/widgets/tarjeta_credito_pagos_section.dart';
 import 'dashboard/widgets/wallet_account_card.dart';
 
 /// Formulario de cuenta, reutilizado por [CuentaNuevaScreen] (crear/editar,
@@ -40,12 +41,13 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
   final _nombreController = TextEditingController();
   final _saldoController = TextEditingController(text: '0');
   final _lineaCreditoController = TextEditingController();
-  final _diaCorteController = TextEditingController();
-  final _diaPagoController = TextEditingController();
   final _ultimosDigitosController = TextEditingController();
+  final _pagoMinimoController = TextEditingController();
 
   TipoCuenta _tipo = TipoCuenta.efectivo;
   Moneda _moneda = Moneda.pen;
+  DateTime? _fechaCorte;
+  DateTime? _fechaPago;
   bool _guardando = false;
   bool _eliminando = false;
   bool _valoresPrecargados = false;
@@ -59,9 +61,8 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
     _nombreController.dispose();
     _saldoController.dispose();
     _lineaCreditoController.dispose();
-    _diaCorteController.dispose();
-    _diaPagoController.dispose();
     _ultimosDigitosController.dispose();
+    _pagoMinimoController.dispose();
     super.dispose();
   }
 
@@ -82,18 +83,22 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
     return texto.isEmpty ? null : texto;
   }
 
-  int? _parseDiaDelMes(String texto) {
-    final dia = int.tryParse(texto.trim());
-    if (dia == null || dia < 1 || dia > 31) return null;
-    return dia;
+  /// `null` (campo vacío) siempre es válido — el pago mínimo es opcional
+  /// incluso para crédito (Fase 65). Si se llena, debe ser un número > 0.
+  bool get _pagoMinimoValido {
+    final texto = _pagoMinimoController.text.trim();
+    if (texto.isEmpty) return true;
+    final valor = _parseDouble(texto);
+    return valor != null && valor > 0;
   }
 
   bool get _camposDeCreditoValidos {
     if (!_esCredito) return true;
     final lineaCredito = _parseDouble(_lineaCreditoController.text);
     if (lineaCredito == null || lineaCredito <= 0) return false;
-    if (_parseDiaDelMes(_diaCorteController.text) == null) return false;
-    if (_parseDiaDelMes(_diaPagoController.text) == null) return false;
+    if (_fechaCorte == null) return false;
+    if (_fechaPago == null) return false;
+    if (!_pagoMinimoValido) return false;
     return true;
   }
 
@@ -113,9 +118,30 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
     _moneda = cuenta.moneda;
     _lineaCreditoController.text =
         cuenta.lineaCredito?.toStringAsFixed(2) ?? '';
-    _diaCorteController.text = cuenta.diaCorte?.toString() ?? '';
-    _diaPagoController.text = cuenta.diaPago?.toString() ?? '';
+    _fechaCorte = cuenta.fechaCorte;
+    _fechaPago = cuenta.fechaPago;
     _ultimosDigitosController.text = cuenta.ultimosDigitos ?? '';
+    _pagoMinimoController.text = cuenta.pagoMinimo?.toStringAsFixed(2) ?? '';
+  }
+
+  Future<void> _seleccionarFechaCorte() async {
+    final seleccionada = await showDatePicker(
+      context: context,
+      initialDate: _fechaCorte ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (seleccionada != null) setState(() => _fechaCorte = seleccionada);
+  }
+
+  Future<void> _seleccionarFechaPago() async {
+    final seleccionada = await showDatePicker(
+      context: context,
+      initialDate: _fechaPago ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (seleccionada != null) setState(() => _fechaPago = seleccionada);
   }
 
   Future<void> _guardar() async {
@@ -126,13 +152,12 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
       final lineaCredito = _esCredito
           ? _parseDouble(_lineaCreditoController.text)
           : null;
-      final diaCorte = _esCredito
-          ? _parseDiaDelMes(_diaCorteController.text)
-          : null;
-      final diaPago = _esCredito
-          ? _parseDiaDelMes(_diaPagoController.text)
-          : null;
+      final fechaCorte = _esCredito ? _fechaCorte : null;
+      final fechaPago = _esCredito ? _fechaPago : null;
       final ultimosDigitos = _ultimosDigitosAGuardar;
+      final pagoMinimo = _esCredito
+          ? _parseDouble(_pagoMinimoController.text)
+          : null;
 
       if (_editando) {
         await ref.read(editarCuentaProvider)(
@@ -141,9 +166,10 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
           tipo: _tipo,
           moneda: _moneda,
           lineaCredito: lineaCredito,
-          diaCorte: diaCorte,
-          diaPago: diaPago,
+          fechaCorte: fechaCorte,
+          fechaPago: fechaPago,
           ultimosDigitos: ultimosDigitos,
+          pagoMinimo: pagoMinimo,
         );
         ref.invalidate(cuentaPorIdProvider(widget.cuentaId!));
       } else {
@@ -161,9 +187,10 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
           moneda: _moneda,
           saldoInicial: saldoInicial,
           lineaCredito: lineaCredito,
-          diaCorte: diaCorte,
-          diaPago: diaPago,
+          fechaCorte: fechaCorte,
+          fechaPago: fechaPago,
           ultimosDigitos: ultimosDigitos,
+          pagoMinimo: pagoMinimo,
         );
       }
       ref.invalidate(cuentasProvider);
@@ -174,12 +201,13 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
         _nombreController.clear();
         _saldoController.text = '0';
         _lineaCreditoController.clear();
-        _diaCorteController.clear();
-        _diaPagoController.clear();
         _ultimosDigitosController.clear();
+        _pagoMinimoController.clear();
         setState(() {
           _tipo = TipoCuenta.efectivo;
           _moneda = Moneda.pen;
+          _fechaCorte = null;
+          _fechaPago = null;
         });
       }
       ScaffoldMessenger.of(context).showSnackBar(
@@ -272,6 +300,10 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Center(child: WalletAccountCard(cuenta: cuenta)),
+        if (cuenta.tipo == TipoCuenta.credito) ...[
+          const SizedBox(height: 16),
+          TarjetaCreditoPagosSection(cuenta: cuenta),
+        ],
         const SizedBox(height: 24),
         Text('Datos de la cuenta', style: theme.textTheme.titleSmall),
         const SizedBox(height: 12),
@@ -425,11 +457,13 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
     );
   }
 
-  /// Campos exclusivos de cuentas tipo crédito (línea, día de corte, día de
-  /// pago), con transición animada — mismo patrón que los campos
-  /// condicionales de `deuda_formulario.dart` (`AnimatedSize`). En modo
-  /// edición se pueden editar aunque la cuenta ya tenga movimientos: a
-  /// diferencia de la moneda, no afectan el saldo histórico.
+  /// Campos exclusivos de cuentas tipo crédito (línea, fecha de corte,
+  /// fecha de pago — Fase 62: fechas completas en vez de solo el día del
+  /// mes, mismo `showDatePicker` que "Fecha de inicio" en
+  /// `deuda_formulario.dart`), con transición animada — mismo patrón que
+  /// los campos condicionales de `deuda_formulario.dart` (`AnimatedSize`).
+  /// En modo edición se pueden editar aunque la cuenta ya tenga
+  /// movimientos: a diferencia de la moneda, no afectan el saldo histórico.
   Widget _construirCamposCredito(ThemeData theme) {
     return AnimatedSize(
       duration: const Duration(milliseconds: 250),
@@ -454,34 +488,43 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
                   onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _diaCorteController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Día de corte',
-                          hintText: '1-31',
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _diaPagoController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Día de pago',
-                          hintText: '1-31',
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                    ),
-                  ],
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Fecha de corte'),
+                  subtitle: Text(
+                    _fechaCorte != null
+                        ? formatearFecha(_fechaCorte!)
+                        : 'Toca para elegir',
+                  ),
+                  trailing: const Icon(Icons.calendar_today_outlined),
+                  onTap: _seleccionarFechaCorte,
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Fecha de pago'),
+                  subtitle: Text(
+                    _fechaPago != null
+                        ? formatearFecha(_fechaPago!)
+                        : 'Toca para elegir',
+                  ),
+                  trailing: const Icon(Icons.calendar_today_outlined),
+                  onTap: _seleccionarFechaPago,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _pagoMinimoController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'Pago mínimo (opcional)',
+                    prefixText: '${simboloMoneda(_moneda)} ',
+                    border: const OutlineInputBorder(),
+                    errorText: _pagoMinimoValido
+                        ? null
+                        : 'Ingresa un monto mayor a 0.',
+                  ),
+                  onChanged: (_) => setState(() {}),
                 ),
               ],
             ),

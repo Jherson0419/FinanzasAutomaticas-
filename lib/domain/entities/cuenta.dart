@@ -17,13 +17,29 @@ class Cuenta {
   /// la línea; un pago a la tarjeta es un `ingreso` más a esa cuenta, ya
   /// soportado por `aplicarEfectoTransaccion` sin cambios.
   final double? lineaCredito;
-  final int? diaCorte;
-  final int? diaPago;
+
+  /// Fecha ancla (día + mes; el año es solo el punto de partida) de corte y
+  /// pago (Fase 62, reemplaza `diaCorte`/`diaPago` de la Fase 29). Cada una
+  /// avanza de forma INDEPENDIENTE un mes exacto a la vez desde su propia
+  /// ancla hasta llegar a una fecha `>= hoy` (`proximaOcurrenciaMensual`) —
+  /// así corte y pago mantienen su relación real (ej. pago el 27, corte el
+  /// 7 del mes siguiente) sin importar cuál día numérico es mayor, algo que
+  /// el `int` 1-31 de la Fase 29 no podía representar.
+  final DateTime? fechaCorte;
+  final DateTime? fechaPago;
 
   /// Últimos 4 dígitos de la tarjeta/cuenta (Fase 57), solo para mostrarlos
   /// en la UI (ej. "•••• 4821") — no identifica la cuenta ni se usa en
   /// ninguna validación. Opcional para todos los tipos de cuenta.
   final String? ultimosDigitos;
+
+  /// Pago mínimo mensual de la tarjeta (Fase 65) — solo aplica a
+  /// `tipo == credito`, y ahí mismo es opcional (a diferencia de
+  /// `lineaCredito`/`fechaCorte`/`fechaPago`, que sí son obligatorios): una
+  /// cuenta de crédito recién migrada o creada antes de esta fase no lo
+  /// tiene, y la UI debe mostrar "No configurado" en vez de inventar un
+  /// S/ 0.00 engañoso (`TarjetaCreditoPagosSection`).
+  final double? pagoMinimo;
 
   const Cuenta({
     required this.id,
@@ -32,14 +48,15 @@ class Cuenta {
     required this.moneda,
     required this.saldoActual,
     this.lineaCredito,
-    this.diaCorte,
-    this.diaPago,
+    this.fechaCorte,
+    this.fechaPago,
     this.ultimosDigitos,
+    this.pagoMinimo,
   });
 
   /// Nota: como con `Deuda.copyWith` (ver `INFORME_PROYECTO.md`), el patrón
   /// `campo ?? this.campo` no permite volver a poner `lineaCredito`/
-  /// `diaCorte`/`diaPago` en `null`. `EditarCuenta` reconstruye `Cuenta`
+  /// `fechaCorte`/`fechaPago` en `null`. `EditarCuenta` reconstruye `Cuenta`
   /// directamente en vez de usar `copyWith` cuando el tipo deja de ser
   /// `credito` y esos campos deben anularse.
   Cuenta copyWith({
@@ -48,9 +65,10 @@ class Cuenta {
     Moneda? moneda,
     double? saldoActual,
     double? lineaCredito,
-    int? diaCorte,
-    int? diaPago,
+    DateTime? fechaCorte,
+    DateTime? fechaPago,
     String? ultimosDigitos,
+    double? pagoMinimo,
   }) {
     return Cuenta(
       id: id,
@@ -59,9 +77,10 @@ class Cuenta {
       moneda: moneda ?? this.moneda,
       saldoActual: saldoActual ?? this.saldoActual,
       lineaCredito: lineaCredito ?? this.lineaCredito,
-      diaCorte: diaCorte ?? this.diaCorte,
-      diaPago: diaPago ?? this.diaPago,
+      fechaCorte: fechaCorte ?? this.fechaCorte,
+      fechaPago: fechaPago ?? this.fechaPago,
       ultimosDigitos: ultimosDigitos ?? this.ultimosDigitos,
+      pagoMinimo: pagoMinimo ?? this.pagoMinimo,
     );
   }
 }
