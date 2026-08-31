@@ -24,6 +24,12 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<!-- Fase 74: declara que la app solo usa la encriptación estándar de
+	     HTTPS/TLS (Supabase, Gemini, Firebase) — califica para exención
+	     automática, evita que Apple pregunte por cumplimiento de
+	     exportación en cada build/subida a App Store Connect. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<!-- Fase 56: la app pide una foto de la galería para el avatar del

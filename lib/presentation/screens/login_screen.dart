@@ -59,15 +59,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await ref
           .read(preferenciasRepositoryProvider)
           .guardarRecordarSesion(_recuerdame);
-      // Fase 71 — recién ahora, con la sesión ya confirmada, tiene sentido
-      // pedir permiso de notificaciones (nunca antes de que el usuario
-      // entienda para qué es). `try/catch` propio, separado del de más
-      // abajo: registrar el token es secundario y nunca debe mostrarse
-      // como si el login hubiera fallado, ni impedir el
-      // `ref.invalidate` de la línea siguiente.
-      try {
-        await ref.read(registrarTokenDispositivoProvider).call();
-      } catch (_) {}
+      // Fase 76 — el permiso de notificaciones y el registro del token
+      // (Fase 71) ya no se piden aquí: se movieron a `RootScreen`, que
+      // reacciona a cualquier transición de `haySesionActivaProvider` de
+      // `false` a `true` sin importar el camino (correo/contraseña,
+      // Google o confirmación de correo). Este `invalidate` sigue siendo
+      // necesario para que esa transición ocurra tras un login
+      // síncrono como este.
       ref.invalidate(haySesionActivaProvider);
     } catch (error) {
       if (!mounted) return;

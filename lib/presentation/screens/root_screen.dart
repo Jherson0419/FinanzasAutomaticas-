@@ -21,11 +21,36 @@ import 'onboarding/onboarding_flow_screen.dart';
 /// pantalla en su momento) se eliminó por completo en la Fase 55 — la
 /// sesión de Supabase Auth es la única puerta de entrada, sin ningún
 /// desbloqueo adicional después del login.
+///
+/// Fase 76 — también es el único lugar que pide permiso de notificaciones
+/// y registra el token del dispositivo (Fase 71) tras un login exitoso:
+/// se dispara con cualquier transición de `haySesionActivaProvider` de
+/// `false` a `true`, sin importar el camino (correo/contraseña, Google —
+/// Fase 56 — o una cuenta nueva que recién confirma su correo — Fase 54).
+/// Antes esto solo vivía en `LoginScreen._iniciarSesion`, así que alguien
+/// que solo usaba "Continuar con Google" nunca lo veía: ese método no deja
+/// una sesión activa al terminar (solo abre el navegador), la sesión real
+/// llega después, sola, por el deep link — igual que la confirmación de
+/// correo. `haySesionActivaProvider` ya normaliza esos dos caminos
+/// asíncronos junto con el síncrono en un solo booleano, así que
+/// centralizar aquí cubre los tres sin que cada pantalla tenga que saberlo.
 class RootScreen extends ConsumerWidget {
   const RootScreen({super.key});
 
+  Future<void> _registrarTokenTrasIniciarSesion(WidgetRef ref) async {
+    try {
+      await ref.read(registrarTokenDispositivoProvider).call();
+    } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen<bool>(haySesionActivaProvider, (previous, next) {
+      if (previous == false && next == true) {
+        _registrarTokenTrasIniciarSesion(ref);
+      }
+    });
+
     final haySesion = ref.watch(haySesionActivaProvider);
     if (!haySesion) {
       return const LoginScreen();

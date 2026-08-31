@@ -2,12 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:finanzas_automaticas/domain/entities/mensaje_push.dart';
 import 'package:finanzas_automaticas/domain/entities/tema_app.dart';
 import 'package:finanzas_automaticas/domain/repositories/auth_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/preferencias_repository.dart';
-import 'package:finanzas_automaticas/domain/repositories/push_notification_repository.dart';
-import 'package:finanzas_automaticas/domain/repositories/token_dispositivo_repository.dart';
 import 'package:finanzas_automaticas/presentation/screens/login_screen.dart';
 import 'package:finanzas_automaticas/presentation/screens/olvide_contrasena_screen.dart';
 import 'package:finanzas_automaticas/presentation/state/providers.dart';
@@ -106,57 +103,10 @@ class _FakePreferenciasRepository implements PreferenciasRepository {
   Future<void> limpiarTodo() async {}
 }
 
-/// Fase 71 — usado solo por el grupo de tests de "registrar el token de
-/// push tras un login exitoso".
-class _FakePushNotificationRepository implements PushNotificationRepository {
-  bool permisoConcedido = true;
-  String? token = 'token-abc';
-
-  @override
-  String plataforma = 'ios';
-
-  @override
-  Future<bool> solicitarPermiso() async => permisoConcedido;
-
-  @override
-  Future<String?> obtenerToken() async => token;
-
-  @override
-  Stream<String> get onTokenRefresh => const Stream.empty();
-
-  @override
-  Stream<MensajePush> get onMensajePrimerPlano => const Stream.empty();
-
-  @override
-  Stream<MensajePush> get onMensajeAbierto => const Stream.empty();
-
-  @override
-  Future<MensajePush?> mensajeInicial() async => null;
-}
-
-class _FakeTokenDispositivoRepository implements TokenDispositivoRepository {
-  String? tokenGuardado;
-  String? plataformaGuardada;
-
-  @override
-  Future<void> guardarToken({
-    required String token,
-    required String plataforma,
-  }) async {
-    tokenGuardado = token;
-    plataformaGuardada = plataforma;
-  }
-
-  @override
-  Future<void> eliminarToken(String token) async {}
-}
-
 Future<_FakeAuthRepository> _pumpScreen(
   WidgetTester tester, {
   Object? errorAlIniciarSesion,
   _FakePreferenciasRepository? fakePreferencias,
-  PushNotificationRepository? fakePush,
-  TokenDispositivoRepository? fakeTokenDispositivo,
 }) async {
   tester.view.physicalSize = const Size(1200, 3000);
   tester.view.devicePixelRatio = 1.0;
@@ -173,12 +123,6 @@ Future<_FakeAuthRepository> _pumpScreen(
         preferenciasRepositoryProvider.overrideWithValue(
           fakePreferencias ?? _FakePreferenciasRepository(),
         ),
-        if (fakePush != null)
-          pushNotificationRepositoryProvider.overrideWithValue(fakePush),
-        if (fakeTokenDispositivo != null)
-          tokenDispositivoRepositoryProvider.overrideWithValue(
-            fakeTokenDispositivo,
-          ),
       ],
       child: const MaterialApp(home: LoginScreen()),
     ),
@@ -467,87 +411,4 @@ void main() {
       expect(find.byType(OlvideContrasenaScreen), findsOneWidget);
     },
   );
-
-  group('Fase 71 — registrar el token de push tras un login exitoso', () {
-    testWidgets(
-      'con permiso concedido, guarda el token del dispositivo en Supabase',
-      (WidgetTester tester) async {
-        final fakePush = _FakePushNotificationRepository();
-        final fakeTokenDispositivo = _FakeTokenDispositivoRepository();
-        await _pumpScreen(
-          tester,
-          fakePush: fakePush,
-          fakeTokenDispositivo: fakeTokenDispositivo,
-        );
-
-        await tester.enterText(
-          find.widgetWithText(TextFormField, 'Correo'),
-          'user@example.com',
-        );
-        await tester.enterText(
-          find.widgetWithText(TextFormField, 'Contraseña'),
-          'secreto123',
-        );
-        await tester.pump();
-        await tester.tap(find.widgetWithText(FilledButton, 'Iniciar sesión'));
-        await tester.pumpAndSettle();
-
-        expect(fakeTokenDispositivo.tokenGuardado, 'token-abc');
-        expect(fakeTokenDispositivo.plataformaGuardada, 'ios');
-      },
-    );
-
-    testWidgets(
-      'con permiso denegado, no guarda ningún token pero el login igual '
-      'termina con éxito',
-      (WidgetTester tester) async {
-        final fakePush = _FakePushNotificationRepository()
-          ..permisoConcedido = false;
-        final fakeTokenDispositivo = _FakeTokenDispositivoRepository();
-        final fake = await _pumpScreen(
-          tester,
-          fakePush: fakePush,
-          fakeTokenDispositivo: fakeTokenDispositivo,
-        );
-
-        await tester.enterText(
-          find.widgetWithText(TextFormField, 'Correo'),
-          'user@example.com',
-        );
-        await tester.enterText(
-          find.widgetWithText(TextFormField, 'Contraseña'),
-          'secreto123',
-        );
-        await tester.pump();
-        await tester.tap(find.widgetWithText(FilledButton, 'Iniciar sesión'));
-        await tester.pumpAndSettle();
-
-        expect(fakeTokenDispositivo.tokenGuardado, isNull);
-        expect(fake.haySesionActiva, isTrue);
-      },
-    );
-
-    testWidgets(
-      'sin overrides de push/token (como en el resto de los tests de esta '
-      'pantalla), el login igual termina con éxito — el registro del token '
-      'es secundario y nunca debe bloquearlo',
-      (WidgetTester tester) async {
-        final fake = await _pumpScreen(tester);
-
-        await tester.enterText(
-          find.widgetWithText(TextFormField, 'Correo'),
-          'user@example.com',
-        );
-        await tester.enterText(
-          find.widgetWithText(TextFormField, 'Contraseña'),
-          'secreto123',
-        );
-        await tester.pump();
-        await tester.tap(find.widgetWithText(FilledButton, 'Iniciar sesión'));
-        await tester.pumpAndSettle();
-
-        expect(fake.haySesionActiva, isTrue);
-      },
-    );
-  });
 }

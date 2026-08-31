@@ -688,7 +688,9 @@ final tokenDispositivoRepositoryProvider = Provider<TokenDispositivoRepository>(
   return TokenDispositivoRepositorySupabase(Supabase.instance.client);
 });
 
-/// Se llama desde `LoginScreen._iniciarSesion()` tras un login exitoso.
+/// Se llama desde `RootScreen` (Fase 76) tras cualquier transición de
+/// `haySesionActivaProvider` de `false` a `true` — cubre login con
+/// correo/contraseña, Google y confirmación de correo por igual.
 final registrarTokenDispositivoProvider = Provider<RegistrarTokenDispositivo>((
   ref,
 ) {
