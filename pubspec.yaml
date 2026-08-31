@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+4
+version: 1.0.0+6
 
 environment:
   sdk: ^3.11.5
@@ -51,6 +51,12 @@ dependencies:
   # `supabase_flutter` (que lo usa internamente para `finzo://login-callback`,
   # Fase 54), ahora se declara directo porque esta app también lo usa.
   app_links: ^7.0.0
+  # Fase 71: notificaciones push. `firebase_core` inicializa la conexión al
+  # proyecto de Firebase (`GoogleService-Info.plist`/`google-services.json`,
+  # agregados a mano); `firebase_messaging` pide permiso, obtiene el token
+  # del dispositivo y entrega los mensajes entrantes.
+  firebase_core: ^3.15.2
+  firebase_messaging: ^15.2.10
 
 dev_dependencies:
   flutter_test:
@@ -75,6 +81,12 @@ dev_dependencies:
   # `supabase_flutter`, no directa de este proyecto.
   url_launcher_platform_interface: ^2.3.2
   plugin_platform_interface: ^2.1.8
+  # Fase 67: solo para poder fijar `SharePlatform.instance` a un fake en el
+  # test de "Compartir mi perfil" (verifica que `sharePositionOrigin` viaja
+  # no nulo/no-cero, el bug de esta fase) sin abrir la hoja de compartir
+  # real — nunca se importa en `lib/`. `share_plus_platform_interface` llega
+  # como dependencia transitiva de `share_plus` (Fase 64), no directa.
+  share_plus_platform_interface: ^6.1.0
 
 # Ícono de la app (Fase 35, reemplaza al de la Fase 22): logo nuevo de
 # Finzo — círculo con anillo orbital en colorSuccess (0xFF5DCAA5) sobre

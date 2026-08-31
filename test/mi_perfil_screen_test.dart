@@ -4,10 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
+import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+import 'package:share_plus_platform_interface/share_plus_platform_interface.dart';
 
 import 'package:finanzas_automaticas/domain/entities/categoria.dart';
 import 'package:finanzas_automaticas/domain/entities/cuenta.dart';
 import 'package:finanzas_automaticas/domain/entities/deuda.dart';
+import 'package:finanzas_automaticas/domain/entities/mensaje_push.dart';
 import 'package:finanzas_automaticas/domain/entities/pago_deuda.dart';
 import 'package:finanzas_automaticas/domain/entities/transaccion.dart';
 import 'package:finanzas_automaticas/domain/repositories/auth_repository.dart';
@@ -19,6 +22,8 @@ import 'package:finanzas_automaticas/domain/entities/perfil.dart';
 import 'package:finanzas_automaticas/domain/entities/tema_app.dart';
 import 'package:finanzas_automaticas/domain/repositories/perfil_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/preferencias_repository.dart';
+import 'package:finanzas_automaticas/domain/repositories/push_notification_repository.dart';
+import 'package:finanzas_automaticas/domain/repositories/token_dispositivo_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/transaccion_repository.dart';
 import 'package:finanzas_automaticas/domain/usecases/eliminar_cuenta_de_usuario.dart';
 import 'package:finanzas_automaticas/presentation/screens/mi_perfil_screen.dart';
@@ -58,6 +63,12 @@ class _FakePreferenciasRepository implements PreferenciasRepository {
   Future<bool> recordarSesion() async => true;
   @override
   Future<void> guardarRecordarSesion(bool recordar) async {}
+  @override
+  Future<DateTime?> ultimaGeneracionNotificacionesVencimiento() async => null;
+  @override
+  Future<void> guardarUltimaGeneracionNotificacionesVencimiento(
+    DateTime fecha,
+  ) async {}
   @override
   Future<void> limpiarTodo() async => limpiarTodoLlamado = true;
 
@@ -145,6 +156,25 @@ class _FakeImagePickerPlatform extends ImagePickerPlatform {
   }) async => archivoAEntregar;
 }
 
+/// Fake de `SharePlatform` (Fase 67): mismo patrón que `_FakeUrlLauncherPlatform`
+/// en `supabase_auth_repository_test.dart` (Fase 59) —
+/// `Fake` + `MockPlatformInterfaceMixin` es el mecanismo propio de
+/// `plugin_platform_interface` para sustituir un `PlatformInterface` sin
+/// tocar ningún canal de plataforma real. Permite comprobar CON QUÉ
+/// `ShareParams` se llama `SharePlus.instance.share` — en particular, que
+/// `sharePositionOrigin` viaja no nulo y no-cero (el bug de esta fase).
+class _FakeSharePlatform extends Fake
+    with MockPlatformInterfaceMixin
+    implements SharePlatform {
+  ShareParams? paramsRecibidos;
+
+  @override
+  Future<ShareResult> share(ShareParams params) async {
+    paramsRecibidos = params;
+    return const ShareResult('', ShareResultStatus.success);
+  }
+}
+
 /// Repositorios financieros "vacíos" — a `MiPerfilScreen` no le importa qué
 /// hay dentro, solo si `EliminarCuentaDeUsuario` termina bien o lanza. Con
 /// listas vacías, cada paso del caso de uso no tiene nada que borrar y pasa
@@ -176,6 +206,8 @@ class _CategoriaRepositoryVacia implements CategoriaRepository {
 }
 
 class _DeudaRepositoryVacia implements DeudaRepository {
+  @override
+  Future<List<DeudaDeAmigo>> obtenerDeudasDondeSoyElAmigo() async => const [];
   @override
   Future<List<Deuda>> obtenerTodas() async => const [];
   @override
@@ -228,9 +260,11 @@ class _PagoDeudaRepositoryVacia implements PagoDeudaRepository {
 
 class _FakeAuthRepository implements AuthRepository {
   final bool fallaAlEliminar;
+  final List<String> eventos;
   bool eliminarCuentaLlamado = false;
   bool _haySesion = true;
-  _FakeAuthRepository({this.fallaAlEliminar = false});
+  _FakeAuthRepository({this.fallaAlEliminar = false, List<String>? eventos})
+    : eventos = eventos ?? [];
 
   @override
   bool get haySesionActiva => _haySesion;
@@ -245,7 +279,10 @@ class _FakeAuthRepository implements AuthRepository {
     required String password,
   }) async {}
   @override
-  Future<void> cerrarSesion() async => _haySesion = false;
+  Future<void> cerrarSesion() async {
+    eventos.add('cerrarSesion');
+    _haySesion = false;
+  }
   @override
   Future<void> iniciarSesionConGoogle() async {}
   @override
@@ -259,6 +296,52 @@ class _FakeAuthRepository implements AuthRepository {
       throw StateError('No se pudo eliminar la cuenta: falla simulada.');
     }
     _haySesion = false;
+  }
+}
+
+/// Fase 71 — usado solo por el grupo de tests de "cerrar sesión borra el
+/// token de push de este dispositivo".
+class _FakePushNotificationRepository implements PushNotificationRepository {
+  String? token = 'token-abc';
+
+  @override
+  String plataforma = 'ios';
+
+  @override
+  Future<bool> solicitarPermiso() async => true;
+
+  @override
+  Future<String?> obtenerToken() async => token;
+
+  @override
+  Stream<String> get onTokenRefresh => const Stream.empty();
+
+  @override
+  Stream<MensajePush> get onMensajePrimerPlano => const Stream.empty();
+
+  @override
+  Stream<MensajePush> get onMensajeAbierto => const Stream.empty();
+
+  @override
+  Future<MensajePush?> mensajeInicial() async => null;
+}
+
+class _FakeTokenDispositivoRepository implements TokenDispositivoRepository {
+  final List<String> eventos;
+  String? tokenEliminado;
+  _FakeTokenDispositivoRepository({List<String>? eventos})
+    : eventos = eventos ?? [];
+
+  @override
+  Future<void> guardarToken({
+    required String token,
+    required String plataforma,
+  }) async {}
+
+  @override
+  Future<void> eliminarToken(String token) async {
+    eventos.add('eliminarToken');
+    tokenEliminado = token;
   }
 }
 
@@ -765,4 +848,126 @@ void main() {
       expect(find.byType(MiPerfilScreen), findsOneWidget);
     },
   );
+
+  group('Fase 67 — "Compartir mi perfil" pasa sharePositionOrigin', () {
+    late SharePlatform plataformaOriginal;
+    late _FakeSharePlatform fakeShare;
+
+    setUp(() {
+      plataformaOriginal = SharePlatform.instance;
+      fakeShare = _FakeSharePlatform();
+      SharePlatform.instance = fakeShare;
+    });
+
+    tearDown(() {
+      SharePlatform.instance = plataformaOriginal;
+    });
+
+    testWidgets(
+      'tocar "Compartir mi perfil" comparte con un sharePositionOrigin no '
+      'nulo y no-cero (antes faltaba, y iOS lo exige)',
+      (WidgetTester tester) async {
+        await _pumpPerfilScreen(
+          tester,
+          perfil: _FakePerfilRepository(nick: 'jherson_v'),
+        );
+
+        await tester.tap(find.text('Compartir mi perfil'));
+        await tester.pumpAndSettle();
+
+        final params = fakeShare.paramsRecibidos;
+        expect(params, isNotNull);
+        expect(params!.sharePositionOrigin, isNotNull);
+        expect(params.sharePositionOrigin, isNot(Rect.zero));
+        expect(params.text, contains('finzo://agregar-amigo?nick=jherson_v'));
+      },
+    );
+  });
+
+  group('Fase 71 — cerrar sesión elimina el token de push de este dispositivo', () {
+    Future<
+      ({
+        _FakeAuthRepository authRepo,
+        _FakeTokenDispositivoRepository tokenRepo,
+        List<String> eventos,
+      })
+    >
+    pumpParaCerrarSesion(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1200, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final eventos = <String>[];
+      final authRepo = _FakeAuthRepository(eventos: eventos);
+      final tokenRepo = _FakeTokenDispositivoRepository(eventos: eventos);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authRepositoryProvider.overrideWithValue(authRepo),
+            pushNotificationRepositoryProvider.overrideWithValue(
+              _FakePushNotificationRepository(),
+            ),
+            tokenDispositivoRepositoryProvider.overrideWithValue(tokenRepo),
+            preferenciasRepositoryProvider.overrideWithValue(
+              _FakePreferenciasRepository(),
+            ),
+            perfilRepositoryProvider.overrideWithValue(_FakePerfilRepository()),
+            temaProvider.overrideWithValue(TemaApp.oscuro),
+          ],
+          child: MaterialApp(
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: Center(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const MiPerfilScreen()),
+                    ),
+                    child: const Text('abrir perfil'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('abrir perfil'));
+      await tester.pumpAndSettle();
+
+      return (authRepo: authRepo, tokenRepo: tokenRepo, eventos: eventos);
+    }
+
+    testWidgets(
+      'confirmar "Cerrar sesión" elimina el token de este dispositivo antes '
+      'de cerrar la sesión de Supabase',
+      (WidgetTester tester) async {
+        final fixture = await pumpParaCerrarSesion(tester);
+
+        await tester.tap(find.widgetWithText(OutlinedButton, 'Cerrar sesión'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(TextButton, 'Cerrar sesión'));
+        await tester.pumpAndSettle();
+
+        expect(fixture.tokenRepo.tokenEliminado, 'token-abc');
+        expect(fixture.authRepo.haySesionActiva, isFalse);
+        expect(fixture.eventos, ['eliminarToken', 'cerrarSesion']);
+      },
+    );
+
+    testWidgets('cancelar el diálogo no elimina ningún token ni cierra sesión', (
+      WidgetTester tester,
+    ) async {
+      final fixture = await pumpParaCerrarSesion(tester);
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Cerrar sesión'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Cancelar'));
+      await tester.pumpAndSettle();
+
+      expect(fixture.tokenRepo.tokenEliminado, isNull);
+      expect(fixture.authRepo.haySesionActiva, isTrue);
+    });
+  });
 }

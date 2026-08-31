@@ -15,6 +15,8 @@ class _FakeDeudaRepository implements DeudaRepository {
   _FakeDeudaRepository(this.deudas);
 
   @override
+  Future<List<DeudaDeAmigo>> obtenerDeudasDondeSoyElAmigo() async => const [];
+  @override
   Future<void> actualizar(Deuda deuda) async {}
   @override
   Future<void> crear(Deuda deuda) async {}

@@ -148,3 +148,33 @@ class Deuda {
     );
   }
 }
+
+/// Vista de solo lectura de una deuda vinculada a mí como amigo (Fase 68,
+/// `deudas.amigo_usuario_id = auth.uid()`) — deliberadamente NO es un
+/// `Deuda` completo: quien la ve no es su dueño, así que solo expone lo
+/// mínimo para mostrar "{nick del deudor} te debe {monto}" en "Te deben"
+/// (`presentation/screens/dashboard/widgets/te_deben_section.dart`), nunca
+/// el resto de los campos de una deuda ajena.
+class DeudaDeAmigo {
+  final String id;
+
+  /// `user_id` de la fila — quien registró la deuda y me la debe a mí, no
+  /// quien la está viendo. `DeudaRepositoryDrift` nunca puede resolver
+  /// esto (no hay forma de ver deudas de otro usuario en almacenamiento
+  /// local); solo `DeudaRepositorySupabase` lo devuelve de verdad.
+  final String deudorUsuarioId;
+  final String nombreDeuda;
+
+  /// `montoTotal - montoPagado` de la deuda original, ya calculado —
+  /// "Te deben" no necesita el desglose completo.
+  final double montoAdeudado;
+  final Moneda moneda;
+
+  const DeudaDeAmigo({
+    required this.id,
+    required this.deudorUsuarioId,
+    required this.nombreDeuda,
+    required this.montoAdeudado,
+    required this.moneda,
+  });
+}

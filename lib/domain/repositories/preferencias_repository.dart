@@ -37,6 +37,17 @@ abstract class PreferenciasRepository {
   Future<bool> recordarSesion();
   Future<void> guardarRecordarSesion(bool recordar);
 
+  /// Última vez que se generaron notificaciones de vencimiento de deudas
+  /// (Fase 70, `GenerarNotificacionesVencimiento`) — `null` si nunca se
+  /// generaron en este dispositivo. Sirve para llamar al RPC
+  /// `generar_notificaciones_vencimiento` como mucho una vez por día en
+  /// vez de en cada apertura del dashboard: no evita duplicados por sí
+  /// sola (eso lo hace el propio RPC, comparando contra notificaciones ya
+  /// insertadas), pero sí evita la llamada de red innecesaria cuando ya se
+  /// generaron hoy.
+  Future<DateTime?> ultimaGeneracionNotificacionesVencimiento();
+  Future<void> guardarUltimaGeneracionNotificacionesVencimiento(DateTime fecha);
+
   /// Borra TODAS las preferencias locales (nombre, API key de Gemini,
   /// onboarding completado, datos en la nube) — usado únicamente por
   /// `EliminarCuentaDeUsuario` (Fase 22) tras borrar

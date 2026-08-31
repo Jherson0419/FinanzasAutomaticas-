@@ -1,16 +1,18 @@
 import '../entities/cuenta.dart';
 import '../proxima_ocurrencia_mensual.dart';
 import '../repositories/cuenta_repository.dart';
+import '../umbral_alerta_vencimiento.dart';
 import 'dto/alerta_tarjeta_credito.dart';
 
 /// Recorre las cuentas tipo `credito` y marca una alerta cuando la próxima
 /// fecha de corte o de pago está a 3 días o menos (Fase 29; `fechaCorte`/
 /// `fechaPago` completas en vez de solo el día del mes desde la Fase 62).
 /// Se ejecuta automáticamente al cargar el dashboard, mismo patrón que
-/// `ActualizarEstadoMora` (`resumenDashboardProvider`).
+/// `ActualizarEstadoMora` (`resumenDashboardProvider`). El umbral
+/// (`umbralDiasAlertaVencimiento`) es compartido con el orden/color de
+/// "Deudas activas" por vencimiento (Fase 68) — un solo lugar donde vive el
+/// criterio de "3 días o menos".
 class ObtenerAlertasTarjetasCredito {
-  static const _umbralDias = 3;
-
   final CuentaRepository _cuentaRepository;
 
   ObtenerAlertasTarjetasCredito({required CuentaRepository cuentaRepository})
@@ -58,7 +60,7 @@ class ObtenerAlertasTarjetasCredito {
   ) {
     final fecha = proximaOcurrenciaMensual(ancla, hoy);
     final diasRestantes = fecha.difference(hoy).inDays;
-    if (diasRestantes > _umbralDias) return null;
+    if (diasRestantes > umbralDiasAlertaVencimiento) return null;
     return AlertaTarjetaCredito(
       cuentaId: cuenta.id,
       nombreCuenta: cuenta.nombre,

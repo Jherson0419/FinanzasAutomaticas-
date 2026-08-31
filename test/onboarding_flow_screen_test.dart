@@ -41,6 +41,9 @@ class _FakeDeudaRepository implements DeudaRepository {
   final Map<String, Deuda> deudas = {};
 
   @override
+  Future<List<DeudaDeAmigo>> obtenerDeudasDondeSoyElAmigo() async => const [];
+
+  @override
   Future<void> actualizar(Deuda deuda) async => deudas[deuda.id] = deuda;
 
   @override
@@ -155,6 +158,12 @@ class _FakePreferenciasRepository implements PreferenciasRepository {
   Future<bool> recordarSesion() async => true;
   @override
   Future<void> guardarRecordarSesion(bool recordar) async {}
+  @override
+  Future<DateTime?> ultimaGeneracionNotificacionesVencimiento() async => null;
+  @override
+  Future<void> guardarUltimaGeneracionNotificacionesVencimiento(
+    DateTime fecha,
+  ) async {}
   @override
   Future<void> limpiarTodo() async {}
 }

@@ -59,6 +59,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await ref
           .read(preferenciasRepositoryProvider)
           .guardarRecordarSesion(_recuerdame);
+      // Fase 71 — recién ahora, con la sesión ya confirmada, tiene sentido
+      // pedir permiso de notificaciones (nunca antes de que el usuario
+      // entienda para qué es). `try/catch` propio, separado del de más
+      // abajo: registrar el token es secundario y nunca debe mostrarse
+      // como si el login hubiera fallado, ni impedir el
+      // `ref.invalidate` de la línea siguiente.
+      try {
+        await ref.read(registrarTokenDispositivoProvider).call();
+      } catch (_) {}
       ref.invalidate(haySesionActivaProvider);
     } catch (error) {
       if (!mounted) return;

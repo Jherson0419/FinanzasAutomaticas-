@@ -7,6 +7,7 @@ import '../../domain/entities/categoria.dart';
 import '../../domain/entities/cuenta.dart';
 import '../../domain/entities/deuda.dart';
 import '../../domain/entities/mensaje_consejo.dart';
+import '../../domain/entities/mensaje_push.dart';
 import '../../domain/entities/notificacion.dart';
 import '../../domain/entities/pago_deuda.dart';
 import '../../domain/entities/perfil.dart';
@@ -23,6 +24,8 @@ import '../../domain/repositories/notificacion_repository.dart';
 import '../../domain/repositories/pago_deuda_repository.dart';
 import '../../domain/repositories/perfil_repository.dart';
 import '../../domain/repositories/preferencias_repository.dart';
+import '../../domain/repositories/push_notification_repository.dart';
+import '../../domain/repositories/token_dispositivo_repository.dart';
 import '../../domain/repositories/transaccion_repository.dart';
 import '../../domain/usecases/actualizar_estado_mora.dart';
 import '../../domain/usecases/ajustar_saldo_cuenta.dart';
@@ -36,7 +39,9 @@ import '../../domain/usecases/eliminar_categoria.dart';
 import '../../domain/usecases/eliminar_cuenta.dart';
 import '../../domain/usecases/eliminar_cuenta_de_usuario.dart';
 import '../../domain/usecases/eliminar_deuda.dart';
+import '../../domain/usecases/eliminar_token_dispositivo_actual.dart';
 import '../../domain/usecases/eliminar_transaccion.dart';
+import '../../domain/usecases/generar_notificaciones_vencimiento.dart';
 import '../../domain/usecases/migrar_datos_a_la_nube.dart';
 import '../../domain/usecases/obtener_alertas_tarjetas_credito.dart';
 import '../../domain/usecases/obtener_resumen_dashboard.dart';
@@ -45,8 +50,10 @@ import '../../domain/usecases/registrar_deuda.dart';
 import '../../domain/usecases/registrar_gasto.dart';
 import '../../domain/usecases/registrar_ingreso.dart';
 import '../../domain/usecases/registrar_pago_deuda.dart';
+import '../../domain/usecases/registrar_token_dispositivo.dart';
 import '../../infrastructure/auth/supabase_auth_repository.dart';
 import '../../infrastructure/consejos/edge_function_consejos_repository.dart';
+import '../../infrastructure/notificaciones_push/firebase_push_notification_repository.dart';
 import '../../infrastructure/persistence/drift/app_database.dart';
 import '../../infrastructure/persistence/drift/categoria_repository_drift.dart';
 import '../../infrastructure/persistence/drift/cuenta_repository_drift.dart';
@@ -62,6 +69,7 @@ import '../../infrastructure/persistence/supabase/deuda_repository_supabase.dart
 import '../../infrastructure/persistence/supabase/notificacion_repository_supabase.dart';
 import '../../infrastructure/persistence/supabase/pago_deuda_repository_supabase.dart';
 import '../../infrastructure/persistence/supabase/perfil_repository_supabase.dart';
+import '../../infrastructure/persistence/supabase/token_dispositivo_repository_supabase.dart';
 import '../../infrastructure/persistence/supabase/transaccion_repository_supabase.dart';
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
@@ -602,6 +610,16 @@ final notificacionesProvider = FutureProvider<List<Notificacion>>((ref) {
   return ref.watch(notificacionRepositoryProvider).obtenerTodas();
 });
 
+/// Fase 70 — llamado desde `resumenDashboardProvider` con las
+/// `deudasActivas` ya calculadas, como mucho una vez por día.
+final generarNotificacionesVencimientoProvider =
+    Provider<GenerarNotificacionesVencimiento>((ref) {
+      return GenerarNotificacionesVencimiento(
+        notificacionRepository: ref.watch(notificacionRepositoryProvider),
+        preferenciasRepository: ref.watch(preferenciasRepositoryProvider),
+      );
+    });
+
 /// Escucha `notificaciones` en tiempo real (Supabase Realtime, mismo
 /// patrón que `transaccionesEnVivoProvider` de la Fase 25.5) filtrada a
 /// las no leídas del usuario actual — el dashboard solo necesita el
@@ -649,4 +667,83 @@ final onboardingCompletadoProvider = FutureProvider<bool>((ref) {
 /// Nombre guardado por el usuario, leído por el encabezado del dashboard.
 final nombreUsuarioProvider = FutureProvider<String?>((ref) {
   return ref.watch(preferenciasRepositoryProvider).obtenerNombre();
+});
+
+/// Notificaciones push (Fase 71) — construir esta clase nunca falla, ni
+/// siquiera sin `Firebase.initializeApp()` real (`FirebaseMessaging.
+/// instance` se resuelve perezosamente dentro de cada método, ver
+/// `FirebasePushNotificationRepository`).
+final pushNotificationRepositoryProvider = Provider<PushNotificationRepository>((
+  ref,
+) {
+  return FirebasePushNotificationRepository();
+});
+
+/// Token de push por dispositivo (Fase 71) — mismo criterio que
+/// `automatizacionRepositoryProvider`: siempre Supabase directo, sin
+/// bifurcar Drift/Supabase.
+final tokenDispositivoRepositoryProvider = Provider<TokenDispositivoRepository>((
+  ref,
+) {
+  return TokenDispositivoRepositorySupabase(Supabase.instance.client);
+});
+
+/// Se llama desde `LoginScreen._iniciarSesion()` tras un login exitoso.
+final registrarTokenDispositivoProvider = Provider<RegistrarTokenDispositivo>((
+  ref,
+) {
+  return RegistrarTokenDispositivo(
+    pushNotificationRepository: ref.watch(pushNotificationRepositoryProvider),
+    tokenDispositivoRepository: ref.watch(tokenDispositivoRepositoryProvider),
+  );
+});
+
+/// Se llama desde `MiPerfilScreen._cerrarSesion()`, antes de cerrar la
+/// sesión de Supabase (mientras la RLS todavía deja borrar la fila propia).
+final eliminarTokenDispositivoActualProvider =
+    Provider<EliminarTokenDispositivoActual>((ref) {
+      return EliminarTokenDispositivoActual(
+        pushNotificationRepository: ref.watch(
+          pushNotificationRepositoryProvider,
+        ),
+        tokenDispositivoRepository: ref.watch(
+          tokenDispositivoRepositoryProvider,
+        ),
+      );
+    });
+
+/// Emite cada vez que Firebase rota el token de push de este dispositivo.
+/// Envuelto en `try/catch`: sin `Firebase.initializeApp()` real (tests que
+/// montan `FinanzasAutomaticasApp` completa), acceder a `onTokenRefresh`
+/// lanza un error síncrono al leer `FirebaseMessaging.instance` — se
+/// degrada a un stream vacío en vez de tumbar esos tests, mismo criterio
+/// que `eventoRecuperacionContrasenaProvider` (Fase 65).
+final tokenPushActualizadoProvider = StreamProvider<String>((ref) {
+  try {
+    return ref.watch(pushNotificationRepositoryProvider).onTokenRefresh;
+  } catch (_) {
+    return const Stream.empty();
+  }
+});
+
+/// Mensaje push recibido con la app en primer plano — `FinanzasAutomaticasApp`
+/// lo escucha para mostrar un `SnackBar` (Fase 71). Mismo `try/catch`
+/// defensivo que `tokenPushActualizadoProvider`.
+final mensajePushPrimerPlanoProvider = StreamProvider<MensajePush>((ref) {
+  try {
+    return ref.watch(pushNotificationRepositoryProvider).onMensajePrimerPlano;
+  } catch (_) {
+    return const Stream.empty();
+  }
+});
+
+/// El usuario tocó una notificación push con la app en segundo plano —
+/// `FinanzasAutomaticasApp` lo escucha para navegar a `NotificacionesScreen`
+/// (Fase 71). Mismo `try/catch` defensivo que `tokenPushActualizadoProvider`.
+final mensajePushAbiertoProvider = StreamProvider<MensajePush>((ref) {
+  try {
+    return ref.watch(pushNotificationRepositoryProvider).onMensajeAbierto;
+  } catch (_) {
+    return const Stream.empty();
+  }
 });

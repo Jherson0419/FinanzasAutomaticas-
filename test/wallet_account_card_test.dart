@@ -14,7 +14,8 @@ Future<void> _pump(WidgetTester tester, Cuenta cuenta) async {
 
 void main() {
   testWidgets(
-    'una cuenta de crédito con saldo negativo muestra "Usado X de Y"',
+    'Fase 68: una cuenta de crédito con saldo negativo muestra "Consumido"/'
+    '"Disponible" debajo de la barra de progreso',
     (WidgetTester tester) async {
       await _pump(
         tester,
@@ -30,7 +31,10 @@ void main() {
         ),
       );
 
-      expect(find.text('Usado S/ 350.00 de S/ 2,000.00'), findsOneWidget);
+      expect(find.text('CONSUMIDO'), findsOneWidget);
+      expect(find.text('S/ 350.00'), findsOneWidget);
+      expect(find.text('DISPONIBLE'), findsOneWidget);
+      expect(find.text('S/ 1,650.00'), findsOneWidget);
       expect(find.byType(LinearProgressIndicator), findsOneWidget);
 
       final barra = tester.widget<LinearProgressIndicator>(
@@ -41,7 +45,8 @@ void main() {
   );
 
   testWidgets(
-    'una cuenta de crédito sin usar (saldo 0 o positivo) muestra "Usado S/ 0.00"',
+    'Fase 68: una cuenta de crédito sin usar (saldo 0 o positivo) muestra '
+    '"Consumido" S/ 0.00 y "Disponible" la línea completa',
     (WidgetTester tester) async {
       await _pump(
         tester,
@@ -57,7 +62,34 @@ void main() {
         ),
       );
 
-      expect(find.text('Usado S/ 0.00 de S/ 2,000.00'), findsOneWidget);
+      expect(find.text('S/ 0.00'), findsOneWidget);
+      expect(find.text('S/ 2,000.00'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Fase 68: el chip "CRÉDITO" + últimos dígitos aparece junto al nombre, '
+    'no al final de la tarjeta',
+    (WidgetTester tester) async {
+      await _pump(
+        tester,
+        Cuenta(
+          id: 'c1',
+          nombre: 'Visa BCP',
+          tipo: TipoCuenta.credito,
+          moneda: Moneda.pen,
+          saldoActual: -350,
+          lineaCredito: 2000,
+          fechaCorte: DateTime(2026, 1, 10),
+          fechaPago: DateTime(2026, 1, 20),
+          ultimosDigitos: '4821',
+        ),
+      );
+
+      expect(find.text('CRÉDITO'), findsOneWidget);
+      expect(find.text('•••• 4821'), findsOneWidget);
+      // Ya no se muestra combinado al final ("CRÉDITO  •••• 4821"), Fase 57.
+      expect(find.text('CRÉDITO  •••• 4821'), findsNothing);
     },
   );
 

@@ -65,6 +65,16 @@ class WalletAccountCard extends StatelessWidget {
     return digitos == null ? base : '$base  •••• $digitos';
   }
 
+  /// Disponible de la línea de crédito (Fase 68) — el complemento de
+  /// `_usadoDeLinea`: nunca negativo aunque `_usadoDeLinea` supere la línea
+  /// por algún desajuste (defensivo, no debería pasar en la práctica).
+  double get _disponibleDeLinea {
+    final linea = cuenta.lineaCredito;
+    if (linea == null) return 0;
+    final restante = linea - _usadoDeLinea;
+    return restante < 0 ? 0 : restante;
+  }
+
   @override
   Widget build(BuildContext context) {
     final estilo = walletCardEstilos[cuenta.tipo]!;
@@ -184,6 +194,8 @@ class WalletAccountCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // 1. Nombre de la cuenta (Fase 68: orden fijo de la
+                  // tarjeta de crédito — ver el resto de puntos abajo).
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -202,20 +214,35 @@ class WalletAccountCard extends StatelessWidget {
                       Icon(estilo.icono, color: Colors.white70, size: 20),
                     ],
                   ),
+                  // 2. Chip "CRÉDITO" + últimos 4 dígitos, misma fila.
+                  if (esCredito) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text('CRÉDITO', style: _estiloTipoLabel(9)),
+                        ),
+                        if (cuenta.ultimosDigitos != null) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            '•••• ${cuenta.ultimosDigitos}',
+                            style: _estiloTipoLabel(10),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
                   const Spacer(),
                   if (esCredito && cuenta.lineaCredito != null) ...[
-                    Text(
-                      'Usado ${formatearMonto(_usadoDeLinea, cuenta.moneda)} de '
-                      '${formatearMonto(cuenta.lineaCredito!, cuenta.moneda)}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
+                    // 3. Barra de progreso de uso.
                     ClipRRect(
                       borderRadius: BorderRadius.circular(6),
                       child: LinearProgressIndicator(
@@ -224,6 +251,53 @@ class WalletAccountCard extends StatelessWidget {
                         backgroundColor: Colors.white.withValues(alpha: 0.25),
                         color: _colorUso(progresoUso ?? 0),
                       ),
+                    ),
+                    const SizedBox(height: 6),
+                    // 4. Consumido (izquierda) / Disponible (derecha),
+                    // pegados debajo de la barra — antes era una sola línea
+                    // "Usado X de Y" arriba de la barra.
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('CONSUMIDO', style: _estiloTipoLabel(9)),
+                              Text(
+                                formatearMonto(_usadoDeLinea, cuenta.moneda),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text('DISPONIBLE', style: _estiloTipoLabel(9)),
+                              Text(
+                                formatearMonto(
+                                  _disponibleDeLinea,
+                                  cuenta.moneda,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ] else
                     Text(
@@ -236,13 +310,17 @@ class WalletAccountCard extends StatelessWidget {
                         fontSize: 20,
                       ),
                     ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _labelTipoConDigitos(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: _estiloTipoLabel(11),
-                  ),
+                  // El tipo+dígitos de crédito ya se muestra como chip en
+                  // el punto 2 — mostrarlo también aquí sería duplicado.
+                  if (!esCredito) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      _labelTipoConDigitos(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _estiloTipoLabel(11),
+                    ),
+                  ],
                 ],
               ),
             ),

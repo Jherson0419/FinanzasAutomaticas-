@@ -32,6 +32,9 @@ class _FakeDeudaRepository implements DeudaRepository {
   final List<Deuda> deudas = [];
 
   @override
+  Future<List<DeudaDeAmigo>> obtenerDeudasDondeSoyElAmigo() async => const [];
+
+  @override
   Future<void> actualizar(Deuda deuda) async {
     final indice = deudas.indexWhere((d) => d.id == deuda.id);
     if (indice != -1) deudas[indice] = deuda;

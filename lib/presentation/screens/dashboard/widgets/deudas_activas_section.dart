@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../domain/entities/cuenta.dart';
 import '../../../../domain/entities/deuda.dart';
+import '../../../../domain/urgencia_deuda.dart';
 import '../../../../domain/usecases/dto/resumen_dashboard.dart';
 import '../../../shared/app_card.dart';
 import '../../../shared/dashboard_colors.dart';
 import '../../../shared/formatters.dart';
 import '../../../shared/section_label.dart';
+import '../../../state/providers.dart';
 import '../../../theme/app_theme.dart';
 
-class DeudasActivasSection extends StatefulWidget {
+class DeudasActivasSection extends ConsumerStatefulWidget {
   final List<DeudaActivaResumen> deudasActivas;
   final int deudasEnMoraCount;
   final int deudasPorVencerEstaSemanaCount;
@@ -24,7 +27,8 @@ class DeudasActivasSection extends StatefulWidget {
   });
 
   @override
-  State<DeudasActivasSection> createState() => _DeudasActivasSectionState();
+  ConsumerState<DeudasActivasSection> createState() =>
+      _DeudasActivasSectionState();
 }
 
 /// Umbral de velocidad (px/s) para que un swipe horizontal cuente como
@@ -33,7 +37,7 @@ class DeudasActivasSection extends StatefulWidget {
 /// vez de una rotación de pila.
 const double _umbralVelocidadSwipe = 200;
 
-class _DeudasActivasSectionState extends State<DeudasActivasSection> {
+class _DeudasActivasSectionState extends ConsumerState<DeudasActivasSection> {
   bool _expandido = true;
 
   /// 0 = cuotas fijas, 1 = pago libre (Fase 60).
@@ -57,6 +61,12 @@ class _DeudasActivasSectionState extends State<DeudasActivasSection> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+
+    // Fase 68: "Debo a {nick}" — el amigo vinculado siempre está en mi
+    // propia lista de amigos aceptados (`amigosProvider`, ya cargada para
+    // "Mis amigos"), así que no hace falta una resolución de nick aparte.
+    final amigos = ref.watch(amigosProvider).valueOrNull ?? const [];
+    final nickPorId = {for (final amigo in amigos) amigo.usuarioId: amigo.nick};
 
     final cuotasFijas = widget.deudasActivas
         .where((d) => d.estructuraPago == EstructuraPago.cuotasFijas)
@@ -191,12 +201,14 @@ class _DeudasActivasSectionState extends State<DeudasActivasSection> {
                                       lista: cuotasFijas,
                                       theme: theme,
                                       colorScheme: colorScheme,
+                                      nickPorId: nickPorId,
                                     )
                                   : _paginaDeudas(
                                       key: const ValueKey('pagoLibre'),
                                       lista: pagoLibre,
                                       theme: theme,
                                       colorScheme: colorScheme,
+                                      nickPorId: nickPorId,
                                     ),
                             ),
                           ),
@@ -215,6 +227,7 @@ class _DeudasActivasSectionState extends State<DeudasActivasSection> {
     required List<DeudaActivaResumen> lista,
     required ThemeData theme,
     required ColorScheme colorScheme,
+    required Map<String, String?> nickPorId,
   }) {
     if (lista.isEmpty) {
       return Padding(
@@ -233,22 +246,67 @@ class _DeudasActivasSectionState extends State<DeudasActivasSection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (final deuda in lista) _filaDeuda(deuda, theme, colorScheme),
+        for (final deuda in lista)
+          _filaDeuda(deuda, theme, colorScheme, nickPorId),
       ],
     );
+  }
+
+  /// Fase 68 — color de fondo/borde según [urgenciaDeuda]: vencida
+  /// (`colorDanger`), por vencer en ≤3 días (`colorWarning`), normal sin
+  /// cambio (mismo umbral que `ObtenerAlertasTarjetasCredito`, ya aplicado
+  /// también al ORDEN de esta lista en `ObtenerResumenDashboard`).
+  Color? _colorFondoUrgencia(UrgenciaDeuda urgencia) {
+    switch (urgencia) {
+      case UrgenciaDeuda.vencida:
+        return colorDanger.withValues(alpha: 0.10);
+      case UrgenciaDeuda.porVencer:
+        return colorWarning.withValues(alpha: 0.10);
+      case UrgenciaDeuda.normal:
+        return null;
+    }
+  }
+
+  Color? _colorBordeUrgencia(UrgenciaDeuda urgencia) {
+    switch (urgencia) {
+      case UrgenciaDeuda.vencida:
+        return colorDanger;
+      case UrgenciaDeuda.porVencer:
+        return colorWarning;
+      case UrgenciaDeuda.normal:
+        return null;
+    }
   }
 
   Widget _filaDeuda(
     DeudaActivaResumen deuda,
     ThemeData theme,
     ColorScheme colorScheme,
+    Map<String, String?> nickPorId,
   ) {
+    final urgencia = urgenciaDeuda(deuda, DateTime.now());
+    final colorBorde = _colorBordeUrgencia(urgencia);
+    // Fase 68 (68.4) — "Debo a {nick}" reemplaza la falta total de
+    // descripción de acreedor que tenía esta fila para deudas vinculadas a
+    // un amigo de Finzo.
+    final nombreAmigo = deuda.amigoUsuarioId == null
+        ? null
+        : nickPorId[deuda.amigoUsuarioId];
+
     return InkWell(
       onTap: () => Navigator.of(
         context,
       ).pushNamed('/deudas/detalle', arguments: deuda.id),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: _colorFondoUrgencia(urgencia),
+          borderRadius: BorderRadius.circular(12),
+          border: colorBorde == null
+              ? null
+              : Border.all(color: colorBorde, width: 1),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -283,11 +341,19 @@ class _DeudasActivasSectionState extends State<DeudasActivasSection> {
                       fontWeight: FontWeight.w600,
                     ),
                   )
-                else if (deuda.estructuraPago == EstructuraPago.cuotasFijas)
+                else if (deuda.fechaVencimientoReal != null)
                   Text(
-                    deuda.proximaFechaPago != null
-                        ? formatearFecha(deuda.proximaFechaPago!)
-                        : '—',
+                    formatearFecha(deuda.fechaVencimientoReal!),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  )
+                else if (deuda.estructuraPago == EstructuraPago.cuotasFijas)
+                  // Todas las cuotas ya están pagadas (por eso no hay
+                  // `fechaVencimientoReal`), a diferencia de `pagoLibre` sin
+                  // cuenta vinculada, que nunca tuvo una fecha que mostrar.
+                  Text(
+                    '—',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
@@ -301,6 +367,15 @@ class _DeudasActivasSectionState extends State<DeudasActivasSection> {
                   ),
               ],
             ),
+            if (nombreAmigo != null) ...[
+              const SizedBox(height: 2),
+              Text(
+                'Debo a $nombreAmigo',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
             const SizedBox(height: 6),
             ClipRRect(
               borderRadius: BorderRadius.circular(8),

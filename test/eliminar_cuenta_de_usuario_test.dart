@@ -60,6 +60,8 @@ class _FakeCategoriaRepository implements CategoriaRepository {
 }
 
 class _FakeDeudaRepository implements DeudaRepository {
+  @override
+  Future<List<DeudaDeAmigo>> obtenerDeudasDondeSoyElAmigo() async => const [];
   final List<Deuda> deudas;
   final List<String>? registroOrden;
   final Set<String> fallanUnaVez;

@@ -77,6 +77,13 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Fase 71: Background Modes → Remote notifications, requerido por
+	     firebase_messaging para poder recibir/despertar la app con pushes
+	     en segundo plano. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

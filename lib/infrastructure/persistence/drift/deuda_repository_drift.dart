@@ -51,6 +51,13 @@ class DeudaRepositoryDrift implements DeudaRepository {
     await (_db.delete(_db.deudas)..where((t) => t.id.equals(id))).go();
   }
 
+  /// El almacenamiento local (Drift) nunca tiene deudas de otro usuario —
+  /// no hay concepto de "otro usuario" en una base de datos SQLite de un
+  /// solo dispositivo. Solo `DeudaRepositorySupabase` puede devolver algo
+  /// real aquí.
+  @override
+  Future<List<DeudaDeAmigo>> obtenerDeudasDondeSoyElAmigo() async => const [];
+
   Deuda _toDomain(DeudaRow row) {
     return Deuda(
       id: row.id,

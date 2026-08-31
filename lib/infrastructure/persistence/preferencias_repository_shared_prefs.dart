@@ -11,6 +11,8 @@ class PreferenciasRepositorySharedPrefs implements PreferenciasRepository {
   static const _claveOnboardingCompletado = 'onboarding_completado';
   static const _claveApiKeyGemini = 'api_key_gemini';
   static const _claveRecordarSesion = 'recordar_sesion';
+  static const _claveUltimaGeneracionNotificacionesVencimiento =
+      'ultima_generacion_notificaciones_vencimiento';
 
   /// Pública a propósito (Fase 31): `providers.dart` necesita leer este
   /// mismo valor de forma síncrona (mismo motivo que `claveDatosEnLaNube`,
@@ -88,6 +90,24 @@ class PreferenciasRepositorySharedPrefs implements PreferenciasRepository {
   }
 
   @override
+  Future<DateTime?> ultimaGeneracionNotificacionesVencimiento() async {
+    final valor = _prefs.getString(
+      _claveUltimaGeneracionNotificacionesVencimiento,
+    );
+    return valor == null ? null : DateTime.parse(valor);
+  }
+
+  @override
+  Future<void> guardarUltimaGeneracionNotificacionesVencimiento(
+    DateTime fecha,
+  ) async {
+    await _prefs.setString(
+      _claveUltimaGeneracionNotificacionesVencimiento,
+      fecha.toIso8601String(),
+    );
+  }
+
+  @override
   Future<void> limpiarTodo() async {
     await _prefs.remove(_claveNombre);
     await _prefs.remove(_claveOnboardingCompletado);
@@ -95,5 +115,6 @@ class PreferenciasRepositorySharedPrefs implements PreferenciasRepository {
     await _prefs.remove(claveDatosEnLaNube);
     await _prefs.remove(claveTema);
     await _prefs.remove(_claveRecordarSesion);
+    await _prefs.remove(_claveUltimaGeneracionNotificacionesVencimiento);
   }
 }

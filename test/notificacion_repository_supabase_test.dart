@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:finanzas_automaticas/domain/usecases/dto/notificacion_vencimiento_pendiente.dart';
 import 'package:finanzas_automaticas/infrastructure/persistence/supabase/notificacion_repository_supabase.dart';
 
 /// Cliente Supabase "de mentira": nunca se llama a ningún método que haga
@@ -51,6 +52,34 @@ void main() {
 
       expect(notificacion.leida, isTrue);
       expect(notificacion.data, isNull);
+    });
+  });
+
+  group('Fase 70 — itemAJson (generarNotificacionesVencimiento)', () {
+    test('manda la fecha como yyyy-MM-dd, no como ISO 8601 completo', () {
+      final json = repo.itemAJson(
+        NotificacionVencimientoPendiente(
+          deudaId: 'deuda-1',
+          fecha: DateTime(2026, 3, 5),
+          tipo: 'cuota_por_vencer',
+        ),
+      );
+
+      expect(json['deuda_id'], 'deuda-1');
+      expect(json['fecha'], '2026-03-05');
+      expect(json['tipo'], 'cuota_por_vencer');
+    });
+
+    test('rellena con ceros mes/día de un dígito', () {
+      final json = repo.itemAJson(
+        NotificacionVencimientoPendiente(
+          deudaId: 'deuda-1',
+          fecha: DateTime(2026, 1, 9),
+          tipo: 'cuota_vencida',
+        ),
+      );
+
+      expect(json['fecha'], '2026-01-09');
     });
   });
 }

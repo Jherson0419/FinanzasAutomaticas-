@@ -75,4 +75,38 @@ void main() {
       expect(await repo.recordarSesion(), isTrue);
     });
   });
+
+  group('Fase 70 — ultimaGeneracionNotificacionesVencimiento', () {
+    test('es null por defecto cuando nunca se guardó nada', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final repo = PreferenciasRepositorySharedPrefs(prefs);
+
+      expect(await repo.ultimaGeneracionNotificacionesVencimiento(), isNull);
+    });
+
+    test('guarda y lee la fecha tal cual', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final repo = PreferenciasRepositorySharedPrefs(prefs);
+      final fecha = DateTime(2026, 3, 15);
+
+      await repo.guardarUltimaGeneracionNotificacionesVencimiento(fecha);
+
+      expect(await repo.ultimaGeneracionNotificacionesVencimiento(), fecha);
+    });
+
+    test('limpiarTodo borra la fecha guardada (vuelve a null)', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final repo = PreferenciasRepositorySharedPrefs(prefs);
+
+      await repo.guardarUltimaGeneracionNotificacionesVencimiento(
+        DateTime(2026, 3, 15),
+      );
+      await repo.limpiarTodo();
+
+      expect(await repo.ultimaGeneracionNotificacionesVencimiento(), isNull);
+    });
+  });
 }

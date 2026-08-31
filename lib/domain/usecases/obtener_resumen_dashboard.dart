@@ -1,9 +1,12 @@
 import '../entities/cuenta.dart';
+import '../entities/deuda.dart';
 import '../entities/transaccion.dart';
+import '../proxima_ocurrencia_mensual.dart';
 import '../repositories/categoria_repository.dart';
 import '../repositories/cuenta_repository.dart';
 import '../repositories/deuda_repository.dart';
 import '../repositories/transaccion_repository.dart';
+import '../urgencia_deuda.dart';
 import 'dto/resumen_dashboard.dart';
 
 class ObtenerResumenDashboard {
@@ -36,6 +39,7 @@ class ObtenerResumenDashboard {
     final cuentas = await _cuentaRepository.obtenerTodas();
     final categorias = await _categoriaRepository.obtenerTodas();
     final categoriasPorId = {for (final c in categorias) c.id: c};
+    final cuentasPorId = {for (final c in cuentas) c.id: c};
     final transaccionesMes = await _transaccionRepository.obtenerPorRangoFecha(
       inicioMes,
       finMes,
@@ -112,7 +116,24 @@ class ObtenerResumenDashboard {
       );
     }).toList()..sort((a, b) => b.monto.compareTo(a.monto));
 
-    final deudasActivas = deudasActivasRaw
+    // Fase 68: "próxima fecha de vencimiento real" — para `cuotasFijas` es
+    // `proximaFechaPago` tal cual, pero la deuda automática de una tarjeta
+    // de crédito (Fase 62, `cuentaId != null`, siempre `pagoLibre`) no
+    // tiene cuotas y por lo tanto nunca tiene `proximaFechaPago` propio; su
+    // fecha real vive en la `fechaPago` de la `Cuenta` vinculada.
+    DateTime? fechaVencimientoReal(Deuda d) {
+      if (d.estructuraPago == EstructuraPago.cuotasFijas) {
+        return d.proximaFechaPago;
+      }
+      final cuentaVinculada = d.cuentaId == null
+          ? null
+          : cuentasPorId[d.cuentaId];
+      final fechaPagoCuenta = cuentaVinculada?.fechaPago;
+      if (fechaPagoCuenta == null) return null;
+      return proximaOcurrenciaMensual(fechaPagoCuenta, ahora);
+    }
+
+    final deudasActivasSinOrdenar = deudasActivasRaw
         .map(
           (d) => DeudaActivaResumen(
             id: d.id,
@@ -125,9 +146,17 @@ class ObtenerResumenDashboard {
             montoTotal: d.montoTotal,
             montoCuota: d.montoCuota,
             moneda: d.moneda,
+            amigoUsuarioId: d.amigoUsuarioId,
+            fechaVencimientoReal: fechaVencimientoReal(d),
           ),
         )
         .toList();
+    // Fase 68: vencidas y por vencer (≤3 días) primero, el resto mantiene
+    // su orden original — mismo umbral que `ObtenerAlertasTarjetasCredito`.
+    final deudasActivas = ordenarDeudasActivasPorVencimiento(
+      deudasActivasSinOrdenar,
+      ahora,
+    );
 
     final totalAdeudadoPorMoneda = <Moneda, double>{};
     for (final d in deudasActivasRaw) {

@@ -792,6 +792,27 @@ void main() {
       expect(deuda.proximaFechaPago, isNull);
       expect(deuda.notas, 'nota libre');
     });
+
+    test(
+      'Fase 68: aDominioDeudaDeAmigo mapea las columnas de "Te deben" y '
+      'calcula montoAdeudado = monto_total - monto_pagado',
+      () {
+        final deudaDeAmigo = repo.aDominioDeudaDeAmigo({
+          'id': 'deuda-1',
+          'user_id': 'user-deudor',
+          'nombre_deuda': 'Préstamo',
+          'monto_total': 500.0,
+          'monto_pagado': 150.0,
+          'moneda': 'PEN',
+        });
+
+        expect(deudaDeAmigo.id, 'deuda-1');
+        expect(deudaDeAmigo.deudorUsuarioId, 'user-deudor');
+        expect(deudaDeAmigo.nombreDeuda, 'Préstamo');
+        expect(deudaDeAmigo.montoAdeudado, 350.0);
+        expect(deudaDeAmigo.moneda, Moneda.pen);
+      },
+    );
   });
 
   group('PagoDeudaRepositorySupabase', () {

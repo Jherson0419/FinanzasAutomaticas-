@@ -46,6 +46,8 @@ class _CategoriaRepositoryVacia implements CategoriaRepository {
 
 class _DeudaRepositoryVacia implements DeudaRepository {
   @override
+  Future<List<DeudaDeAmigo>> obtenerDeudasDondeSoyElAmigo() async => const [];
+  @override
   Future<List<Deuda>> obtenerTodas() async => const [];
   @override
   Future<List<Deuda>> obtenerActivas() async => const [];

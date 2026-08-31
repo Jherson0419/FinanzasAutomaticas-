@@ -14,6 +14,7 @@ import 'widgets/gasto_por_categoria_section.dart';
 import 'widgets/ingresos_gastos_section.dart';
 import 'widgets/movimientos_recientes_section.dart';
 import 'widgets/saldo_total_card.dart';
+import 'widgets/te_deben_section.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -140,6 +141,8 @@ class _DashboardContent extends StatelessWidget {
               resumen.deudasPorVencerEstaSemanaCount,
           totalAdeudadoPorMoneda: resumen.totalAdeudadoPorMoneda,
         ),
+        const SizedBox(height: 16),
+        const TeDebenSection(),
         const SizedBox(height: 16),
         MovimientosRecientesSection(
           movimientosRecientes: resumen.movimientosRecientes,

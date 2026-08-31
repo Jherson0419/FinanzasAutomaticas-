@@ -79,6 +79,37 @@ class DeudaRepositorySupabase implements DeudaRepository {
     });
   }
 
+  /// Fase 68 — RLS de `deudas` deja leer filas ajenas cuando
+  /// `amigo_usuario_id = auth.uid()` (política nueva, SQL en el reporte de
+  /// esta fase); esta consulta pide solo las columnas que "Te deben"
+  /// necesita, nunca la fila completa de una deuda que no es mía.
+  @override
+  Future<List<DeudaDeAmigo>> obtenerDeudasDondeSoyElAmigo() {
+    return conManejoDeErroresSupabase(
+      'deudas.obtenerDeudasDondeSoyElAmigo',
+      () async {
+        final filas = await _client
+            .from('deudas')
+            .select('id, user_id, nombre_deuda, monto_total, monto_pagado, moneda')
+            .eq('amigo_usuario_id', _userId);
+        return filas.map(aDominioDeudaDeAmigo).toList();
+      },
+    );
+  }
+
+  @visibleForTesting
+  DeudaDeAmigo aDominioDeudaDeAmigo(Map<String, dynamic> fila) {
+    return DeudaDeAmigo(
+      id: fila['id'] as String,
+      deudorUsuarioId: fila['user_id'] as String,
+      nombreDeuda: fila['nombre_deuda'] as String,
+      montoAdeudado:
+          (fila['monto_total'] as num).toDouble() -
+          (fila['monto_pagado'] as num).toDouble(),
+      moneda: monedaDeFila(fila['moneda'] as String),
+    );
+  }
+
   @visibleForTesting
   Map<String, dynamic> aFila(Deuda deuda) {
     return {

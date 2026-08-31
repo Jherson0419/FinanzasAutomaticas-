@@ -172,12 +172,23 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
   /// Fase 64 — genera `finzo://agregar-amigo?nick=<nick>` y lo comparte con
   /// el selector nativo del sistema (`share_plus`). `AgregarAmigoScreen` es
   /// quien resuelve ese link cuando alguien más lo abre (ver `app.dart`).
-  Future<void> _compartirPerfil(String nick) async {
+  ///
+  /// Fase 67 — [buttonContext] es el `BuildContext` del propio botón (desde
+  /// el `Builder` que lo envuelve en `_construirCampos`, no `this.context`
+  /// de todo el `State`, que resolvería al `Scaffold` completo): iOS exige
+  /// `sharePositionOrigin` no nulo/no-cero para anclar la hoja de compartir
+  /// (un popover en iPad) — sin él, `SharePlus.instance.share` lanza
+  /// `PlatformException: sharePositionOrigin: argument must be set and
+  /// non-zero`. Android nunca lo necesitó, por eso el bug no aparecía ahí.
+  Future<void> _compartirPerfil(BuildContext buttonContext, String nick) async {
+    final box = buttonContext.findRenderObject() as RenderBox?;
     try {
       await SharePlus.instance.share(
         ShareParams(
-          text:
-              'Agrégame en Finzo: ${construirLinkAgregarAmigo(nick)}',
+          text: 'Agrégame en Finzo: ${construirLinkAgregarAmigo(nick)}',
+          sharePositionOrigin: box != null
+              ? box.localToGlobal(Offset.zero) & box.size
+              : null,
         ),
       );
     } catch (error) {
@@ -216,6 +227,14 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
 
     setState(() => _cerrandoSesion = true);
     try {
+      // Fase 71 — antes de cerrar la sesión (mientras la RLS de
+      // `tokens_dispositivo` todavía deja borrar la fila propia), para no
+      // seguir mandándole push a alguien que ya salió de esta cuenta en
+      // este dispositivo. `try/catch` propio: si esto falla, no debe
+      // impedir cerrar sesión, que es la acción principal.
+      try {
+        await ref.read(eliminarTokenDispositivoActualProvider).call();
+      } catch (_) {}
       await ref.read(authRepositoryProvider).cerrarSesion();
       ref.invalidate(haySesionActivaProvider);
       if (!mounted) return;
@@ -371,10 +390,12 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
         if (perfil.nick != null) ...[
           const SizedBox(height: 12),
           Center(
-            child: OutlinedButton.icon(
-              onPressed: () => _compartirPerfil(perfil.nick!),
-              icon: const Icon(Icons.share_outlined),
-              label: const Text('Compartir mi perfil'),
+            child: Builder(
+              builder: (buttonContext) => OutlinedButton.icon(
+                onPressed: () => _compartirPerfil(buttonContext, perfil.nick!),
+                icon: const Icon(Icons.share_outlined),
+                label: const Text('Compartir mi perfil'),
+              ),
             ),
           ),
         ],

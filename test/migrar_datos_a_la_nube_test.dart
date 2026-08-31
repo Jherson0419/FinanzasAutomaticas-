@@ -75,6 +75,8 @@ class _FakeDeudaRepository implements DeudaRepository {
   });
 
   @override
+  Future<List<DeudaDeAmigo>> obtenerDeudasDondeSoyElAmigo() async => const [];
+  @override
   Future<List<Deuda>> obtenerTodas() async => [...semilla, ...creadas];
   @override
   Future<List<Deuda>> obtenerActivas() async => const [];

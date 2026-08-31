@@ -42,6 +42,12 @@ class _FakePreferenciasRepository implements PreferenciasRepository {
   @override
   Future<void> guardarRecordarSesion(bool recordar) async {}
   @override
+  Future<DateTime?> ultimaGeneracionNotificacionesVencimiento() async => null;
+  @override
+  Future<void> guardarUltimaGeneracionNotificacionesVencimiento(
+    DateTime fecha,
+  ) async {}
+  @override
   Future<void> limpiarTodo() async {}
 }
 

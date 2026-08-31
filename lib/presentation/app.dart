@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../domain/entities/mensaje_push.dart';
 import '../domain/entities/tema_app.dart';
 import '../domain/parsear_deep_link_agregar_amigo.dart';
 import 'theme/app_theme.dart';
@@ -60,12 +61,34 @@ class FinanzasAutomaticasApp extends ConsumerStatefulWidget {
 /// `config/supabase_config.dart`).
 class _FinanzasAutomaticasAppState extends ConsumerState<FinanzasAutomaticasApp> {
   final _navigatorKey = GlobalKey<NavigatorState>();
+  final _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
   StreamSubscription<Uri>? _deepLinkSub;
 
   @override
   void initState() {
     super.initState();
     _escucharDeepLinks();
+    _revisarMensajePushInicial();
+  }
+
+  /// Fase 71 — la notificación que abrió la app desde cerrada (cold
+  /// start), si la hubo. `try/catch`: sin `Firebase.initializeApp()` real
+  /// (tests que montan esta app completa), `PushNotificationRepository.
+  /// mensajeInicial()` lanza al leer `FirebaseMessaging.instance` — mismo
+  /// criterio defensivo que `_escucharDeepLinks`.
+  Future<void> _revisarMensajePushInicial() async {
+    try {
+      final mensaje = await ref
+          .read(pushNotificationRepositoryProvider)
+          .mensajeInicial();
+      if (mensaje != null) _abrirNotificaciones();
+    } catch (_) {}
+  }
+
+  void _abrirNotificaciones() {
+    _navigatorKey.currentState?.push(
+      MaterialPageRoute(builder: (context) => const NotificacionesScreen()),
+    );
   }
 
   // `onError`/`try-catch` defensivos: sin un plugin nativo registrado (p.
@@ -119,13 +142,49 @@ class _FinanzasAutomaticasAppState extends ConsumerState<FinanzasAutomaticasApp>
     );
   }
 
+  /// Fase 71 — push recibido con la app en primer plano: el sistema
+  /// operativo nunca muestra su propia notificación en este caso, así que
+  /// la app avisa con un `SnackBar` simple. No reemplaza el sistema de
+  /// notificaciones dentro de la app (Fase 63) — sigue siendo la fuente de
+  /// verdad; esto es solo un aviso adicional, sin marcar nada como leído
+  /// ni tocar `notificacionesProvider`.
+  void _alRecibirMensajePushPrimerPlano(
+    AsyncValue<MensajePush>? previous,
+    AsyncValue<MensajePush> next,
+  ) {
+    final mensaje = next.value;
+    if (mensaje == null) return;
+    _scaffoldMessengerKey.currentState?.showSnackBar(
+      SnackBar(
+        content: Text(
+          mensaje.cuerpo ?? mensaje.titulo ?? 'Tienes una notificación nueva',
+        ),
+      ),
+    );
+  }
+
+  /// Fase 71 — el usuario tocó la notificación del sistema con la app en
+  /// segundo plano: navega a `NotificacionesScreen`, la misma pantalla que
+  /// ya lista todo (Fase 63) — sin enrutamiento más específico por `data`
+  /// todavía, no hace falta más detalle para esta fase.
+  void _alAbrirMensajePush(
+    AsyncValue<MensajePush>? previous,
+    AsyncValue<MensajePush> next,
+  ) {
+    if (next.value == null) return;
+    _abrirNotificaciones();
+  }
+
   @override
   Widget build(BuildContext context) {
     final tema = ref.watch(temaProvider);
     ref.listen(eventoRecuperacionContrasenaProvider, _alCambiarEstadoAuth);
+    ref.listen(mensajePushPrimerPlanoProvider, _alRecibirMensajePushPrimerPlano);
+    ref.listen(mensajePushAbiertoProvider, _alAbrirMensajePush);
 
     return MaterialApp(
       navigatorKey: _navigatorKey,
+      scaffoldMessengerKey: _scaffoldMessengerKey,
       title: 'Finzo',
       debugShowCheckedModeBanner: false,
       themeMode: _aThemeMode(tema),

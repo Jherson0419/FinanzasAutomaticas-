@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:finanzas_automaticas/domain/entities/cuenta.dart';
@@ -7,6 +8,7 @@ import 'package:finanzas_automaticas/domain/entities/transaccion.dart';
 import 'package:finanzas_automaticas/domain/usecases/dto/resumen_dashboard.dart';
 import 'package:finanzas_automaticas/presentation/screens/dashboard/widgets/deudas_activas_section.dart';
 import 'package:finanzas_automaticas/presentation/screens/dashboard/widgets/movimientos_recientes_section.dart';
+import 'package:finanzas_automaticas/presentation/state/providers.dart';
 
 final _deudaFixture = const DeudaActivaResumen(
   id: 'd1',
@@ -47,13 +49,16 @@ void main() {
       await _pumpTearDown(tester);
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: DeudasActivasSection(
-              deudasActivas: [_deudaFixture],
-              deudasEnMoraCount: 0,
-              deudasPorVencerEstaSemanaCount: 0,
-              totalAdeudadoPorMoneda: const {Moneda.pen: 700},
+        ProviderScope(
+          overrides: [amigosProvider.overrideWith((ref) => const [])],
+          child: MaterialApp(
+            home: Scaffold(
+              body: DeudasActivasSection(
+                deudasActivas: [_deudaFixture],
+                deudasEnMoraCount: 0,
+                deudasPorVencerEstaSemanaCount: 0,
+                totalAdeudadoPorMoneda: const {Moneda.pen: 700},
+              ),
             ),
           ),
         ),

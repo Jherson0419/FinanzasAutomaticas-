@@ -46,6 +46,25 @@ class DeudaActivaResumen {
   final double? montoCuota;
   final Moneda moneda;
 
+  /// `usuario_id` del amigo de Finzo con quien es esta deuda (Fase 64),
+  /// `null` para cualquier deuda normal. `DeudasActivasSection` lo resuelve
+  /// a un nick vía `amigosProvider` para mostrar "Debo a {nick}" (Fase 68).
+  final String? amigoUsuarioId;
+
+  /// Próxima fecha de vencimiento REAL de esta deuda (Fase 68), resuelta
+  /// por `ObtenerResumenDashboard`:
+  /// - `cuotasFijas` → `proximaFechaPago` tal cual.
+  /// - Deuda automática de tarjeta (`cuentaId != null`, Fase 62,
+  ///   estructura `pagoLibre`) → la próxima fecha de pago de la `Cuenta`
+  ///   vinculada (`proximaOcurrenciaMensual(cuenta.fechaPago, hoy)`), que
+  ///   `Deuda.proximaFechaPago` nunca tiene porque esa deuda no usa
+  ///   cuotas.
+  /// - `pagoLibre` sin cuenta vinculada → `null`, no tiene fecha real.
+  ///
+  /// Usado por `domain/urgencia_deuda.dart` para ordenar/colorear "Deudas
+  /// activas" por urgencia.
+  final DateTime? fechaVencimientoReal;
+
   const DeudaActivaResumen({
     required this.id,
     required this.nombreDeuda,
@@ -57,6 +76,8 @@ class DeudaActivaResumen {
     required this.montoTotal,
     required this.montoCuota,
     required this.moneda,
+    this.amigoUsuarioId,
+    this.fechaVencimientoReal,
   });
 
   double get progreso => montoTotal == 0

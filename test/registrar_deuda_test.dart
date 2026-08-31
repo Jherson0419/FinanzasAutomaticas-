@@ -9,6 +9,9 @@ class _FakeDeudaRepository implements DeudaRepository {
   final Map<String, Deuda> deudas = {};
 
   @override
+  Future<List<DeudaDeAmigo>> obtenerDeudasDondeSoyElAmigo() async => const [];
+
+  @override
   Future<void> actualizar(Deuda deuda) async => deudas[deuda.id] = deuda;
 
   @override

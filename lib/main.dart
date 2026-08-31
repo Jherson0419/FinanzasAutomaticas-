@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,6 +12,10 @@ import 'presentation/state/providers.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);
+  // Fase 71: notificaciones push — `GoogleService-Info.plist`/
+  // `google-services.json` (agregados a mano) son lo único que hace falta
+  // además de esta llamada, `firebase_core` los lee solo.
+  await Firebase.initializeApp();
   final prefs = await SharedPreferences.getInstance();
 
   await _cerrarSesionSiNoDebeRecordarse(prefs);
