@@ -660,8 +660,25 @@ final eliminarCuentaDeUsuarioProvider = Provider<EliminarCuentaDeUsuario>((
 });
 
 /// Gate de entrada: decide onboarding vs. dashboard en `RootScreen`.
-final onboardingCompletadoProvider = FutureProvider<bool>((ref) {
-  return ref.watch(preferenciasRepositoryProvider).onboardingCompletado();
+///
+/// Fase 75 — contra `usuarios.nick` en Supabase (vía `perfilProvider`, ya
+/// cargado para `OnboardingResumenStep`/`MiPerfilScreen`), no una bandera
+/// local: antes era `PreferenciasRepository.onboardingCompletado()`
+/// (`SharedPreferences`), así que alguien que ya había completado el
+/// onboarding en otro dispositivo (o reinstalaba la app) volvía a verlo,
+/// porque esa bandera nunca salía del dispositivo donde se puso en `true`.
+/// Se usa `nick` en vez de `nombreCompleto` a propósito: `nick` se fija una
+/// sola vez en el onboarding y ninguna pantalla lo deja editar después
+/// (`OnboardingNickStep`: "No se puede cambiar después de este paso"), así
+/// que nunca puede volver a `null` por su cuenta. `nombreCompleto` en
+/// cambio es opcional y editable/borrable en cualquier momento desde "Mi
+/// perfil" — gatear con él haría reaparecer el onboarding si alguien lo
+/// borra ahí, y esa persona quedaría atascada: `nickDisponible` no excluye
+/// al usuario dueño del nick, así que no podría volver a "elegir" el nick
+/// que ya tiene.
+final onboardingCompletadoProvider = FutureProvider<bool>((ref) async {
+  final perfil = await ref.watch(perfilProvider.future);
+  return (perfil.nick ?? '').trim().isNotEmpty;
 });
 
 /// Nombre guardado por el usuario, leído por el encabezado del dashboard.

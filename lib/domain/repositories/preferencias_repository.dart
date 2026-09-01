@@ -3,8 +3,6 @@ import '../entities/tema_app.dart';
 abstract class PreferenciasRepository {
   Future<String?> obtenerNombre();
   Future<void> guardarNombre(String nombre);
-  Future<bool> onboardingCompletado();
-  Future<void> marcarOnboardingCompletado();
 
   /// Tema de la app (Fase 31): claro/oscuro/según el sistema. 100% local —
   /// a diferencia del nick/avatar/Instagram (Fase 31 también, pero esos
@@ -49,7 +47,7 @@ abstract class PreferenciasRepository {
   Future<void> guardarUltimaGeneracionNotificacionesVencimiento(DateTime fecha);
 
   /// Borra TODAS las preferencias locales (nombre, API key de Gemini,
-  /// onboarding completado, datos en la nube) — usado únicamente por
+  /// datos en la nube) — usado únicamente por
   /// `EliminarCuentaDeUsuario` (Fase 22) tras borrar
   /// los datos financieros y la cuenta de autenticación, para que el
   /// dispositivo quede como recién instalado.

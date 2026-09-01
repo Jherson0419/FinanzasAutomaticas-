@@ -28,10 +28,10 @@ class _OnboardingResumenStepState extends ConsumerState<OnboardingResumenStep> {
   Future<void> _finalizar() async {
     setState(() => _finalizando = true);
     try {
-      final preferencias = ref.read(preferenciasRepositoryProvider);
-      await preferencias.guardarNombre(widget.nombre);
+      await ref
+          .read(preferenciasRepositoryProvider)
+          .guardarNombre(widget.nombre);
       await ref.read(perfilRepositoryProvider).guardarNick(widget.nick);
-      await preferencias.marcarOnboardingCompletado();
 
       ref.invalidate(cuentasProvider);
       ref.invalidate(resumenDashboardProvider);

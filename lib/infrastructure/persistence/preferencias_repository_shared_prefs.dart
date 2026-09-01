@@ -8,7 +8,6 @@ import '../../domain/repositories/preferencias_repository.dart';
 /// dato financiero del dominio, es configuración de la app en sí.
 class PreferenciasRepositorySharedPrefs implements PreferenciasRepository {
   static const _claveNombre = 'nombre_usuario';
-  static const _claveOnboardingCompletado = 'onboarding_completado';
   static const _claveApiKeyGemini = 'api_key_gemini';
   static const _claveRecordarSesion = 'recordar_sesion';
   static const _claveUltimaGeneracionNotificacionesVencimiento =
@@ -50,15 +49,6 @@ class PreferenciasRepositorySharedPrefs implements PreferenciasRepository {
   @override
   Future<void> guardarTema(TemaApp tema) async {
     await _prefs.setString(claveTema, tema.name);
-  }
-
-  @override
-  Future<bool> onboardingCompletado() async =>
-      _prefs.getBool(_claveOnboardingCompletado) ?? false;
-
-  @override
-  Future<void> marcarOnboardingCompletado() async {
-    await _prefs.setBool(_claveOnboardingCompletado, true);
   }
 
   @override
@@ -110,7 +100,6 @@ class PreferenciasRepositorySharedPrefs implements PreferenciasRepository {
   @override
   Future<void> limpiarTodo() async {
     await _prefs.remove(_claveNombre);
-    await _prefs.remove(_claveOnboardingCompletado);
     await _prefs.remove(_claveApiKeyGemini);
     await _prefs.remove(claveDatosEnLaNube);
     await _prefs.remove(claveTema);

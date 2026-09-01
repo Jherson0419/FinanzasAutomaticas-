@@ -124,7 +124,6 @@ class _FakeTransaccionRepository implements TransaccionRepository {
 
 class _FakePreferenciasRepository implements PreferenciasRepository {
   String? _nombre;
-  bool _completado = false;
   String? _apiKeyGemini;
 
   @override
@@ -133,11 +132,6 @@ class _FakePreferenciasRepository implements PreferenciasRepository {
   @override
   Future<void> guardarNombre(String nombre) async => _nombre = nombre;
 
-  @override
-  Future<bool> onboardingCompletado() async => _completado;
-
-  @override
-  Future<void> marcarOnboardingCompletado() async => _completado = true;
   @override
   Future<TemaApp> obtenerTema() async => TemaApp.oscuro;
   @override
@@ -236,8 +230,8 @@ class _FakeAuthRepository implements AuthRepository {
 
 void main() {
   testWidgets(
-    'al completar el wizard, onboardingCompletado() devuelve true y no '
-    'vuelve a mostrarse en un relanzamiento simulado',
+    'al completar el wizard, el nick queda guardado en Supabase y el '
+    'onboarding no vuelve a mostrarse en un relanzamiento simulado',
     (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1200, 3000);
       tester.view.devicePixelRatio = 1.0;
@@ -320,7 +314,6 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(await fakePreferencias.onboardingCompletado(), isTrue);
       expect(await fakePreferencias.obtenerNombre(), 'Jherson');
       expect(fakePerfil.nick, 'jherson_v');
       expect(find.text('SALDO TOTAL'), findsOneWidget);

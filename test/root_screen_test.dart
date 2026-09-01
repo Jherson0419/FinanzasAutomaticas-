@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:finanzas_automaticas/domain/entities/mensaje_push.dart';
+import 'package:finanzas_automaticas/domain/entities/perfil.dart';
+import 'package:finanzas_automaticas/domain/repositories/perfil_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/push_notification_repository.dart';
 import 'package:finanzas_automaticas/domain/repositories/token_dispositivo_repository.dart';
 import 'package:finanzas_automaticas/presentation/screens/dashboard/dashboard_fixtures.dart';
@@ -66,6 +68,49 @@ List<Override> _sesionActiva() => [
   haySesionActivaProvider.overrideWith((ref) => true),
   necesitaMigracionProvider.overrideWith((ref) async => false),
 ];
+
+/// Fase 75 — usado solo por el grupo de tests que verifica
+/// `onboardingCompletadoProvider` contra el perfil real (`nick`), no una
+/// bandera local: a diferencia de las otras dos pruebas de onboarding de
+/// este archivo (que fijan `onboardingCompletadoProvider` directo), estos
+/// tests dejan correr el provider real y solo controlan lo que devuelve
+/// `PerfilRepository.obtenerPerfil()`, para probar la lógica en sí, no
+/// solo el enrutamiento de `RootScreen` dado un booleano ya resuelto.
+class _FakePerfilRepository implements PerfilRepository {
+  _FakePerfilRepository({this.nick});
+
+  final String? nick;
+
+  @override
+  Future<Perfil> obtenerPerfil() async => Perfil(nick: nick);
+
+  @override
+  Future<bool> nickDisponible(String nick) async => true;
+
+  @override
+  Future<void> guardarNick(String nick) async {}
+
+  @override
+  Future<void> guardarAvatarId(String avatarId) async {}
+
+  @override
+  Future<String> subirFotoAvatar(
+    List<int> bytes, {
+    required String extension,
+  }) async => '';
+
+  @override
+  Future<void> guardarInstagram(String? instagram) async {}
+
+  @override
+  Future<void> guardarNombreCompleto(String? nombreCompleto) async {}
+
+  @override
+  Future<void> guardarCelular(String? celular) async {}
+
+  @override
+  Future<void> guardarOtraRedSocial(String? otraRedSocial) async {}
+}
 
 void main() {
   testWidgets('sin sesión activa se muestra el login', (
@@ -146,6 +191,111 @@ void main() {
       expect(
         find.text('Bienvenido a Finzo: Finanzas Automáticas'),
         findsNothing,
+      );
+    },
+  );
+
+  group(
+    'Fase 75 — onboardingCompletadoProvider decide contra el perfil real '
+    'en Supabase (usuarios.nick), no una bandera local',
+    () {
+      testWidgets(
+        'usuario con perfil completo (nick ya guardado en Supabase) no ve '
+        'el onboarding tras reinstalar/loguearse en un dispositivo nuevo '
+        '— sin ninguna bandera local, va directo al dashboard',
+        (WidgetTester tester) async {
+          tester.view.physicalSize = const Size(1200, 3000);
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                ..._sesionActiva(),
+                perfilRepositoryProvider.overrideWithValue(
+                  _FakePerfilRepository(nick: 'jherson_v'),
+                ),
+                cuentasProvider.overrideWith((ref) => cuentasDashboardFixture),
+                resumenDashboardProvider.overrideWith(
+                  (ref) => resumenDashboardFixture,
+                ),
+                nombreUsuarioProvider.overrideWith((ref) => 'Jherson'),
+              ],
+              child: const MaterialApp(home: RootScreen()),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(find.text('SALDO TOTAL'), findsOneWidget);
+          expect(
+            find.text('Bienvenido a Finzo: Finanzas Automáticas'),
+            findsNothing,
+          );
+        },
+      );
+
+      testWidgets(
+        'usuario sin nick guardado en Supabase (cuenta nueva) sí ve el '
+        'onboarding, aunque el nombre completo ya tenga valor',
+        (WidgetTester tester) async {
+          tester.view.physicalSize = const Size(1200, 3000);
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                ..._sesionActiva(),
+                perfilRepositoryProvider.overrideWithValue(
+                  _FakePerfilRepository(nick: null),
+                ),
+                cuentasProvider.overrideWith((ref) => const []),
+                deudasProvider.overrideWith((ref) => const []),
+              ],
+              child: const MaterialApp(home: RootScreen()),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(
+            find.text('Bienvenido a Finzo: Finanzas Automáticas'),
+            findsOneWidget,
+          );
+          expect(find.text('SALDO TOTAL'), findsNothing);
+        },
+      );
+
+      testWidgets(
+        'un nick en blanco (espacios) cuenta como "sin completar", igual '
+        'que null',
+        (WidgetTester tester) async {
+          tester.view.physicalSize = const Size(1200, 3000);
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                ..._sesionActiva(),
+                perfilRepositoryProvider.overrideWithValue(
+                  _FakePerfilRepository(nick: '   '),
+                ),
+                cuentasProvider.overrideWith((ref) => const []),
+                deudasProvider.overrideWith((ref) => const []),
+              ],
+              child: const MaterialApp(home: RootScreen()),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(
+            find.text('Bienvenido a Finzo: Finanzas Automáticas'),
+            findsOneWidget,
+          );
+        },
       );
     },
   );

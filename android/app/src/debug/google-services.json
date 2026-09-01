@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "419613235783",
+    "project_id": "finzo-7d9ea",
+    "storage_bucket": "finzo-7d9ea.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:419613235783:android:47f9061a1efda2ea49af62",
+        "android_client_info": {
+          "package_name": "com.finzoapp.movil"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyASYrNo99zU9LbFZYXantRQTYCWUAGh5wQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

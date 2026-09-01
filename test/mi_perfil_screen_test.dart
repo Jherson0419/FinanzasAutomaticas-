@@ -38,10 +38,6 @@ class _FakePreferenciasRepository implements PreferenciasRepository {
   Future<String?> obtenerNombre() async => nombre;
   @override
   Future<void> guardarNombre(String nombre) async => this.nombre = nombre;
-  @override
-  Future<bool> onboardingCompletado() async => true;
-  @override
-  Future<void> marcarOnboardingCompletado() async {}
   TemaApp temaActual = TemaApp.oscuro;
   @override
   Future<TemaApp> obtenerTema() async => temaActual;
