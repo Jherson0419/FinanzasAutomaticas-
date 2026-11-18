@@ -128,7 +128,7 @@ class GeminiConsejosRepository implements ConsejosFinancierosRepository {
       buffer.writeln('- Ninguna');
     } else {
       for (final deuda in resumen.deudasActivas) {
-        final pendiente = deuda.montoTotal - deuda.montoPagado;
+        final pendiente = deuda.saldoPendiente;
         final interes = deuda.interesTotal;
         buffer.writeln(
           '- Tipo: ${deuda.tipoDeuda.name}, pendiente: '

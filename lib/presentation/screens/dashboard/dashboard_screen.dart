@@ -3,18 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../domain/usecases/dto/resumen_dashboard.dart';
 import '../../shared/app_bottom_bar.dart';
+import '../../shared/avatar_perfil_boton.dart';
+import '../../shared/formatters.dart';
 import '../../state/dashboard/dashboard_providers.dart';
 import '../../state/providers.dart';
 import '../../theme/app_theme.dart';
+import '../../shared/notificaciones_recordatorios.dart';
+import '../consejero_screen.dart';
+import '../mi_avance_screen.dart';
 import 'widgets/alertas_tarjetas_credito_banner.dart';
-import 'widgets/cuentas_carrusel.dart';
 import 'widgets/dashboard_empty_state.dart';
-import 'widgets/deudas_activas_section.dart';
-import 'widgets/gasto_por_categoria_section.dart';
-import 'widgets/ingresos_gastos_section.dart';
 import 'widgets/movimientos_recientes_section.dart';
-import 'widgets/saldo_total_card.dart';
-import 'widgets/te_deben_section.dart';
+import 'widgets/proximos_pagos_section.dart';
+import 'widgets/saldo_hero_card.dart';
+import 'widgets/tus_deudas_card.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -56,30 +58,60 @@ class DashboardScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          saludo,
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+        toolbarHeight: 76,
+        // Fase 80: el avatar abre "Mi perfil" (ya no está en la barra
+        // inferior). Fase 81: saludo + fecha en español debajo, y la
+        // campana en un botón circular, como en 01-inicio.png.
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 16),
+          child: Center(child: AvatarPerfilBoton()),
+        ),
+        leadingWidth: 16 + AvatarPerfilBoton.tamano + 4,
+        titleSpacing: 12,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              saludo,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            Text(
+              formatearFechaLarga(DateTime.now()),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: context.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
         actions: [
-          IconButton(
-            tooltip: 'Mis cuentas',
-            onPressed: () => Navigator.of(context).pushNamed('/cuentas'),
-            icon: const Icon(Icons.account_balance_wallet_outlined),
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 4),
-            child: Icon(Icons.gpp_good_outlined, color: colorSuccess),
-          ),
-          IconButton(
-            tooltip: 'Notificaciones',
-            onPressed: () =>
-                Navigator.of(context).pushNamed('/notificaciones'),
-            icon: Badge(
-              label: Text('$conteoNoLeidas'),
-              isLabelVisible: conteoNoLeidas > 0,
-              child: const Icon(Icons.notifications_none),
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: context.bgCard,
+                border: Border.all(color: context.borderCard),
+              ),
+              child: IconButton(
+                tooltip: 'Notificaciones',
+                constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                onPressed: () =>
+                    Navigator.of(context).pushNamed('/notificaciones'),
+                icon: Badge(
+                  label: Text('$conteoNoLeidas'),
+                  isLabelVisible: conteoNoLeidas > 0,
+                  backgroundColor: context.dangerText,
+                  child: const Icon(Icons.notifications_none),
+                ),
+              ),
             ),
           ),
         ],
@@ -100,16 +132,25 @@ class DashboardScreen extends ConsumerWidget {
           data: (resumen) => resumen.estaVacio
               ? const DashboardEmptyState()
               : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                   child: _DashboardContent(resumen: resumen),
                 ),
         ),
       ),
-      bottomNavigationBar: const AppBottomBar(actual: AppBottomTab.dashboard),
+      bottomNavigationBar: const AppBottomBar(actual: AppBottomTab.inicio),
     );
   }
 }
 
+/// Inicio (Fase 81, 01-inicio.png), de arriba abajo: héroe de saldo,
+/// alertas de tarjetas, "Tus deudas", "Próximos pagos" y "Movimientos
+/// recientes". Lo que salió del Inicio y a dónde fue:
+/// - `CuentasCarrusel` → Mis cuentas (ya muestra cada `WalletAccountCard`
+///   en lista vertical), enlazada desde "N cuentas ›" y desde Mi perfil.
+/// - `SaldoTotalCard` + `IngresosGastosSection` → `SaldoHeroCard`.
+/// - `GastoPorCategoriaSection` → "Gasto del mes" en Movimientos.
+/// - `DeudasActivasSection` y `TeDebenSection` → `TusDeudasCard` +
+///   `ProximosPagosSection` aquí, y el detalle completo en el hub Deudas.
 class _DashboardContent extends StatelessWidget {
   final ResumenDashboard resumen;
 
@@ -118,32 +159,32 @@ class _DashboardContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const CuentasCarrusel(),
-        const SizedBox(height: 16),
-        const AlertasTarjetasCreditoBanner(),
-        const SizedBox(height: 16),
-        SaldoTotalCard(saldoTotalPorMoneda: resumen.saldoTotalPorMoneda),
-        const SizedBox(height: 16),
-        IngresosGastosSection(
+        SaldoHeroCard(
+          saldoTotalPorMoneda: resumen.saldoTotalPorMoneda,
           ingresosMesPorMoneda: resumen.ingresosMesPorMoneda,
           gastosMesPorMoneda: resumen.gastosMesPorMoneda,
+          cantidadCuentas: resumen.saldosPorCuenta.length,
         ),
-        const SizedBox(height: 16),
-        GastoPorCategoriaSection(
-          gastoPorCategoriaMes: resumen.gastoPorCategoriaMes,
-        ),
-        const SizedBox(height: 16),
-        DeudasActivasSection(
+        const SizedBox(height: 12),
+        const AlertasTarjetasCreditoBanner(),
+        // Fase 86: una línea con el consejo más importante (si lo hay).
+        const ConsejoDestacadoLinea(),
+        // Fase 87: un logro por celebrar (uno a la vez), la oferta única de
+        // recordatorios y la sincronización (invisible) de los programados.
+        const CelebracionHito(),
+        const OfrecimientoRecordatorios(),
+        const SincronizadorRecordatorios(),
+        const SizedBox(height: 12),
+        TusDeudasCard(
           deudasActivas: resumen.deudasActivas,
-          deudasEnMoraCount: resumen.deudasEnMoraCount,
-          deudasPorVencerEstaSemanaCount:
-              resumen.deudasPorVencerEstaSemanaCount,
           totalAdeudadoPorMoneda: resumen.totalAdeudadoPorMoneda,
+          totalTeDebenPorMoneda: resumen.totalTeDebenPorMoneda,
         ),
         const SizedBox(height: 16),
-        const TeDebenSection(),
-        const SizedBox(height: 16),
+        ProximosPagosSection(deudasActivas: resumen.deudasActivas),
+        if (resumen.deudasActivas.isNotEmpty) const SizedBox(height: 16),
         MovimientosRecientesSection(
           movimientosRecientes: resumen.movimientosRecientes,
         ),

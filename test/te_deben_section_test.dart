@@ -32,7 +32,7 @@ void main() {
   ) async {
     await _pumpSection(tester);
 
-    expect(find.text('TE DEBEN'), findsNothing);
+    expect(find.text('REGISTRADAS POR TUS AMIGOS'), findsNothing);
   });
 
   testWidgets(
@@ -49,12 +49,10 @@ void main() {
             moneda: Moneda.pen,
           ),
         ],
-        amigos: const [
-          PerfilPublico(usuarioId: 'user-2', nick: 'jherson23'),
-        ],
+        amigos: const [PerfilPublico(usuarioId: 'user-2', nick: 'jherson23')],
       );
 
-      expect(find.text('TE DEBEN'), findsOneWidget);
+      expect(find.text('REGISTRADAS POR TUS AMIGOS'), findsOneWidget);
       expect(find.text('jherson23 te debe S/ 350.00'), findsOneWidget);
     },
   );
@@ -77,6 +75,31 @@ void main() {
       );
 
       expect(find.text('Alguien te debe S/ 350.00'), findsOneWidget);
+    },
+  );
+
+  // Fase 82: la sección se llama "Registradas por tus amigos" e invierte
+  // la etiqueta según la dirección que guardó el dueño.
+  testWidgets(
+    'si el dueño la registró como "me deben", la veo como "Debes a {dueño}"',
+    (WidgetTester tester) async {
+      await _pumpSection(
+        tester,
+        deudas: const [
+          DeudaDeAmigo(
+            id: 'd1',
+            deudorUsuarioId: 'user-2',
+            nombreDeuda: 'Préstamo',
+            montoAdeudado: 380,
+            moneda: Moneda.pen,
+            direccion: DireccionDeuda.meDeben,
+          ),
+        ],
+        amigos: const [PerfilPublico(usuarioId: 'user-2', nick: 'lucia')],
+      );
+
+      expect(find.text('Debes a lucia S/ 380.00'), findsOneWidget);
+      expect(find.textContaining('te debe'), findsNothing);
     },
   );
 

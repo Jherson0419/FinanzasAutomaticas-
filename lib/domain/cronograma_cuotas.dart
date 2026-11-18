@@ -43,6 +43,9 @@ List<CuotaProgramada> generarCronogramaCuotas(
   final pagosPorNumero = <int, PagoDeuda>{};
   final pagosSinNumero = <PagoDeuda>[];
   for (final pago in pagos) {
+    // Fase 84: un abono a capital no es una cuota — no ocupa ni marca
+    // ninguna (su efecto ya está en el `numeroCuotasTotal` reducido).
+    if (pago.esAbonoCapital) continue;
     final numero = pago.numeroCuota;
     if (numero != null) {
       pagosPorNumero[numero] = pago;
@@ -71,7 +74,11 @@ List<CuotaProgramada> generarCronogramaCuotas(
       CuotaProgramada(
         numero: numero,
         fechaVencimiento: fechaVencimiento,
-        montoEsperado: montoCuota,
+        // Fase 84b: tras un abono la última cuota puede ser menor.
+        montoEsperado:
+            numero == numeroCuotasTotal && deuda.montoUltimaCuota != null
+            ? deuda.montoUltimaCuota!
+            : montoCuota,
         pagada: pago != null,
         pago: pago,
       ),

@@ -25,6 +25,9 @@ class ActualizarEstadoMora {
 
   Future<Deuda?> _recalcular(Deuda deuda, DateTime hoy) async {
     if (deuda.estructuraPago != EstructuraPago.cuotasFijas) return null;
+    // Fase 82: un préstamo que hice ("me deben") no entra en mora en esta
+    // fase — la mora es una penalidad de MIS deudas.
+    if (deuda.meDeben) return null;
 
     final pagos = await _pagoDeudaRepository.obtenerPorDeuda(deuda.id);
     final cronograma = generarCronogramaCuotas(deuda, pagos);

@@ -1,16 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../domain/entities/deuda.dart';
 import '../../state/dashboard/dashboard_providers.dart';
 import '../../state/providers.dart';
 import '../../shared/dialogos_eliminar.dart';
 import '../deuda_formulario.dart';
 
 class DeudaNuevaScreen extends ConsumerWidget {
-  const DeudaNuevaScreen({super.key, this.deudaId});
+  const DeudaNuevaScreen({
+    super.key,
+    this.deudaId,
+    this.direccionInicial = DireccionDeuda.debo,
+  });
 
   /// Si no es nulo, la pantalla abre en modo edición sobre esta deuda.
   final String? deudaId;
+
+  /// Fase 82 — al crear, abre ya en "Yo debo" o "Me deben".
+  final DireccionDeuda direccionInicial;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -47,6 +55,7 @@ class DeudaNuevaScreen extends ConsumerWidget {
             ],
             DeudaFormulario(
               deudaId: deudaId,
+              direccionInicial: direccionInicial,
               onGuardadoExitoso: () => Navigator.of(context).pop(),
             ),
           ],

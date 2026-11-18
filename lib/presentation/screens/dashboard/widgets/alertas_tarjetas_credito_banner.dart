@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../domain/usecases/dto/alerta_tarjeta_credito.dart';
+import '../../../shared/dashboard_colors.dart';
 import '../../../state/dashboard/dashboard_providers.dart';
 import '../../../theme/app_theme.dart';
 
@@ -53,19 +54,21 @@ class _Banner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: colorWarning.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
+        // Fase 81: fondo de chip de aviso del tema (claro/oscuro), con el
+        // texto `warningText` encima (≥ 4.5:1, contraste_tokens_test).
+        color: context.warningBg,
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         children: [
-          const Icon(Icons.credit_card, color: colorWarning, size: 18),
+          Icon(Icons.credit_card, color: colorAviso(context), size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               texto,
               style: Theme.of(
                 context,
-              ).textTheme.bodySmall?.copyWith(color: colorWarning),
+              ).textTheme.bodySmall?.copyWith(color: colorAviso(context)),
             ),
           ),
         ],

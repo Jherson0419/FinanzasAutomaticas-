@@ -45,6 +45,9 @@ class PagoDeudaRepositoryDrift implements PagoDeudaRepository {
       montoInteres: row.montoInteres,
       fechaPago: row.fechaPago,
       numeroCuota: row.numeroCuota,
+      tipo: row.tipo == TipoPagoDeuda.abonoCapital.name
+          ? TipoPagoDeuda.abonoCapital
+          : TipoPagoDeuda.cuota,
     );
   }
 
@@ -58,6 +61,7 @@ class PagoDeudaRepositoryDrift implements PagoDeudaRepository {
       montoInteres: Value(pago.montoInteres),
       fechaPago: pago.fechaPago,
       numeroCuota: Value(pago.numeroCuota),
+      tipo: Value(pago.tipo.name),
     );
   }
 }

@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/categoria.dart';
+import '../../domain/entities/cuenta.dart';
 import '../../domain/entities/transaccion.dart';
+import '../../domain/movimientos.dart';
 import '../shared/category_icons.dart';
 import '../shared/dashboard_colors.dart';
+import '../shared/estilos.dart';
+import '../shared/fila_movimiento.dart';
 import '../shared/formatters.dart';
 import '../state/providers.dart';
 
@@ -86,16 +90,50 @@ class ListaMovimientosTransaccion extends ConsumerWidget {
         final categoriasPorId = {
           for (final categoria in categorias) categoria.id: categoria,
         };
+        // Fase 85: la otra cara de cada transferencia (para "a"/"desde").
+        final pares = cuentasDeTransferencias(
+          ref.watch(todasLasTransaccionesProvider).valueOrNull ??
+              transacciones,
+        );
+        final nombreCuenta = {
+          for (final c
+              in ref.watch(cuentasProvider).valueOrNull ?? const <Cuenta>[])
+            c.id: c.nombre,
+        };
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
             for (final transaccion in ordenadas)
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
-                child: FilaMovimientoTransaccion(
-                  transaccion: transaccion,
-                  categoria: categoriasPorId[transaccion.categoriaId],
-                ),
+                child: transaccion.esTransferencia
+                    ? FilaMovimiento(
+                        transaccionId: transaccion.id,
+                        concepto: transaccion.concepto,
+                        categoriaNombre: 'Transferencia',
+                        categoriaIcono: null,
+                        monto: transaccion.monto,
+                        moneda: transaccion.moneda,
+                        esIngreso: false,
+                        fecha: transaccion.fecha,
+                        transferenciaId: transaccion.transferenciaId,
+                        tituloTransferencia: tituloTransferencia(
+                          transaccion,
+                          pares,
+                          nombreCuenta,
+                        ),
+                        // En el historial de UNA cuenta sí se ve si sale o
+                        // entra (con signo y palabra, nunca solo color).
+                        signoTransferencia:
+                            transaccion.tipo ==
+                                TipoTransaccion.transferenciaSalida
+                            ? -1
+                            : 1,
+                      )
+                    : FilaMovimientoTransaccion(
+                        transaccion: transaccion,
+                        categoria: categoriasPorId[transaccion.categoriaId],
+                      ),
               ),
           ],
         );
@@ -187,6 +225,7 @@ class FilaMovimientoTransaccion extends StatelessWidget {
             Text(
               '${transaccion.tipo == TipoTransaccion.ingreso ? '+' : '-'} ${formatearMonto(transaccion.monto, transaccion.moneda)}',
               style: theme.textTheme.bodyMedium?.copyWith(
+                fontFeatures: cifrasTabulares,
                 fontWeight: FontWeight.w600,
                 color: transaccion.tipo == TipoTransaccion.ingreso
                     ? colorIngreso(context)

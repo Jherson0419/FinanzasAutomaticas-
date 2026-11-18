@@ -41,6 +41,11 @@ class Cuenta {
   /// S/ 0.00 engañoso (`TarjetaCreditoPagosSection`).
   final double? pagoMinimo;
 
+  /// Fase 83 — TCEA de la tarjeta (solo `credito`), como FRACCIÓN anual
+  /// (0.65 = 65 %). Opcional. Se copia a `tasaInteres`/`tieneInteres` de
+  /// la deuda vinculada para que el plan de pago sepa cuánto cuesta.
+  final double? tcea;
+
   const Cuenta({
     required this.id,
     required this.nombre,
@@ -52,6 +57,7 @@ class Cuenta {
     this.fechaPago,
     this.ultimosDigitos,
     this.pagoMinimo,
+    this.tcea,
   });
 
   /// Nota: como con `Deuda.copyWith` (ver `INFORME_PROYECTO.md`), el patrón
@@ -69,6 +75,7 @@ class Cuenta {
     DateTime? fechaPago,
     String? ultimosDigitos,
     double? pagoMinimo,
+    double? tcea,
   }) {
     return Cuenta(
       id: id,
@@ -81,6 +88,7 @@ class Cuenta {
       fechaPago: fechaPago ?? this.fechaPago,
       ultimosDigitos: ultimosDigitos ?? this.ultimosDigitos,
       pagoMinimo: pagoMinimo ?? this.pagoMinimo,
+      tcea: tcea ?? this.tcea,
     );
   }
 }

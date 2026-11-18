@@ -1,6 +1,7 @@
 import '../../../domain/entities/categoria.dart';
 import '../../../domain/entities/cuenta.dart';
 import '../../../domain/entities/deuda.dart';
+import '../../../domain/entities/pago_deuda.dart';
 import '../../../domain/entities/transaccion.dart';
 
 /// Conversión explícita enum↔string para cada columna con `CHECK` en el
@@ -77,16 +78,22 @@ TipoCategoria tipoCategoriaDeFila(String valor) => switch (valor) {
 
 // ---------------------------------------------------------------------
 // TipoTransaccion — transacciones.tipo
-// CHECK: tipo = ANY (ARRAY['ingreso', 'gasto'])
+// CHECK: tipo = ANY (ARRAY['ingreso', 'gasto']) — Fase 85 lo amplía con
+// 'transferencia_salida' y 'transferencia_entrada'
+// (fase85_transferencias.sql).
 // ---------------------------------------------------------------------
 String tipoTransaccionAFila(TipoTransaccion valor) => switch (valor) {
   TipoTransaccion.ingreso => 'ingreso',
   TipoTransaccion.gasto => 'gasto',
+  TipoTransaccion.transferenciaSalida => 'transferencia_salida',
+  TipoTransaccion.transferenciaEntrada => 'transferencia_entrada',
 };
 
 TipoTransaccion tipoTransaccionDeFila(String valor) => switch (valor) {
   'ingreso' => TipoTransaccion.ingreso,
   'gasto' => TipoTransaccion.gasto,
+  'transferencia_salida' => TipoTransaccion.transferenciaSalida,
+  'transferencia_entrada' => TipoTransaccion.transferenciaEntrada,
   _ => throw FormatException(
     'Tipo de transacción desconocido en Supabase: $valor',
   ),
@@ -268,4 +275,41 @@ EstadoDeuda estadoDeudaDeFila(String valor) => switch (valor) {
   'refinanciada' => EstadoDeuda.refinanciada,
   'cancelada' => EstadoDeuda.cancelada,
   _ => throw FormatException('Estado de deuda desconocido en Supabase: $valor'),
+};
+
+// ---------------------------------------------------------------------
+// DireccionDeuda — deudas.direccion (Fase 82)
+// CHECK (pendiente, supabase/migraciones_pendientes/fase82_direccion_deuda.sql):
+//   direccion IN ('debo', 'me_deben'), NOT NULL DEFAULT 'debo'
+// ---------------------------------------------------------------------
+String direccionDeudaAFila(DireccionDeuda valor) => switch (valor) {
+  DireccionDeuda.debo => 'debo',
+  DireccionDeuda.meDeben => 'me_deben',
+};
+
+/// `null` (fila de producción antes de correr el SQL de la Fase 82, o un
+/// `select` que no trajo la columna) → `debo`: así se comportaban todas
+/// las deudas hasta esta fase.
+// ---------------------------------------------------------------------
+// TipoPagoDeuda — pagos_deuda.tipo (Fase 84)
+// CHECK (pendiente, fase84_tipo_pago.sql): tipo IN ('cuota', 'abono_capital')
+// ---------------------------------------------------------------------
+String tipoPagoDeudaAFila(TipoPagoDeuda valor) => switch (valor) {
+  TipoPagoDeuda.cuota => 'cuota',
+  TipoPagoDeuda.abonoCapital => 'abono_capital',
+};
+
+/// `null` (producción antes del SQL de la Fase 84) → `cuota`.
+TipoPagoDeuda tipoPagoDeudaDeFila(String? valor) => switch (valor) {
+  null || 'cuota' => TipoPagoDeuda.cuota,
+  'abono_capital' => TipoPagoDeuda.abonoCapital,
+  _ => throw FormatException('Tipo de pago desconocido en Supabase: $valor'),
+};
+
+DireccionDeuda direccionDeudaDeFila(String? valor) => switch (valor) {
+  null || 'debo' => DireccionDeuda.debo,
+  'me_deben' => DireccionDeuda.meDeben,
+  _ => throw FormatException(
+    'Dirección de deuda desconocida en Supabase: $valor',
+  ),
 };

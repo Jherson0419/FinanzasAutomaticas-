@@ -36,18 +36,18 @@ void main() {
       await tester.tap(find.text('Pago libre'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Tasa de interés (%)'), findsNothing);
+      expect(find.text('Tasa efectiva anual (TEA %)'), findsNothing);
 
       await tester.tap(find.text('¿Tiene interés?'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Tasa de interés (%)'), findsOneWidget);
+      expect(find.text('Tasa efectiva anual (TEA %)'), findsOneWidget);
       expect(find.text('Tipo de tasa'), findsOneWidget);
 
       await tester.tap(find.text('¿Tiene interés?'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Tasa de interés (%)'), findsNothing);
+      expect(find.text('Tasa efectiva anual (TEA %)'), findsNothing);
     },
   );
 
@@ -57,7 +57,7 @@ void main() {
       await _pumpScreen(tester);
 
       expect(find.text('¿Tiene interés?'), findsNothing);
-      expect(find.text('Tasa de interés (%)'), findsNothing);
+      expect(find.text('Tasa efectiva anual (TEA %)'), findsNothing);
       expect(find.text('Día de pago (1-31)'), findsNothing);
       expect(find.text('Fecha de vencimiento final'), findsNothing);
       expect(find.text('Periodicidad de cuotas'), findsOneWidget);

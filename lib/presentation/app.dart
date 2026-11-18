@@ -5,17 +5,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../domain/entities/deuda.dart';
 import '../domain/entities/mensaje_push.dart';
 import '../domain/entities/tema_app.dart';
+import '../domain/entities/transaccion.dart';
 import '../domain/parsear_deep_link_agregar_amigo.dart';
 import 'theme/app_theme.dart';
 import 'screens/agregar_amigo_screen.dart';
 import 'screens/automatizacion_screen.dart';
+import 'screens/capacidad_pago_screen.dart';
 import 'screens/categoria_nueva_screen.dart';
+import 'screens/consejero_screen.dart';
 import 'screens/consejos_financieros_screen.dart';
 import 'screens/cuenta_nueva_screen.dart';
 import 'screens/deuda_detalle_screen.dart';
+import 'screens/deudas_screen.dart';
 import 'screens/historial_pagos_deuda_screen.dart';
+import 'screens/mi_avance_screen.dart';
 import 'screens/mi_perfil_screen.dart';
 import 'screens/mis_amigos_screen.dart';
 import 'screens/mis_categorias_screen.dart';
@@ -24,10 +30,13 @@ import 'screens/movimientos_cuenta_screen.dart';
 import 'screens/notificaciones_screen.dart';
 import 'screens/nueva_contrasena_screen.dart';
 import 'screens/pago_deuda_nuevo_screen.dart';
+import 'screens/plan_pago_screen.dart';
 import 'screens/placeholders/deuda_nueva_screen.dart';
 import 'screens/placeholders/transaccion_nueva_screen.dart';
 import 'screens/root_screen.dart';
+import 'screens/simulador_screen.dart';
 import 'screens/todos_los_movimientos_screen.dart';
+import 'screens/transferencia_screen.dart';
 import 'state/providers.dart';
 
 /// Fase 31: `themeMode` sigue la preferencia guardada (`temaProvider`) en
@@ -59,7 +68,8 @@ class FinanzasAutomaticasApp extends ConsumerStatefulWidget {
 /// tiene forma de callback de autenticación — este host no, así que esta
 /// suscripción a `app_links` es propia de la app (ver
 /// `config/supabase_config.dart`).
-class _FinanzasAutomaticasAppState extends ConsumerState<FinanzasAutomaticasApp> {
+class _FinanzasAutomaticasAppState
+    extends ConsumerState<FinanzasAutomaticasApp> {
   final _navigatorKey = GlobalKey<NavigatorState>();
   final _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
   StreamSubscription<Uri>? _deepLinkSub;
@@ -109,6 +119,8 @@ class _FinanzasAutomaticasAppState extends ConsumerState<FinanzasAutomaticasApp>
   }
 
   void _manejarDeepLink(Uri uri) {
+    // Modo local (Fase 78): "agregar amigo" requiere la nube.
+    if (ref.read(modoLocalProvider)) return;
     final nick = parsearNickDesdeLinkAgregarAmigo(uri);
     if (nick == null) return;
     _navigatorKey.currentState?.push(
@@ -179,7 +191,10 @@ class _FinanzasAutomaticasAppState extends ConsumerState<FinanzasAutomaticasApp>
   Widget build(BuildContext context) {
     final tema = ref.watch(temaProvider);
     ref.listen(eventoRecuperacionContrasenaProvider, _alCambiarEstadoAuth);
-    ref.listen(mensajePushPrimerPlanoProvider, _alRecibirMensajePushPrimerPlano);
+    ref.listen(
+      mensajePushPrimerPlanoProvider,
+      _alRecibirMensajePushPrimerPlano,
+    );
     ref.listen(mensajePushAbiertoProvider, _alAbrirMensajePush);
 
     return MaterialApp(
@@ -201,6 +216,14 @@ class _FinanzasAutomaticasAppState extends ConsumerState<FinanzasAutomaticasApp>
         '/amigos': (context) => const MisAmigosScreen(),
         '/notificaciones': (context) => const NotificacionesScreen(),
         '/transacciones/todas': (context) => const TodosLosMovimientosScreen(),
+        '/deudas': (context) => const DeudasScreen(),
+        // Fase 83: plan de pago (solo cálculo).
+        '/plan-pago': (context) => const PlanPagoScreen(),
+        // Fase 86: capacidad de pago y consejero (cálculo local).
+        '/plan-pago/capacidad': (context) => const CapacidadPagoScreen(),
+        '/consejero': (context) => const ConsejeroScreen(),
+        // Fase 87: avance e hitos.
+        '/avance': (context) => const MiAvanceScreen(),
       },
       // Estas rutas necesitan leer `settings.arguments` (un id opcional para
       // entrar en modo edición), algo que la tabla `routes` estática no
@@ -215,6 +238,7 @@ class _FinanzasAutomaticasAppState extends ConsumerState<FinanzasAutomaticasApp>
                   deudaId: args.deudaId,
                   numeroCuotaInicial: args.numeroCuotaInicial,
                   montoEsperadoInicial: args.montoEsperadoInicial,
+                  modoInicial: args.modoInicial,
                 ),
               );
             }
@@ -233,15 +257,22 @@ class _FinanzasAutomaticasAppState extends ConsumerState<FinanzasAutomaticasApp>
               builder: (context) => HistorialPagosDeudaScreen(deudaId: deudaId),
             );
           case '/transacciones/nueva':
-            final transaccionId = settings.arguments as String?;
+            // `String` = id a editar (de siempre); `TipoTransaccion` =
+            // crear con ese tipo preseleccionado (Fase 80, hoja "+").
+            final args = settings.arguments;
             return MaterialPageRoute(
-              builder: (context) =>
-                  TransaccionNuevaScreen(transaccionId: transaccionId),
+              builder: (context) => args is TipoTransaccion
+                  ? TransaccionNuevaScreen(tipoInicial: args)
+                  : TransaccionNuevaScreen(transaccionId: args as String?),
             );
           case '/deudas/nueva':
-            final deudaId = settings.arguments as String?;
+            // `String` = id a editar; `DireccionDeuda` = crear en esa
+            // dirección (Fase 82, "Me deben" del "+" y del hub).
+            final args = settings.arguments;
             return MaterialPageRoute(
-              builder: (context) => DeudaNuevaScreen(deudaId: deudaId),
+              builder: (context) => args is DireccionDeuda
+                  ? DeudaNuevaScreen(direccionInicial: args)
+                  : DeudaNuevaScreen(deudaId: args as String?),
             );
           case '/cuentas/nueva':
             final cuentaId = settings.arguments as String?;
@@ -253,6 +284,33 @@ class _FinanzasAutomaticasAppState extends ConsumerState<FinanzasAutomaticasApp>
             return MaterialPageRoute(
               builder: (context) =>
                   CategoriaNuevaScreen(categoriaId: categoriaId),
+            );
+          // Fase 85: transferencia nueva ("Pagar tarjeta" pasa el destino y
+          // el monto sugerido) y detalle de una existente (no se edita).
+          case '/transferencias/nueva':
+            final args = settings.arguments;
+            final t = args is TransferenciaRouteArgs
+                ? args
+                : const TransferenciaRouteArgs();
+            return MaterialPageRoute(
+              builder: (context) => TransferenciaScreen(
+                origenId: t.origenId,
+                destinoId: t.destinoId,
+                montoSugerido: t.montoSugerido,
+              ),
+            );
+          case '/transferencias/detalle':
+            final transferenciaId = settings.arguments as String;
+            return MaterialPageRoute(
+              builder: (context) =>
+                  TransferenciaDetalleScreen(transferenciaId: transferenciaId),
+            );
+          // Fase 86: el simulador puede abrir con un extra inicial.
+          case '/plan-pago/simulador':
+            final extra = settings.arguments;
+            return MaterialPageRoute<double>(
+              builder: (context) =>
+                  SimuladorScreen(extraInicial: extra is double ? extra : null),
             );
           case '/cuentas/movimientos':
             final cuentaId = settings.arguments as String;

@@ -130,7 +130,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Iniciar sesión'), findsWidgets);
-    expect(find.text('SALDO TOTAL'), findsNothing);
+    expect(find.text('Saldo total'), findsNothing);
     expect(find.text('Bienvenido a Finzo: Finanzas Automáticas'), findsNothing);
   });
 
@@ -159,7 +159,7 @@ void main() {
         find.text('Bienvenido a Finzo: Finanzas Automáticas'),
         findsOneWidget,
       );
-      expect(find.text('SALDO TOTAL'), findsNothing);
+      expect(find.text('Saldo total'), findsNothing);
     },
   );
 
@@ -187,7 +187,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('SALDO TOTAL'), findsOneWidget);
+      expect(find.text('Saldo total'), findsOneWidget);
       expect(
         find.text('Bienvenido a Finzo: Finanzas Automáticas'),
         findsNothing,
@@ -227,7 +227,7 @@ void main() {
           );
           await tester.pumpAndSettle();
 
-          expect(find.text('SALDO TOTAL'), findsOneWidget);
+          expect(find.text('Saldo total'), findsOneWidget);
           expect(
             find.text('Bienvenido a Finzo: Finanzas Automáticas'),
             findsNothing,
@@ -263,7 +263,7 @@ void main() {
             find.text('Bienvenido a Finzo: Finanzas Automáticas'),
             findsOneWidget,
           );
-          expect(find.text('SALDO TOTAL'), findsNothing);
+          expect(find.text('Saldo total'), findsNothing);
         },
       );
 

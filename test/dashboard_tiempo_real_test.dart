@@ -49,7 +49,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Primera versión del resumen — la de datos de prueba.
-      expect(find.text('SALDO TOTAL'), findsOneWidget);
+      expect(find.text('Saldo total'), findsOneWidget);
       expect(version, 1);
 
       // Primer evento del stream = el snapshot inicial de la tabla, mismo
@@ -60,7 +60,7 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(version, 1);
-      expect(find.text('SALDO TOTAL'), findsOneWidget);
+      expect(find.text('Saldo total'), findsOneWidget);
 
       // Segundo evento = un cambio real (p. ej. una captura automática vía
       // `capturar-transaccion`) — debe invalidar `resumenDashboardProvider`

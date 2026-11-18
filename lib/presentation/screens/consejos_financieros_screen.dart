@@ -136,11 +136,34 @@ class _ConsejosFinancierosScreenState
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Consejos financieros')),
+      appBar: AppBar(
+        title: const Text('Consejos financieros'),
+        actions: [
+          // Fase 83: entrada al plan de pago (cálculo local, funciona
+          // también sin la nube).
+          TextButton.icon(
+            style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+            onPressed: () => Navigator.of(context).pushNamed('/plan-pago'),
+            icon: const Icon(Icons.flag_outlined),
+            label: const Text('Ver mi plan'),
+          ),
+        ],
+      ),
       bottomNavigationBar: const AppBottomBar(actual: AppBottomTab.consejos),
       body: SafeArea(
         child: Column(
           children: [
+            // Fase 86: el consejero de reglas locales va aparte del chat de
+            // IA (no se mezclan en la misma lista).
+            ListTile(
+              minTileHeight: 56,
+              leading: const Icon(Icons.checklist_rounded),
+              title: const Text('Revisión semanal con tu consejero'),
+              subtitle: const Text('Con tus datos, sin IA'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).pushNamed('/consejero'),
+            ),
+            const Divider(height: 1),
             Expanded(
               child: historialAsync.when(
                 loading: () => const Center(child: CircularProgressIndicator()),

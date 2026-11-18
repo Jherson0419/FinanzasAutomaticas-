@@ -24,6 +24,9 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // Fase 87: flutter_local_notifications (recordatorios locales)
+        // exige "core library desugaring" para java.time en Android.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -51,4 +54,9 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // Fase 87: ver `isCoreLibraryDesugaringEnabled` arriba.
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

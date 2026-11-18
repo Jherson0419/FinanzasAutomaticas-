@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../domain/entities/deuda.dart';
 import '../../shared/enum_labels.dart';
+import '../../shared/estilos.dart';
 import '../../shared/formatters.dart';
 
 /// Fila compacta para mostrar una deuda ya agregada, usada tanto en el paso
@@ -52,6 +53,7 @@ class DeudaListaItem extends StatelessWidget {
           Text(
             formatearMonto(deuda.montoTotal, deuda.moneda),
             style: theme.textTheme.bodyMedium?.copyWith(
+              fontFeatures: cifrasTabulares,
               fontWeight: FontWeight.bold,
             ),
           ),

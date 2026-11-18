@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../domain/entities/pago_deuda.dart';
 import '../../../domain/repositories/pago_deuda_repository.dart';
+import 'enum_mapeo_supabase.dart';
 import 'supabase_errores.dart';
 
 /// Adapter de `PagoDeudaRepository` sobre la tabla `pagos_deuda` de
@@ -70,6 +71,9 @@ class PagoDeudaRepositorySupabase implements PagoDeudaRepository {
       'monto_interes': pago.montoInteres,
       'fecha_pago': pago.fechaPago.toIso8601String(),
       'numero_cuota': pago.numeroCuota,
+      // Fase 84 — compatibilidad: solo un abono envía la columna (puede no
+      // existir hasta correr fase84_tipo_pago.sql; su DEFAULT es 'cuota').
+      if (pago.esAbonoCapital) 'tipo': tipoPagoDeudaAFila(pago.tipo),
     };
   }
 
@@ -84,6 +88,7 @@ class PagoDeudaRepositorySupabase implements PagoDeudaRepository {
       montoInteres: (fila['monto_interes'] as num?)?.toDouble(),
       fechaPago: DateTime.parse(fila['fecha_pago'] as String),
       numeroCuota: fila['numero_cuota'] as int?,
+      tipo: tipoPagoDeudaDeFila(fila['tipo'] as String?),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../domain/entities/deuda.dart';
 import '../../../domain/repositories/deuda_repository.dart';
+import '../../../domain/saldo_deuda.dart';
 import 'enum_mapeo_supabase.dart';
 import 'supabase_errores.dart';
 
@@ -90,7 +91,10 @@ class DeudaRepositorySupabase implements DeudaRepository {
       () async {
         final filas = await _client
             .from('deudas')
-            .select('id, user_id, nombre_deuda, monto_total, monto_pagado, moneda')
+            // Fase 82: `*` en vez de una lista de columnas para no fallar
+            // en producción antes de que exista `direccion` (pedir una
+            // columna inexistente es un error 400 de PostgREST).
+            .select()
             .eq('amigo_usuario_id', _userId);
         return filas.map(aDominioDeudaDeAmigo).toList();
       },
@@ -103,10 +107,23 @@ class DeudaRepositorySupabase implements DeudaRepository {
       id: fila['id'] as String,
       deudorUsuarioId: fila['user_id'] as String,
       nombreDeuda: fila['nombre_deuda'] as String,
-      montoAdeudado:
-          (fila['monto_total'] as num).toDouble() -
-          (fila['monto_pagado'] as num).toDouble(),
+      // Fase 79: saldo real (en cuotas fijas, cuota × cuotas − pagado), no
+      // `monto_total − monto_pagado`. Filas sin `estructura_pago` (no
+      // debería pasar con el `select` de arriba) se tratan como pago libre.
+      montoAdeudado: saldoPendienteDe(
+        estructuraPago: fila['estructura_pago'] == null
+            ? EstructuraPago.pagoLibre
+            : estructuraPagoDeFila(fila['estructura_pago'] as String),
+        montoTotal: (fila['monto_total'] as num).toDouble(),
+        montoPagado: (fila['monto_pagado'] as num).toDouble(),
+        montoCuota: (fila['monto_cuota'] as num?)?.toDouble(),
+        numeroCuotasTotal: fila['numero_cuotas_total'] as int?,
+        montoAbonadoCapital:
+            (fila['monto_abonado_capital'] as num?)?.toDouble() ?? 0,
+        montoUltimaCuota: (fila['monto_ultima_cuota'] as num?)?.toDouble(),
+      ),
       moneda: monedaDeFila(fila['moneda'] as String),
+      direccion: direccionDeudaDeFila(fila['direccion'] as String?),
     );
   }
 
@@ -147,6 +164,20 @@ class DeudaRepositorySupabase implements DeudaRepository {
       'notas': deuda.notas,
       'cuenta_id': deuda.cuentaId,
       'amigo_usuario_id': deuda.amigoUsuarioId,
+      // Fase 82 — compatibilidad con producción mientras no se corra
+      // `fase82_direccion_deuda.sql`: `debo` NO se envía (la columna
+      // aún no existe y su DEFAULT será 'debo'); solo `meDeben` la manda.
+      // Por eso la dirección no se puede cambiar al editar (ver
+      // `EditarDeuda`): pasar de meDeben a debo no se escribiría.
+      if (deuda.meDeben) 'direccion': direccionDeudaAFila(deuda.direccion),
+      // Fase 84 — mismo criterio: solo se envía si hay abonos.
+      if (deuda.montoAbonadoCapital != 0)
+        'monto_abonado_capital': deuda.montoAbonadoCapital,
+      // Fase 84b — se envía cuando hay abonos (aunque sea `null`, para
+      // poder volver a la última cuota normal) o si tiene valor. Una deuda
+      // sin abonos nunca la manda: funciona sin `fase84b_ultima_cuota.sql`.
+      if (deuda.montoAbonadoCapital != 0 || deuda.montoUltimaCuota != null)
+        'monto_ultima_cuota': deuda.montoUltimaCuota,
     };
   }
 
@@ -191,6 +222,12 @@ class DeudaRepositorySupabase implements DeudaRepository {
       notas: fila['notas'] as String?,
       cuentaId: fila['cuenta_id'] as String?,
       amigoUsuarioId: fila['amigo_usuario_id'] as String?,
+      direccion: direccionDeudaDeFila(fila['direccion'] as String?),
+      // Columna ausente (producción antes del SQL) → 0.
+      montoAbonadoCapital:
+          (fila['monto_abonado_capital'] as num?)?.toDouble() ?? 0,
+      // Columna ausente o NULL → última cuota normal.
+      montoUltimaCuota: (fila['monto_ultima_cuota'] as num?)?.toDouble(),
     );
   }
 }

@@ -57,6 +57,10 @@ dependencies:
   # del dispositivo y entrega los mensajes entrantes.
   firebase_core: ^3.15.2
   firebase_messaging: ^15.2.10
+  flutter_local_notifications: 19.5.0
+  timezone: 0.10.1
+  flutter_timezone: 5.1.1
+  permission_handler: 11.4.0
 
 dev_dependencies:
   flutter_test:
@@ -114,6 +118,23 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  # Fase 80: Manrope empaquetada (sin descarga en tiempo de ejecución,
+  # funciona sin red). Licencia SIL OFL 1.1 en assets/fonts/OFL.txt.
+  # Archivos estáticos del subconjunto "latin" de Fontsource (cubre
+  # español, "S/", "•", "—", "·"). No se incluye el peso 400: el texto
+  # regular cae al 500 más cercano.
+  fonts:
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/Manrope-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Manrope-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Manrope-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Manrope-ExtraBold.ttf
+          weight: 800
 
   # To add assets to your application, add an assets section, like this:
   # assets:

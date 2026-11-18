@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../domain/costo_deuda.dart';
 import '../../domain/cronograma_cuotas.dart';
 import '../../domain/entities/cuenta.dart';
 import '../../domain/entities/deuda.dart';
+import '../../domain/saldo_deuda.dart';
 import '../shared/app_card.dart';
 import '../shared/dashboard_colors.dart';
 import '../shared/enum_labels.dart';
+import '../shared/estilos.dart';
 import '../shared/formatters.dart';
+import '../theme/app_theme.dart';
 import '../state/providers.dart';
 import 'historial_pagos_deuda_screen.dart';
 import 'pago_deuda_nuevo_screen.dart';
+import 'transferencia_screen.dart';
 
 class DeudaDetalleScreen extends ConsumerWidget {
   const DeudaDetalleScreen({super.key, required this.deudaId});
@@ -57,6 +62,46 @@ class _Contenido extends ConsumerWidget {
       children: [
         _MiniDashboard(deuda: deuda),
         const SizedBox(height: 16),
+        // Fase 82: costo anual de lo que DEBO (insumo del plan de pago).
+        if (!deuda.meDeben) ...[
+          _FilaCosto(deuda: deuda),
+          const SizedBox(height: 16),
+        ],
+        // Fase 82: botón visible para registrar un pago. Hasta la Fase 81
+        // solo existía en `DeudasActivasSection` (el acordeón del Inicio);
+        // aquí, las cuotas solo se pagaban deslizando (gesto sin
+        // alternativa accesible) y las de pago libre no tenían forma de
+        // pagarse. La deuda automática de tarjeta se paga desde la cuenta.
+        if (deuda.estado != EstadoDeuda.pagada && deuda.cuentaId == null) ...[
+          FilledButton.icon(
+            style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+            icon: const Icon(Icons.payments_outlined),
+            label: Text(deuda.meDeben ? 'Registrar cobro' : 'Registrar pago'),
+            onPressed: () => Navigator.of(
+              context,
+            ).pushNamed('/deudas/pago', arguments: deuda.id),
+          ),
+          const SizedBox(height: 12),
+        ],
+        // Fase 85: la deuda de una tarjeta se paga con una transferencia
+        // hacia la tarjeta (no cuenta como gasto); la deuda se sincroniza
+        // sola con el nuevo saldo de la cuenta.
+        if (deuda.cuentaId != null) ...[
+          FilledButton.icon(
+            style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+            icon: const Icon(Icons.swap_horiz),
+            label: const Text('Pagar tarjeta'),
+            onPressed: () async {
+              await Navigator.of(context).pushNamed(
+                '/transferencias/nueva',
+                arguments: TransferenciaRouteArgs(destinoId: deuda.cuentaId),
+              );
+              ref.invalidate(deudaPorIdProvider(deuda.id));
+              ref.invalidate(deudasProvider);
+            },
+          ),
+          const SizedBox(height: 12),
+        ],
         Row(
           children: [
             Expanded(
@@ -168,6 +213,83 @@ class _Contenido extends ConsumerWidget {
   }
 }
 
+/// Fase 82 — "Costo anual estimado: X %" (`tasaEfectivaAnual`) o, si no se
+/// puede calcular, "Falta la tasa" con acceso a editar la deuda. Solo
+/// informativo: insumo del plan de pago (Fase 83).
+class _FilaCosto extends StatelessWidget {
+  const _FilaCosto({required this.deuda});
+
+  final Deuda deuda;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tasa = tasaEfectivaAnual(deuda);
+    if (tasa != null) {
+      final porcentaje = (tasa * 100).toStringAsFixed(1);
+      return AppCard(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Semantics(
+          label: 'Costo anual estimado: $porcentaje por ciento',
+          excludeSemantics: true,
+          child: Row(
+            children: [
+              Icon(Icons.percent, color: context.textSecondary, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Costo anual estimado',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: context.textSecondary,
+                  ),
+                ),
+              ),
+              Text(
+                '$porcentaje %',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  fontFeatures: cifrasTabulares,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    final esTarjeta = deuda.cuentaId != null;
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+      child: Row(
+        children: [
+          Icon(Icons.help_outline, color: context.warningText, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              esTarjeta
+                  ? 'Falta la tasa (TCEA de la tarjeta)'
+                  : 'Falta la tasa',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: context.warningText,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          // La deuda automática de tarjeta no se edita aquí (se sincroniza
+          // desde su cuenta).
+          if (!esTarjeta)
+            TextButton(
+              style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+              onPressed: () => Navigator.of(
+                context,
+              ).pushNamed('/deudas/nueva', arguments: deuda.id),
+              child: const Text('Agregar tasa'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MiniDashboard extends StatelessWidget {
   const _MiniDashboard({required this.deuda});
 
@@ -177,9 +299,13 @@ class _MiniDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final progreso = deuda.montoTotal <= 0
+    // Fase 79: contra lo que hay que pagar en total (capital + interés en
+    // cuotas fijas). La fila "Monto total" de abajo sigue mostrando el
+    // capital a propósito: va junto a "Interés total" como desglose.
+    final total = totalAPagar(deuda);
+    final progreso = total <= 0
         ? 0.0
-        : (deuda.montoPagado / deuda.montoTotal).clamp(0.0, 1.0);
+        : (deuda.montoPagado / total).clamp(0.0, 1.0);
 
     return AppCard(
       child: Column(
@@ -220,6 +346,7 @@ class _MiniDashboard extends StatelessWidget {
               Text(
                 formatearMonto(deuda.montoTotal, deuda.moneda),
                 style: theme.textTheme.bodyMedium?.copyWith(
+                  fontFeatures: cifrasTabulares,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -239,6 +366,7 @@ class _MiniDashboard extends StatelessWidget {
                 Text(
                   formatearMonto(deuda.interesTotal!, deuda.moneda),
                   style: theme.textTheme.bodyMedium?.copyWith(
+                    fontFeatures: cifrasTabulares,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -257,8 +385,9 @@ class _MiniDashboard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Pagado ${formatearMonto(deuda.montoPagado, deuda.moneda)} de ${formatearMonto(deuda.montoTotal, deuda.moneda)}',
+            '${deuda.meDeben ? 'Cobrado' : 'Pagado'} ${formatearMonto(deuda.montoPagado, deuda.moneda)} de ${formatearMonto(totalAPagar(deuda), deuda.moneda)}',
             style: theme.textTheme.bodySmall?.copyWith(
+              fontFeatures: cifrasTabulares,
               color: colorScheme.onSurfaceVariant,
             ),
           ),
@@ -273,6 +402,7 @@ class _MiniDashboard extends StatelessWidget {
                       : 'Todas las cuotas están pagadas')
                 : 'Sin cuota fija (pago libre)',
             style: theme.textTheme.bodyMedium?.copyWith(
+              fontFeatures: cifrasTabulares,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -331,6 +461,7 @@ class _FilaCuota extends StatelessWidget {
           Text(
             formatearMonto(cuota.montoEsperado, moneda),
             style: theme.textTheme.bodyMedium?.copyWith(
+              fontFeatures: cifrasTabulares,
               decoration: decoracionSiPagada,
             ),
           ),

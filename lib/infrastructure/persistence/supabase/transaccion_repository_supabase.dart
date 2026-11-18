@@ -150,6 +150,11 @@ class TransaccionRepositorySupabase implements TransaccionRepository {
       'fuente_captura': fuenteCapturaAFila(transaccion.fuenteCaptura),
       'data_raw': transaccion.dataRaw,
       'fecha': transaccion.fecha.toIso8601String(),
+      // Fase 85 — tolerante: solo una transferencia la envía (hasta correr
+      // fase85_transferencias.sql, registrar una transferencia en la nube
+      // falla; el resto de movimientos funciona igual).
+      if (transaccion.transferenciaId != null)
+        'transferencia_id': transaccion.transferenciaId,
     };
   }
 
@@ -158,7 +163,7 @@ class TransaccionRepositorySupabase implements TransaccionRepository {
     return Transaccion(
       id: fila['id'] as String,
       cuentaId: fila['cuenta_id'] as String,
-      categoriaId: fila['categoria_id'] as String,
+      categoriaId: fila['categoria_id'] as String?,
       monto: (fila['monto'] as num).toDouble(),
       moneda: monedaDeFila(fila['moneda'] as String),
       tipo: tipoTransaccionDeFila(fila['tipo'] as String),
@@ -169,6 +174,8 @@ class TransaccionRepositorySupabase implements TransaccionRepository {
       fuenteCaptura: fuenteCapturaDeFila(fila['fuente_captura'] as String),
       dataRaw: fila['data_raw'] as String?,
       fecha: DateTime.parse(fila['fecha'] as String),
+      // Columna ausente (producción antes del SQL) → null.
+      transferenciaId: fila['transferencia_id'] as String?,
     );
   }
 }

@@ -5,6 +5,7 @@ import '../entities/deuda.dart';
 import '../repositories/cuenta_repository.dart';
 import '../repositories/deuda_repository.dart';
 import '../validacion_cuenta_credito.dart';
+import 'sincronizar_deuda_tarjeta.dart';
 
 class RegistrarCuenta {
   final CuentaRepository _cuentaRepository;
@@ -29,7 +30,12 @@ class RegistrarCuenta {
     DateTime? fechaPago,
     String? ultimosDigitos,
     double? pagoMinimo,
+    // Fase 83 — fracción anual (0.65 = 65 %); solo aplica a crédito.
+    double? tcea,
   }) async {
+    if (tcea != null && tcea < 0) {
+      throw ArgumentError('La TCEA no puede ser negativa.');
+    }
     validarCamposDeCredito(
       tipo: tipo,
       lineaCredito: lineaCredito,
@@ -49,6 +55,7 @@ class RegistrarCuenta {
       fechaPago: fechaPago,
       ultimosDigitos: ultimosDigitos,
       pagoMinimo: pagoMinimo,
+      tcea: tipo == TipoCuenta.credito ? tcea : null,
     );
 
     await _cuentaRepository.crear(cuenta);
@@ -64,21 +71,26 @@ class RegistrarCuenta {
       final montoUsado = saldoInicial < 0 ? saldoInicial.abs() : 0.0;
       final lineaTotal = lineaCredito ?? 0.0;
       await _deudaRepository.crear(
-        Deuda(
-          id: _uuid.v4(),
-          nombreDeuda: nombre,
-          tipoDeuda: TipoDeuda.tarjetaCredito,
-          tipoAcreedor: TipoAcreedor.entidadFinanciera,
-          nombreAcreedor: nombre,
-          moneda: moneda,
-          montoTotal: lineaTotal,
-          montoPagado: lineaTotal - montoUsado,
-          tieneInteres: false,
-          estructuraPago: EstructuraPago.pagoLibre,
-          fechaInicio: DateTime.now(),
-          enMora: false,
-          estado: EstadoDeuda.activa,
-          cuentaId: cuenta.id,
+        // Fase 83: con la TCEA copiada (tasaInteres/tieneInteres).
+        deudaConTceaDeTarjeta(
+          Deuda(
+            id: _uuid.v4(),
+            nombreDeuda: nombre,
+            tipoDeuda: TipoDeuda.tarjetaCredito,
+            tipoAcreedor: TipoAcreedor.entidadFinanciera,
+            nombreAcreedor: nombre,
+            moneda: moneda,
+            montoTotal: lineaTotal,
+            montoPagado: lineaTotal - montoUsado,
+            tieneInteres: false,
+            estructuraPago: EstructuraPago.pagoLibre,
+            fechaInicio: DateTime.now(),
+            enMora: false,
+            estado: EstadoDeuda.activa,
+            cuentaId: cuenta.id,
+          ),
+          cuenta.tcea,
+          pagoMinimo: cuenta.pagoMinimo,
         ),
       );
     }

@@ -5,6 +5,13 @@ import '../../../domain/entities/deuda.dart';
 import '../../../domain/repositories/deuda_repository.dart';
 import 'app_database.dart';
 
+/// Fase 82 — texto guardado en `deudas.direccion` (`debo`/`meDeben`,
+/// el `name` del enum). Cualquier valor desconocido o vacío → `debo`.
+DireccionDeuda direccionDeudaDeTexto(String? valor) =>
+    valor == DireccionDeuda.meDeben.name
+    ? DireccionDeuda.meDeben
+    : DireccionDeuda.debo;
+
 class DeudaRepositoryDrift implements DeudaRepository {
   final AppDatabase _db;
 
@@ -93,6 +100,9 @@ class DeudaRepositoryDrift implements DeudaRepository {
       notas: row.notas,
       cuentaId: row.cuentaId,
       amigoUsuarioId: row.amigoUsuarioId,
+      direccion: direccionDeudaDeTexto(row.direccion),
+      montoAbonadoCapital: row.montoAbonadoCapital,
+      montoUltimaCuota: row.montoUltimaCuota,
     );
   }
 
@@ -127,6 +137,9 @@ class DeudaRepositoryDrift implements DeudaRepository {
       notas: Value(deuda.notas),
       cuentaId: Value(deuda.cuentaId),
       amigoUsuarioId: Value(deuda.amigoUsuarioId),
+      direccion: Value(deuda.direccion.name),
+      montoAbonadoCapital: Value(deuda.montoAbonadoCapital),
+      montoUltimaCuota: Value(deuda.montoUltimaCuota),
     );
   }
 }

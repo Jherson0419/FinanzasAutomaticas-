@@ -316,7 +316,7 @@ void main() {
 
       expect(await fakePreferencias.obtenerNombre(), 'Jherson');
       expect(fakePerfil.nick, 'jherson_v');
-      expect(find.text('SALDO TOTAL'), findsOneWidget);
+      expect(find.text('Saldo total'), findsOneWidget);
       expect(
         find.text('Bienvenido a Finzo: Finanzas Automáticas'),
         findsNothing,
@@ -331,7 +331,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('SALDO TOTAL'), findsOneWidget);
+      expect(find.text('Saldo total'), findsOneWidget);
       expect(
         find.text('Bienvenido a Finzo: Finanzas Automáticas'),
         findsNothing,

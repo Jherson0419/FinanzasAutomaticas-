@@ -94,6 +94,7 @@ class TransaccionRepositoryDrift implements TransaccionRepository {
       comprobanteUrl: row.comprobanteUrl,
       fuenteCaptura: FuenteCaptura.values.byName(row.fuenteCaptura),
       dataRaw: row.dataRaw,
+      transferenciaId: row.transferenciaId,
       fecha: row.fecha,
     );
   }
@@ -102,7 +103,7 @@ class TransaccionRepositoryDrift implements TransaccionRepository {
     return TransaccionesCompanion.insert(
       id: transaccion.id,
       cuentaId: transaccion.cuentaId,
-      categoriaId: transaccion.categoriaId,
+      categoriaId: Value(transaccion.categoriaId),
       monto: transaccion.monto,
       moneda: transaccion.moneda.name,
       tipo: transaccion.tipo.name,
@@ -112,6 +113,7 @@ class TransaccionRepositoryDrift implements TransaccionRepository {
       comprobanteUrl: Value(transaccion.comprobanteUrl),
       fuenteCaptura: transaccion.fuenteCaptura.name,
       dataRaw: Value(transaccion.dataRaw),
+      transferenciaId: Value(transaccion.transferenciaId),
       fecha: transaccion.fecha,
     );
   }

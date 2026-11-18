@@ -3,6 +3,7 @@ import '../entities/cuenta.dart';
 import '../entities/deuda.dart';
 import '../repositories/deuda_repository.dart';
 import '../repositories/pago_deuda_repository.dart';
+import '../saldo_deuda.dart';
 
 /// Edita los campos "de definición" de una deuda. Nunca toca
 /// `montoPagado`, `numeroCuotasPagadas`, `estado`, `enMora` ni `diasMora`
@@ -70,9 +71,30 @@ class EditarDeuda {
 
     final esCuotasFijas = estructuraPago == EstructuraPago.cuotasFijas;
 
+    // Fase 84: con abonos, lo abonado también se pagó (ver `totalAPagar`)
+    // y la TEA quedó congelada en `tasaInteres` (ver `tasaEfectivaAnual`).
+    final conAbonos = esCuotasFijas && actual.montoAbonadoCapital > 0;
+    // Fase 84b: la última cuota parcial se conserva (solo en cuotas fijas
+    // y mientras no supere la cuota editada).
+    final montoUltimaCuota =
+        esCuotasFijas &&
+            actual.montoUltimaCuota != null &&
+            montoCuota != null &&
+            actual.montoUltimaCuota! <= montoCuota
+        ? actual.montoUltimaCuota
+        : null;
     double? interesTotal;
     if (esCuotasFijas && numeroCuotasTotal != null && montoCuota != null) {
-      interesTotal = (montoCuota * numeroCuotasTotal) - montoTotal;
+      interesTotal =
+          totalAPagarDe(
+            estructuraPago: estructuraPago,
+            montoTotal: montoTotal,
+            montoCuota: montoCuota,
+            numeroCuotasTotal: numeroCuotasTotal,
+            montoAbonadoCapital: actual.montoAbonadoCapital,
+            montoUltimaCuota: montoUltimaCuota,
+          ) -
+          montoTotal;
     }
     final tieneInteresFinal = esCuotasFijas
         ? (interesTotal != null && interesTotal > 0)
@@ -102,6 +124,7 @@ class EditarDeuda {
           fechaInicio: fechaInicio,
           enMora: actual.enMora,
           estado: actual.estado,
+          montoUltimaCuota: montoUltimaCuota,
         ),
         pagos,
       );
@@ -119,7 +142,9 @@ class EditarDeuda {
       montoTotal: montoTotal,
       montoPagado: actual.montoPagado,
       tieneInteres: tieneInteresFinal,
-      tasaInteres: esCuotasFijas ? null : tasaInteres,
+      tasaInteres: conAbonos
+          ? actual.tasaInteres
+          : (esCuotasFijas ? null : tasaInteres),
       tipoTasa: esCuotasFijas ? null : tipoTasa,
       estructuraPago: estructuraPago,
       numeroCuotasTotal: numeroCuotasTotal,
@@ -137,7 +162,18 @@ class EditarDeuda {
       tasaInteresMoratorio: actual.tasaInteresMoratorio,
       estado: actual.estado,
       notas: notas,
+      // Siempre `null` aquí (las deudas de tarjeta se rechazan arriba),
+      // pero se copia explícito: esta reconstrucción a mano (necesaria para
+      // poder anular campos de cuotas/interés) debe listar los 29 campos.
+      cuentaId: actual.cuentaId,
       amigoUsuarioId: amigoUsuarioId,
+      // Fase 82: la dirección se fija al crear y no se edita (cambiarla
+      // invertiría el sentido de los pagos ya registrados, y en Supabase
+      // `debo` no se envía mientras no exista la columna — ver aFila).
+      direccion: actual.direccion,
+      // Fase 84: los abonos ya hechos se conservan al editar.
+      montoAbonadoCapital: actual.montoAbonadoCapital,
+      montoUltimaCuota: montoUltimaCuota,
     );
 
     await _deudaRepository.actualizar(actualizada);

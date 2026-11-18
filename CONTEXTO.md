@@ -75,7 +75,7 @@ Preferencias de app (nombre, onboarding completado) se guardan localmente fuera 
 - Una `Cuenta` tiene muchas `Transaccion` y puede financiar muchos `PagoDeuda`.
 - Una `Categoria` tiene muchas `Transaccion`.
 - Una `Deuda` tiene muchos `PagoDeuda`.
-- Al insertar un `PagoDeuda` → se actualiza `montoPagado` y `numeroCuotasPagadas` de su `Deuda`, y su `estado` pasa a `pagada` si se cubre el `montoTotal`.
+- Al insertar un `PagoDeuda` → se actualiza `montoPagado` y `numeroCuotasPagadas` de su `Deuda`, y su `estado` pasa a `pagada` si se cubre el **total a pagar** (`totalAPagar`, Fase 79 — en `cuotas_fijas` es `montoCuota × numeroCuotasTotal`, no `montoTotal`; ver "Saldo de una deuda" más abajo).
 - Al insertar una `Transaccion` → se actualiza `saldoActual` de su `Cuenta` (suma si es ingreso, resta si es gasto).
 
 ### Campos añadidos en Fase 14 (interés automático, cronograma de cuotas, pagos retroactivos)
@@ -85,6 +85,49 @@ Preferencias de app (nombre, onboarding completado) se guardan localmente fuera 
 - **Cronograma de cuotas**: para una deuda `cuotas_fijas`, `generarCronogramaCuotas(deuda, pagos)` genera `numeroCuotasTotal` cuotas programadas (número, fecha de vencimiento, monto esperado, si está pagada y con qué `PagoDeuda`), cruzando contra los pagos ya registrados. Es un concepto puramente derivado — no se persiste como tabla propia.
 - `PagoDeuda.cuentaId` ahora es opcional (`null` cuando el pago es retroactivo, ver abajo).
 - **Pago retroactivo**: al registrar un pago se puede marcar como "ya ocurrió antes" — en ese caso no se asocia ninguna `Cuenta` (`cuentaId = null`), no se descuenta ningún `saldoActual` y no se valida coincidencia de moneda. Es un diseño intencional para registrar historial pasado sin afectar el estado financiero actual.
+
+### Saldo de una deuda: `totalAPagar` y `saldoPendiente` (Fase 79)
+- En `cuotas_fijas`, `montoTotal` es el **capital** (el interés se deriva: `interesTotal = montoCuota × numeroCuotasTotal − montoTotal`), pero cada pago suma la cuota completa a `montoPagado`. Hasta la Fase 79 el estado y el saldo se calculaban contra `montoTotal`: con capital 2,000 y 12 cuotas de 210, tras 10 pagos (`montoPagado = 2,100`) la deuda quedaba "pagada" con 2 cuotas pendientes, y el saldo (`montoTotal − montoPagado`) salía subestimado o negativo. Como el trigger `notificar_deuda_pagada` (Fase 70) se dispara al pasar a `pagada`, también avisaba "deuda pagada" antes de tiempo.
+- **Único lugar que lo calcula:** `domain/saldo_deuda.dart` (Dart puro). `totalAPagar(deuda)` = `montoCuota × numeroCuotasTotal` en `cuotas_fijas` (si falta alguno de los dos, cae a `montoTotal`); `montoTotal` en `pago_libre`. `saldoPendiente(deuda)` = `max(totalAPagar − montoPagado, 0)`. `estaSaldada` usa una tolerancia de 0.01 por redondeo. `RegistrarPagoDeuda` pasa a `pagada` con `estaSaldada`; dashboard (total adeudado, progreso y "Pagado X de Y"), detalle, registrar pago, historial, consejos y "Te deben" (`DeudaDeAmigo.montoAdeudado`, calculado en `DeudaRepositorySupabase`) usan estas funciones.
+- **`montoTotal − montoPagado` sigue siendo válido** en la deuda automática de tarjeta de crédito (Fase 62): es `pago_libre`, `montoTotal` = línea y `montoPagado` = crédito disponible, así que la resta da lo usado — coincide con `saldoPendiente`.
+- **Límite conocido — `pago_libre` con interés:** `tieneInteres`/`tasaInteres`/`tipoTasa` se guardan pero no se modela el interés que se acumula con el tiempo; el total a pagar sigue siendo `montoTotal` (solo el capital). Hoy no se cobra ni se proyecta ese interés en el saldo.
+- **Datos ya guardados:** las deudas `cuotas_fijas` con interés que el error anterior dejó en `pagada` antes de tiempo siguen así; la Fase 79 no migra datos (sin columnas ni migraciones nuevas).
+
+### Dirección de la deuda: "Debo" / "Me deben" (Fase 82)
+- `Deuda.direccion` (`DireccionDeuda.debo` | `meDeben`, por defecto `debo`). En `meDeben` el "acreedor" guardado es en realidad quien ME debe (`nombreAcreedor`), y un pago es un **cobro**.
+- **Crear una deuda "me deben" NO mueve ninguna cuenta** (mismo criterio que un pago retroactivo): el dinero prestado ya salió antes, o se registra aparte como gasto si se quiere. Solo los cobros mueven saldo.
+- **Cobro** (`RegistrarPagoDeuda` con `meDeben`): suma `montoPagado` a la cuenta elegida ("Recibir en"); sin cuenta es retroactivo y no mueve nada; misma validación de moneda. **No** llama a `notificar_pago_a_amigo` (el mensaje diría que "pagó" quien recibe); solo notifica en `debo`, como siempre.
+- "Me deben" fuerza `tipoAcreedor = personaNatural` y `tipoDeuda = deudaInformal`, sin interés ni mora en esta fase (`ActualizarEstadoMora` lo salta). En cuotas fijas, las cuotas deben sumar el monto prestado (si no, `RegistrarDeuda` lo rechaza).
+- **Solo `debo` cuenta** para "Total que debes", próximos pagos, alertas/notificaciones de vencimiento, mora y el resumen de Consejos. `ResumenDashboard.deudasActivas`/`totalAdeudadoPorMoneda` son solo `debo`; los "me deben" van en `deudasMeDebenActivas`/`totalTeDebenPorMoneda`, nunca sumados con lo que debo.
+- La dirección **no se edita** después de crear la deuda (`EditarDeuda` conserva la original).
+- Drift: `deudas.direccion` (schemaVersion 11, `DEFAULT 'debo'`). Supabase: columna pendiente en `supabase/migraciones_pendientes/fase82_direccion_deuda.sql`; mientras no se corra, al leer una fila sin la columna se asume `debo` y al escribir una deuda `debo` no se envía la columna (solo `me_deben` la envía).
+- `DeudaDeAmigo.direccion` es la de la fila original (vista del dueño); el amigo la ve invertida: si el dueño debe → "{dueño} te debe"; si el dueño marcó `me_deben` → "Debes a {dueño}".
+
+### Costo anual por deuda (Fase 82)
+- `domain/costo_deuda.dart` → `tasaEfectivaAnual(deuda)` devuelve una **fracción** (0.1268 = 12.68 %) o `null`.
+- Cuotas fijas: tasa del flujo (capital = `montoTotal` recibido hoy; `n` cuotas de `montoCuota` al final de cada período — anualidad ordinaria, supuesto estándar de una TCEA — mensual = 12 períodos/año, quincenal = 365/15), resuelta por bisección y anualizada `(1 + i)^períodos − 1`. 0 % si las cuotas suman el capital.
+- Pago libre: el formulario pide "Tasa de interés (%)" **sin período**; se interpreta como **efectiva anual (TEA)**. Sin interés → 0 %; con interés y sin tasa → `null`.
+- Deuda automática de tarjeta (`cuentaId`): `null` — la app no guarda ninguna tasa de tarjetas (ni en `Cuenta` ni en su `Deuda`, creada con `tieneInteres: false`).
+- "Me deben": 0 % (sin interés en esta fase); el detalle no muestra costo.
+- El detalle de la deuda muestra "Costo anual estimado: X %" o "Falta la tasa" con acceso a editar.
+
+### Plan de pago (Fase 83) — solo cálculo, siempre ESTIMACIÓN
+- `domain/plan_pago.dart` (puro). **No registra pagos ni modifica deudas.** Entran solo deudas `debo`, activas o en mora, con saldo; nunca "me deben".
+- `capitalPendiente`: cuotas fijas con tasa → valor presente de las cuotas restantes a la tasa por período (mensual `(1+TEA)^(1/12)−1`, quincenal `(1+TEA)^(15/365)−1`); sin tasa/0 % y pago libre → `saldoPendiente`.
+- Simulación mensual (tope 600 meses): 1) interés del mes; 2) mínimo de cada deuda (cuota; quincenal = `cuota × 365/15/12`; pago libre = `pagoMinimo` o 0); 3) el "pozo" = extra + mínimos de deudas ya saldadas (**bola de nieve**: la cuota liberada sigue trabajando) + sobrante, a la deuda prioritaria. Si en un mes ninguna deuda baja su saldo, se detiene: "no se paga a este ritmo".
+- Estrategias: avalancha (mayor tasa; sin tasa = 0 % con aviso), bola de nieve (menor capital pendiente), base ("sin plan": solo mínimos, sin extra ni reasignar cuotas liberadas).
+- Recomendación: avalancha, salvo que la diferencia de interés con la bola de nieve sea < S/ 30 (`umbralAbsolutoCasiIgual`) o < 5 % (`umbralRelativoCasiIgual`): "casi igual: elige la que te motive" y sugiere bola de nieve.
+- Multimoneda: un plan por moneda; el pago extra se aplica solo a la moneda principal (soles si hay); nunca se suman monedas.
+- Preferencias (extra y estrategia) en `SharedPreferences` (`plan_pago.*`), vía `PreferenciasPlanRepository`; no toca el esquema.
+
+### TCEA de la tarjeta de crédito (Fase 83)
+- `Cuenta.tcea` (fracción anual, opcional, solo crédito). Drift: `cuentas.tcea` (schemaVersion 12). Supabase: SQL pendiente en `supabase/migraciones_pendientes/fase83_tcea_cuenta.sql`; mientras tanto, fila sin columna = `null` y solo se envía `tcea` si existe.
+- `RegistrarCuenta`, `EditarCuenta` y `SincronizarDeudaTarjeta` la copian a la deuda vinculada (`tasaInteres` en %, `tieneInteres`); sin TCEA, la deuda queda sin tasa ("Falta la tasa").
+- **Aproximación:** la TCEA se aplica al saldo usado completo, aunque la tarjeta solo cobra interés sobre lo que no se paga completo en la fecha de pago. El plan puede sobreestimar el interés de una tarjeta que se paga entera cada mes.
+
+### `Deuda.copyWith` completo (Fase 79)
+- `copyWith` cubre los 29 campos. `RegistrarPagoDeuda` reconstruía `Deuda` a mano y omitía `amigoUsuarioId`, así que el primer pago borraba el vínculo con el amigo (y con él la notificación `deuda_amigo_pagada` al saldarla). Toda actualización parcial usa `copyWith`; la única reconstrucción completa a mano que queda es la de `EditarDeuda` (necesita anular campos de cuotas/interés) y lista los 29 campos. Para el único caso de anular en una actualización parcial existe `sinProximaFechaPago` (última cuota pagada).
+- Pruebas de "ida y vuelta" (`test/pagos_deuda_fase79_test.dart`, helper `test/helpers/deuda_campos.dart`) para cada caso de uso que actualiza una `Deuda`: `RegistrarPagoDeuda`, `EditarDeuda`, `ActualizarEstadoMora`, `SincronizarDeudaTarjeta` y `EditarCuenta`.
 
 ### Cuotas tachadas y pago secuencial obligatorio (Fase 58)
 - **UI — tachado (`deuda_detalle_screen.dart`, `_FilaCuota`):** cuando `cuota.pagada` es `true`, el número ("Cuota #N") y el monto esperado se muestran con `TextDecoration.lineThrough`, además del ícono de check y el color que ya existían desde la Fase 14 — la fecha de vencimiento NO se tacha (sigue siendo información útil de cuándo venció). No había opacidad reducida previa que "mantener": se verificó el código real antes de tocarlo y esa parte de la descripción no aplicaba, así que solo se agregó el tachado.

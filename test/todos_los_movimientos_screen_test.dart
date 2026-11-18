@@ -122,6 +122,8 @@ void main() {
         ProviderScope(
           overrides: [
             datosEnLaNubeProvider.overrideWithValue(false),
+            // Fase 81: la pantalla también muestra el nombre de la cuenta.
+            cuentasProvider.overrideWith((ref) async => const []),
             transaccionRepositoryProvider.overrideWithValue(fakeTransacciones),
             categoriaRepositoryProvider.overrideWithValue(
               _FakeCategoriaRepository(const [
@@ -134,12 +136,25 @@ void main() {
               ]),
             ),
           ],
-          child: const MaterialApp(home: TodosLosMovimientosScreen()),
+          // Fase 81: por defecto filtra al mes actual — se fija "hoy" en
+          // febrero y se cambia a "Todo el tiempo" para seguir verificando
+          // que lista movimientos de todas las cuentas.
+          child: MaterialApp(
+            home: TodosLosMovimientosScreen(ahora: DateTime(2026, 2, 15)),
+          ),
         ),
       );
       await tester.pumpAndSettle();
 
       expect(fakeTransacciones.obtenerTodasFueLlamado, isTrue);
+      expect(find.text('De cuenta B'), findsOneWidget);
+      expect(find.text('De cuenta A'), findsNothing, reason: 'es de enero');
+
+      await tester.tap(find.byKey(const Key('chip_mes')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Todo el tiempo'));
+      await tester.pumpAndSettle();
+
       expect(find.text('De cuenta A'), findsOneWidget);
       expect(find.text('De cuenta B'), findsOneWidget);
     },
@@ -152,6 +167,7 @@ void main() {
       ProviderScope(
         overrides: [
           datosEnLaNubeProvider.overrideWithValue(false),
+          cuentasProvider.overrideWith((ref) async => const []),
           transaccionRepositoryProvider.overrideWithValue(
             _FakeTransaccionRepository([]),
           ),

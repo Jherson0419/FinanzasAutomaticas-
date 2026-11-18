@@ -30,9 +30,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('SALDO TOTAL'), findsOneWidget);
-    expect(find.text('GASTO POR CATEGORÍA'), findsOneWidget);
-    expect(find.text('DEUDAS ACTIVAS'), findsOneWidget);
+    // Fase 81: Inicio nuevo (01-inicio.png). "Gasto por categoría" se mudó
+    // a Movimientos y el acordeón "Deudas activas" a "Tus deudas" +
+    // "Próximos pagos" (detalle completo en el hub Deudas).
+    expect(find.text('Saldo total'), findsOneWidget);
+    expect(find.text('Tus deudas'), findsOneWidget);
+    expect(find.text('Próximos pagos'), findsOneWidget);
+    expect(find.text('Movimientos recientes'), findsOneWidget);
+    expect(find.text('GASTO POR CATEGORÍA'), findsNothing);
+    expect(find.text('DEUDAS ACTIVAS'), findsNothing);
   });
 
   testWidgets(

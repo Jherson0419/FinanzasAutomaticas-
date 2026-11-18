@@ -36,7 +36,29 @@ class RegistrarDeuda {
     int? diaPago,
     String? notas,
     String? amigoUsuarioId,
+    DireccionDeuda direccion = DireccionDeuda.debo,
   }) async {
+    // Fase 82 — "me deben" (un préstamo que hice): siempre a una persona,
+    // como deuda informal, sin interés ni mora en esta fase. Crearla NO
+    // mueve ninguna cuenta (igual que un pago retroactivo): el dinero que
+    // presté ya salió antes o se registra aparte como gasto si se quiere.
+    if (direccion == DireccionDeuda.meDeben) {
+      tipoDeuda = TipoDeuda.deudaInformal;
+      tipoAcreedor = TipoAcreedor.personaNatural;
+      tieneInteres = false;
+      tasaInteres = null;
+      tipoTasa = null;
+      pagoMinimo = null;
+      if (estructuraPago == EstructuraPago.cuotasFijas &&
+          numeroCuotasTotal != null &&
+          montoCuota != null &&
+          ((montoCuota * numeroCuotasTotal) - montoTotal).abs() > 0.01) {
+        throw StateError(
+          'En "me deben" las cuotas deben sumar el monto prestado (sin '
+          'interés): $numeroCuotasTotal × $montoCuota ≠ $montoTotal.',
+        );
+      }
+    }
     final esCuotasFijas = estructuraPago == EstructuraPago.cuotasFijas;
 
     double? interesTotal;
@@ -107,6 +129,7 @@ class RegistrarDeuda {
       estado: EstadoDeuda.activa,
       notas: notas,
       amigoUsuarioId: amigoUsuarioId,
+      direccion: direccion,
     );
 
     await _deudaRepository.crear(deuda);

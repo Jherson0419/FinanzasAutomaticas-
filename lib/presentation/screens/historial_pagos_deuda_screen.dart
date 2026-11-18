@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/cuenta.dart';
 import '../../domain/entities/deuda.dart';
 import '../../domain/entities/pago_deuda.dart';
+import '../../domain/saldo_deuda.dart';
 import '../shared/app_card.dart';
+import '../shared/estilos.dart';
 import '../shared/formatters.dart';
 import '../state/providers.dart';
 
@@ -62,8 +64,9 @@ class _Contenido extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Pagado ${formatearMonto(deuda.montoPagado, deuda.moneda)} de ${formatearMonto(deuda.montoTotal, deuda.moneda)}',
+                'Pagado ${formatearMonto(deuda.montoPagado, deuda.moneda)} de ${formatearMonto(totalAPagar(deuda), deuda.moneda)}',
                 style: theme.textTheme.bodyMedium?.copyWith(
+                  fontFeatures: cifrasTabulares,
                   color: colorScheme.onSurfaceVariant,
                 ),
               ),
@@ -176,6 +179,7 @@ class _FilaPago extends ConsumerWidget {
               Text(
                 formatearMonto(pago.montoPagado, moneda),
                 style: theme.textTheme.bodyMedium?.copyWith(
+                  fontFeatures: cifrasTabulares,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -192,11 +196,22 @@ class _FilaPago extends ConsumerWidget {
             Text(
               detalles.join(' · '),
               style: theme.textTheme.bodySmall?.copyWith(
+                fontFeatures: cifrasTabulares,
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
           ],
-          if (pago.numeroCuota != null) ...[
+          // Fase 84: un abono no es una cuota; se marca aparte.
+          if (pago.esAbonoCapital) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Abono a capital',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurface,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ] else if (pago.numeroCuota != null) ...[
             const SizedBox(height: 4),
             Text(
               'Cuota #${pago.numeroCuota}',

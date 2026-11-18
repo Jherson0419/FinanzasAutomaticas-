@@ -18,10 +18,18 @@ import '../categoria_formulario.dart';
 const _valorCrearCategoria = '__crear_categoria__';
 
 class TransaccionNuevaScreen extends ConsumerStatefulWidget {
-  const TransaccionNuevaScreen({super.key, this.transaccionId});
+  const TransaccionNuevaScreen({
+    super.key,
+    this.transaccionId,
+    this.tipoInicial = TipoTransaccion.gasto,
+  });
 
   /// Si no es nulo, la pantalla abre en modo edición sobre esta transacción.
   final String? transaccionId;
+
+  /// Tipo preseleccionado al crear (Fase 80: "Ingreso" de la hoja "+").
+  /// En modo edición manda el tipo de la transacción existente.
+  final TipoTransaccion tipoInicial;
 
   @override
   ConsumerState<TransaccionNuevaScreen> createState() =>
@@ -34,7 +42,7 @@ class _TransaccionNuevaScreenState
   final _montoController = TextEditingController();
   final _conceptoController = TextEditingController();
 
-  TipoTransaccion _tipo = TipoTransaccion.gasto;
+  late TipoTransaccion _tipo = widget.tipoInicial;
   String? _cuentaId;
   String? _categoriaId;
   MetodoPago _metodoPago = MetodoPago.efectivo;

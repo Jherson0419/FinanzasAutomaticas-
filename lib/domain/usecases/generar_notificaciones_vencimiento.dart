@@ -1,3 +1,4 @@
+import '../entities/deuda.dart';
 import '../repositories/notificacion_repository.dart';
 import '../repositories/preferencias_repository.dart';
 import '../urgencia_deuda.dart';
@@ -26,7 +27,10 @@ class GenerarNotificacionesVencimiento {
   }) : _notificacionRepository = notificacionRepository,
        _preferenciasRepository = preferenciasRepository;
 
-  Future<void> call(List<DeudaActivaResumen> deudasActivas, {DateTime? ahora}) async {
+  Future<void> call(
+    List<DeudaActivaResumen> deudasActivas, {
+    DateTime? ahora,
+  }) async {
     final hoy = ahora ?? DateTime.now();
 
     final ultimaGeneracion = await _preferenciasRepository
@@ -34,25 +38,28 @@ class GenerarNotificacionesVencimiento {
     if (ultimaGeneracion != null && _esMismoDia(ultimaGeneracion, hoy)) return;
 
     final items = <NotificacionVencimientoPendiente>[
+      // Fase 82: solo lo que YO debo. Para "me deben" todavía no hay
+      // avisos (el resumen ya separa las listas; este filtro lo garantiza
+      // aunque alguien pase una lista mezclada).
       for (final deuda in deudasActivas)
-        if (_tipoNotificacion(deuda, hoy) case final tipo?)
-          NotificacionVencimientoPendiente(
-            deudaId: deuda.id,
-            fecha: DateTime(
-              deuda.fechaVencimientoReal!.year,
-              deuda.fechaVencimientoReal!.month,
-              deuda.fechaVencimientoReal!.day,
+        if (deuda.direccion == DireccionDeuda.debo)
+          if (_tipoNotificacion(deuda, hoy) case final tipo?)
+            NotificacionVencimientoPendiente(
+              deudaId: deuda.id,
+              fecha: DateTime(
+                deuda.fechaVencimientoReal!.year,
+                deuda.fechaVencimientoReal!.month,
+                deuda.fechaVencimientoReal!.day,
+              ),
+              tipo: tipo,
             ),
-            tipo: tipo,
-          ),
     ];
 
     if (items.isNotEmpty) {
       await _notificacionRepository.generarNotificacionesVencimiento(items);
     }
-    await _preferenciasRepository.guardarUltimaGeneracionNotificacionesVencimiento(
-      hoy,
-    );
+    await _preferenciasRepository
+        .guardarUltimaGeneracionNotificacionesVencimiento(hoy);
   }
 
   /// `null` si la deuda no debe notificarse: normal, o sin

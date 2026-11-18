@@ -1,9 +1,11 @@
 import '../entities/cuenta.dart';
+import '../entities/deuda.dart';
 import '../entities/transaccion.dart';
 import '../repositories/categoria_repository.dart';
 import '../repositories/cuenta_repository.dart';
 import '../repositories/deuda_repository.dart';
 import '../repositories/transaccion_repository.dart';
+import '../saldo_deuda.dart';
 import 'dto/resumen_para_consejos.dart';
 
 /// Arma un resumen financiero agregado y anonimizado (mismo patrón de
@@ -89,22 +91,34 @@ class ArmarResumenParaConsejos {
       final nombreCategoria =
           categoriasPorId[t.categoriaId]?.nombre ?? 'Sin categoría';
       final clave = (nombreCategoria, t.moneda);
-      final acumulado = t.tipo == TipoTransaccion.ingreso
-          ? ingresosAcumulado
-          : gastosAcumulado;
-      acumulado.update(clave, (v) => v + t.monto, ifAbsent: () => t.monto);
+      final acumulado = switch (t.tipo) {
+        TipoTransaccion.ingreso => ingresosAcumulado,
+        TipoTransaccion.gasto => gastosAcumulado,
+        // Fase 85: una transferencia entre cuentas propias no es ingreso
+        // ni gasto — no se envía en el resumen.
+        TipoTransaccion.transferenciaSalida ||
+        TipoTransaccion.transferenciaEntrada => null,
+      };
+      acumulado?.update(clave, (v) => v + t.monto, ifAbsent: () => t.monto);
     }
 
     return ResumenParaConsejos(
       deudasActivas: [
+        // Fase 82: solo lo que YO debo. Un préstamo que hice ("me deben")
+        // no es una obligación mía y distorsionaría los consejos.
         for (final deuda in deudasActivas)
-          DeudaParaConsejos(
-            tipoDeuda: deuda.tipoDeuda,
-            montoTotal: deuda.montoTotal,
-            montoPagado: deuda.montoPagado,
-            interesTotal: deuda.interesTotal,
-            moneda: deuda.moneda,
-          ),
+          if (deuda.direccion == DireccionDeuda.debo)
+            DeudaParaConsejos(
+              tipoDeuda: deuda.tipoDeuda,
+              // Fase 79: total a pagar real (en cuotas fijas, capital +
+              // interés), no el capital — así `montoTotal − montoPagado` da el
+              // saldo pendiente correcto también en la Edge Function
+              // `generar-consejos` ya desplegada, sin redeploy.
+              montoTotal: totalAPagar(deuda),
+              montoPagado: deuda.montoPagado,
+              interesTotal: deuda.interesTotal,
+              moneda: deuda.moneda,
+            ),
       ],
       ingresosPorCategoriaMes: _aLista(ingresosAcumulado),
       gastosPorCategoriaMes: _aLista(gastosAcumulado),

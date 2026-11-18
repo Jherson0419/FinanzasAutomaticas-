@@ -5,8 +5,10 @@ import '../../domain/cronograma_cuotas.dart';
 import '../../domain/entities/cuenta.dart';
 import '../../domain/entities/deuda.dart';
 import '../shared/enum_labels.dart';
+import '../shared/estilos.dart';
 import '../shared/formatters.dart';
 import '../shared/mensajes_error.dart';
+import '../shared/selector_segmentado.dart';
 import '../state/dashboard/dashboard_providers.dart';
 import '../state/providers.dart';
 import '../theme/app_theme.dart';
@@ -14,12 +16,22 @@ import '../theme/app_theme.dart';
 /// Formulario de deuda, reutilizado por [DeudaNuevaScreen] (crear/editar,
 /// según [deudaId]) y por el paso de deudas del wizard de onboarding
 /// (siempre en modo creación).
+/// Etiqueta del campo de tasa en pago libre (Fase 83). Debe coincidir con
+/// cómo la interpreta `tasaEfectivaAnual` (`domain/costo_deuda.dart`):
+/// efectiva anual.
+const etiquetaCampoTasa = 'Tasa efectiva anual (TEA %)';
+
 class DeudaFormulario extends ConsumerStatefulWidget {
   const DeudaFormulario({
     super.key,
     this.deudaId,
     required this.onGuardadoExitoso,
+    this.direccionInicial = DireccionDeuda.debo,
   });
+
+  /// Fase 82 — dirección con la que abre en modo creación ("Me deben" del
+  /// "+" del Inicio o del hub). Al editar manda la de la deuda guardada.
+  final DireccionDeuda direccionInicial;
 
   /// Si no es nulo, el formulario carga esa deuda y edita en vez de crear.
   final String? deudaId;
@@ -60,6 +72,35 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
   String? _amigoUsuarioId;
 
   bool get _editando => widget.deudaId != null;
+
+  /// Fase 82 — "Yo debo" / "Me deben". Se fija al crear y no se edita.
+  late DireccionDeuda _direccion = widget.direccionInicial;
+  bool get _meDeben => _direccion == DireccionDeuda.meDeben;
+
+  /// "Me deben" (Fase 82): siempre una persona, deuda informal, sin
+  /// interés — lo mismo que fuerza `RegistrarDeuda`; aquí solo para que el
+  /// formulario muestre lo que se va a guardar.
+  void _cambiarDireccion(DireccionDeuda direccion) {
+    setState(() {
+      _direccion = direccion;
+      if (_meDeben) {
+        _tipoAcreedor = TipoAcreedor.personaNatural;
+        _tipoDeuda = TipoDeuda.deudaInformal;
+        _tieneInteres = false;
+        _estructuraPago = EstructuraPago.pagoLibre;
+      }
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (_meDeben) {
+      _tipoAcreedor = TipoAcreedor.personaNatural;
+      _tipoDeuda = TipoDeuda.deudaInformal;
+      _estructuraPago = EstructuraPago.pagoLibre;
+    }
+  }
 
   @override
   void dispose() {
@@ -123,8 +164,19 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
     return fechaVencimientoFinalDesdeCronograma(cronograma);
   }
 
+  /// En "me deben" con cuotas, las cuotas deben sumar el monto prestado
+  /// (sin interés en esta fase). `null` si aún faltan datos.
+  bool? get _cuotasCuadran {
+    final total = _parseDouble(_montoTotalController.text);
+    final cuota = _parseDouble(_montoCuotaController.text);
+    final n = int.tryParse(_numeroCuotasController.text.trim());
+    if (total == null || cuota == null || n == null) return null;
+    return ((cuota * n) - total).abs() <= 0.01;
+  }
+
   bool get _esValido {
-    if (_nombreController.text.trim().isEmpty) return false;
+    // En "me deben" el concepto es opcional (se arma "Préstamo a …").
+    if (!_meDeben && _nombreController.text.trim().isEmpty) return false;
     if (_nombreAcreedorController.text.trim().isEmpty) return false;
 
     final montoTotal = _parseDouble(_montoTotalController.text);
@@ -135,7 +187,8 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
       final montoCuota = _parseDouble(_montoCuotaController.text);
       if (cuotas == null || cuotas <= 0) return false;
       if (montoCuota == null || montoCuota <= 0) return false;
-    } else if (_tieneInteres) {
+      if (_meDeben && _cuotasCuadran == false) return false;
+    } else if (_tieneInteres && !_meDeben) {
       final tasa = _parseDouble(_tasaInteresController.text);
       if (tasa == null || tasa <= 0) return false;
     }
@@ -170,6 +223,7 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
     _periodicidadCuotas = deuda.periodicidadCuotas ?? PeriodicidadCuota.mensual;
     _esAmigo = deuda.amigoUsuarioId != null;
     _amigoUsuarioId = deuda.amigoUsuarioId;
+    _direccion = deuda.direccion;
   }
 
   Future<void> _seleccionarFechaInicio() async {
@@ -202,6 +256,12 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
       _periodicidadCuotas = PeriodicidadCuota.mensual;
       _esAmigo = false;
       _amigoUsuarioId = null;
+      _direccion = widget.direccionInicial;
+      if (_meDeben) {
+        _tipoAcreedor = TipoAcreedor.personaNatural;
+        _tipoDeuda = TipoDeuda.deudaInformal;
+        _estructuraPago = EstructuraPago.pagoLibre;
+      }
     });
   }
 
@@ -220,7 +280,12 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
       final pagoMinimo = !_esCuotasFijas
           ? _parseDouble(_pagoMinimoController.text)
           : null;
-      final tieneInteresPagoLibre = !_esCuotasFijas && _tieneInteres;
+      final tieneInteresPagoLibre =
+          !_esCuotasFijas && _tieneInteres && !_meDeben;
+      final concepto = _nombreController.text.trim();
+      final nombreDeuda = (_meDeben && concepto.isEmpty)
+          ? 'Préstamo a ${_nombreAcreedorController.text.trim()}'
+          : concepto;
       final tasaInteres = tieneInteresPagoLibre
           ? _parseDouble(_tasaInteresController.text)
           : null;
@@ -233,7 +298,7 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
       if (_editando) {
         await ref.read(editarDeudaProvider)(
           deudaId: widget.deudaId!,
-          nombreDeuda: _nombreController.text.trim(),
+          nombreDeuda: nombreDeuda,
           tipoDeuda: _tipoDeuda,
           tipoAcreedor: _tipoAcreedor,
           nombreAcreedor: _nombreAcreedorController.text.trim(),
@@ -255,7 +320,8 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
         ref.invalidate(deudaPorIdProvider(widget.deudaId!));
       } else {
         await ref.read(registrarDeudaProvider)(
-          nombreDeuda: _nombreController.text.trim(),
+          nombreDeuda: nombreDeuda,
+          direccion: _direccion,
           tipoDeuda: _tipoDeuda,
           tipoAcreedor: _tipoAcreedor,
           nombreAcreedor: _nombreAcreedorController.text.trim(),
@@ -282,7 +348,11 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
       if (!_editando) _reiniciar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_editando ? 'Deuda actualizada' : 'Deuda registrada'),
+          content: Text(
+            _editando
+                ? 'Deuda actualizada'
+                : (_meDeben ? 'Préstamo registrado' : 'Deuda registrada'),
+          ),
         ),
       );
       widget.onGuardadoExitoso();
@@ -319,73 +389,103 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
   Widget _construirCampos(BuildContext context) {
     final theme = Theme.of(context);
 
+    final campoNombre = TextFormField(
+      controller: _nombreController,
+      decoration: InputDecoration(
+        labelText: _meDeben ? 'Concepto (opcional)' : 'Nombre de la deuda',
+        hintText: _meDeben ? 'Ej. Préstamo para el pasaje' : null,
+        border: const OutlineInputBorder(),
+      ),
+      onChanged: (_) => setState(() {}),
+    );
+    final campoAcreedor = TextFormField(
+      controller: _nombreAcreedorController,
+      decoration: InputDecoration(
+        labelText: _meDeben ? '¿Quién te debe?' : 'Nombre del acreedor',
+        hintText: _meDeben
+            ? 'Ej. Lucía'
+            : placeholderNombreAcreedor(_tipoAcreedor),
+        border: const OutlineInputBorder(),
+      ),
+      onChanged: (_) => setState(() {}),
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TextFormField(
-          controller: _nombreController,
-          decoration: const InputDecoration(
-            labelText: 'Nombre de la deuda',
-            border: OutlineInputBorder(),
-          ),
-          onChanged: (_) => setState(() {}),
-        ),
-        const SizedBox(height: 16),
-        DropdownButtonFormField<TipoDeuda>(
-          initialValue: _tipoDeuda,
-          decoration: const InputDecoration(
-            labelText: 'Tipo de deuda',
-            border: OutlineInputBorder(),
-          ),
-          items: [
-            for (final tipo in TipoDeuda.values)
-              DropdownMenuItem(value: tipo, child: Text(labelTipoDeuda(tipo))),
+        // Fase 82 (05-deuda-nueva.png): "Yo debo / Me deben". Se elige al
+        // crear; al editar se muestra fija (la dirección no se cambia).
+        SelectorSegmentado<DireccionDeuda>(
+          etiquetaGrupo: '¿Quién le debe a quién?',
+          opciones: const [
+            (DireccionDeuda.debo, 'Yo debo'),
+            (DireccionDeuda.meDeben, 'Me deben'),
           ],
-          onChanged: (valor) =>
-              setState(() => _tipoDeuda = valor ?? _tipoDeuda),
+          seleccionado: _direccion,
+          onCambio: _editando ? null : _cambiarDireccion,
         ),
-        const SizedBox(height: 16),
-        DropdownButtonFormField<TipoAcreedor>(
-          initialValue: _tipoAcreedor,
-          decoration: const InputDecoration(
-            labelText: 'Tipo de acreedor',
-            border: OutlineInputBorder(),
-          ),
-          items: [
-            for (final tipo in TipoAcreedor.values)
-              DropdownMenuItem(
-                value: tipo,
-                child: Text(labelTipoAcreedor(tipo)),
+        if (_editando)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'La dirección no se puede cambiar después de crear la deuda.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: context.textSecondary,
               ),
-          ],
-          onChanged: (valor) =>
-              setState(() => _tipoAcreedor = valor ?? _tipoAcreedor),
-        ),
-        const SizedBox(height: 16),
-        TextFormField(
-          controller: _nombreAcreedorController,
-          decoration: InputDecoration(
-            labelText: 'Nombre del acreedor',
-            hintText: placeholderNombreAcreedor(_tipoAcreedor),
-            border: const OutlineInputBorder(),
+            ),
           ),
-          onChanged: (_) => setState(() {}),
-        ),
-        if (_tipoAcreedor == TipoAcreedor.personaNatural) ...[
-          const SizedBox(height: 8),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('¿Es un amigo de Finzo?'),
-            value: _esAmigo,
-            onChanged: (valor) => setState(() {
-              _esAmigo = valor;
-              if (!valor) _amigoUsuarioId = null;
-            }),
+        const SizedBox(height: 20),
+        if (_meDeben) ...[
+          campoAcreedor,
+          _construirAmigo(theme),
+          const SizedBox(height: 16),
+          campoNombre,
+        ] else ...[
+          campoNombre,
+          const SizedBox(height: 16),
+          DropdownButtonFormField<TipoDeuda>(
+            isExpanded: true,
+            initialValue: _tipoDeuda,
+            decoration: const InputDecoration(
+              labelText: 'Tipo de deuda',
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              for (final tipo in TipoDeuda.values)
+                DropdownMenuItem(
+                  value: tipo,
+                  child: Text(labelTipoDeuda(tipo)),
+                ),
+            ],
+            onChanged: (valor) =>
+                setState(() => _tipoDeuda = valor ?? _tipoDeuda),
           ),
-          if (_esAmigo) _construirSelectorAmigo(theme),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<TipoAcreedor>(
+            isExpanded: true,
+            initialValue: _tipoAcreedor,
+            decoration: const InputDecoration(
+              labelText: 'Tipo de acreedor',
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              for (final tipo in TipoAcreedor.values)
+                DropdownMenuItem(
+                  value: tipo,
+                  child: Text(labelTipoAcreedor(tipo)),
+                ),
+            ],
+            onChanged: (valor) =>
+                setState(() => _tipoAcreedor = valor ?? _tipoAcreedor),
+          ),
+          const SizedBox(height: 16),
+          campoAcreedor,
+          if (_tipoAcreedor == TipoAcreedor.personaNatural)
+            _construirAmigo(theme),
         ],
         const SizedBox(height: 16),
         DropdownButtonFormField<Moneda>(
+          isExpanded: true,
           initialValue: _moneda,
           decoration: const InputDecoration(
             labelText: 'Moneda',
@@ -402,7 +502,7 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
           controller: _montoTotalController,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(
-            labelText: 'Monto total',
+            labelText: _meDeben ? 'Monto prestado' : 'Monto total',
             prefixText: '${simboloMoneda(_moneda)} ',
             border: const OutlineInputBorder(),
           ),
@@ -411,7 +511,7 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
         const SizedBox(height: 16),
         ListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Fecha de inicio'),
+          title: Text(_meDeben ? 'Fecha del préstamo' : 'Fecha de inicio'),
           subtitle: Text(formatearFecha(_fechaInicio)),
           trailing: const Icon(Icons.calendar_today_outlined),
           onTap: _seleccionarFechaInicio,
@@ -420,15 +520,18 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
         const Divider(),
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Text('Estructura de pago', style: theme.textTheme.titleSmall),
+          child: Text(
+            _meDeben ? '¿Cómo te pagará?' : 'Estructura de pago',
+            style: theme.textTheme.titleSmall,
+          ),
         ),
         SegmentedButton<EstructuraPago>(
-          segments: const [
+          segments: [
             ButtonSegment(
               value: EstructuraPago.cuotasFijas,
-              label: Text('Cuotas fijas'),
+              label: Text(_meDeben ? 'En cuotas' : 'Cuotas fijas'),
             ),
-            ButtonSegment(
+            const ButtonSegment(
               value: EstructuraPago.pagoLibre,
               label: Text('Pago libre'),
             ),
@@ -441,8 +544,12 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
           duration: const Duration(milliseconds: 250),
           child: _esCuotasFijas
               ? _construirCamposCuotasFijas(theme)
-              : _construirCamposPagoLibre(theme),
+              // Fase 82: "me deben" no lleva interés ni pago mínimo.
+              : (_meDeben
+                    ? const SizedBox(key: ValueKey('me_deben_libre'))
+                    : _construirCamposPagoLibre(theme)),
         ),
+        if (_meDeben) _avisoMeDeben(theme),
         const SizedBox(height: 16),
         TextFormField(
           controller: _notasController,
@@ -471,6 +578,81 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
     );
   }
 
+  /// Fase 82 — explica qué pasa al guardar un "me deben" (05-deuda-nueva.png):
+  /// no mueve cuentas y, si es un amigo de Finzo, cómo lo verá cada uno.
+  Widget _avisoMeDeben(ThemeData theme) {
+    final quien = _nombreAcreedorController.text.trim();
+    final nombre = quien.isEmpty ? 'esa persona' : quien;
+    final conAmigo =
+        _esAmigo && _amigoUsuarioId != null && !ref.watch(modoLocalProvider);
+    final yo = ref.watch(nombreUsuarioProvider).valueOrNull?.trim();
+    final aMi = (yo == null || yo.isEmpty) ? 'ti' : yo;
+    final texto = conAmigo
+        ? '$nombre recibirá una notificación y verá esta deuda como «Debes a '
+              '$aMi». Tú la verás como «$nombre te debe». No mueve ninguna de tus '
+              'cuentas: el dinero entra cuando registres un cobro.'
+        : 'Tú la verás como «$nombre te debe». Registrarla no mueve ninguna '
+              'de tus cuentas: el dinero entra cuando registres un cobro.';
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.successBg,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            conAmigo ? Icons.notifications_none : Icons.info_outline,
+            color: context.successText,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              texto,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: context.successText,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Fase 64 (extraído en la Fase 82): switch "¿Es un amigo de Finzo?" y
+  /// su selector. En modo local queda deshabilitado con el aviso.
+  Widget _construirAmigo(ThemeData theme) {
+    final modoLocal = ref.watch(modoLocalProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 8),
+        if (modoLocal)
+          const SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text('¿Es un amigo de Finzo?'),
+            subtitle: Text(textoDisponibleConLaNube),
+            value: false,
+            onChanged: null,
+          )
+        else ...[
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('¿Es un amigo de Finzo?'),
+            value: _esAmigo,
+            onChanged: (valor) => setState(() {
+              _esAmigo = valor;
+              if (!valor) _amigoUsuarioId = null;
+            }),
+          ),
+          if (_esAmigo) _construirSelectorAmigo(theme),
+        ],
+      ],
+    );
+  }
+
   /// Fase 64 — selector de amigo cuando `¿Es un amigo de Finzo?` está
   /// activo: reutiliza `amigosProvider` (Fase 63) en vez de una búsqueda
   /// nueva, porque solo tiene sentido vincular a alguien que ya es amigo
@@ -486,7 +668,7 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Text(
           'No se pudo cargar tu lista de amigos.',
-          style: theme.textTheme.bodySmall?.copyWith(color: colorDanger),
+          style: theme.textTheme.bodySmall?.copyWith(color: context.dangerText),
         ),
       ),
       data: (amigos) {
@@ -504,6 +686,7 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
         return Padding(
           padding: const EdgeInsets.only(top: 8),
           child: DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: _amigoUsuarioId,
             decoration: const InputDecoration(
               labelText: 'Selecciona a tu amigo',
@@ -557,6 +740,7 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
         ),
         const SizedBox(height: 16),
         DropdownButtonFormField<PeriodicidadCuota>(
+          isExpanded: true,
           initialValue: _periodicidadCuotas,
           decoration: const InputDecoration(
             labelText: 'Periodicidad de cuotas',
@@ -585,12 +769,22 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                interesTotal == null
+                _meDeben
+                    ? switch (_cuotasCuadran) {
+                        null => 'Las cuotas deben sumar el monto prestado.',
+                        true =>
+                          'Sin interés: las cuotas suman el monto prestado.',
+                        false =>
+                          'Las cuotas no suman el monto prestado (sin interés '
+                              'en "me deben").',
+                      }
+                    : interesTotal == null
                     ? 'Interés total: —'
                     : (interesTotal > 0
                           ? 'Interés total: ${formatearMonto(interesTotal, _moneda)}'
                           : 'Sin interés'),
                 style: theme.textTheme.bodyMedium?.copyWith(
+                  fontFeatures: cifrasTabulares,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -637,13 +831,18 @@ class _DeudaFormularioState extends ConsumerState<DeudaFormulario> {
                         decimal: true,
                       ),
                       decoration: const InputDecoration(
-                        labelText: 'Tasa de interés (%)',
+                        // Fase 83: antes decía solo "Tasa de interés (%)"
+                        // (ambiguo). `tasaEfectivaAnual` la toma como TEA:
+                        // la etiqueta ahora lo dice.
+                        labelText: etiquetaCampoTasa,
+                        helperText: 'Efectiva anual, como la publica tu banco',
                         border: OutlineInputBorder(),
                       ),
                       onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<TipoTasa>(
+                      isExpanded: true,
                       initialValue: _tipoTasa,
                       decoration: const InputDecoration(
                         labelText: 'Tipo de tasa',

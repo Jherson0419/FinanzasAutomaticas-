@@ -12,9 +12,11 @@ import '../../domain/entities/tema_app.dart';
 import '../shared/app_bottom_bar.dart';
 import '../shared/dialogos_eliminar.dart';
 import '../shared/mensajes_error.dart';
+import '../shared/notificaciones_recordatorios.dart';
 import '../shared/selector_avatar.dart';
 import '../state/providers.dart';
 import '../theme/app_theme.dart';
+import 'modo_local_section.dart';
 
 /// Formato básico de celular: dígitos opcionalmente precedidos de `+`,
 /// entre 7 y 15 dígitos (rango E.164) — se valida después de quitar
@@ -135,7 +137,9 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('No se pudo abrir la galería: ${mensajeDeError(error)}'),
+          content: Text(
+            'No se pudo abrir la galería: ${mensajeDeError(error)}',
+          ),
         ),
       );
       return;
@@ -308,7 +312,9 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Mi perfil')),
-      bottomNavigationBar: const AppBottomBar(actual: AppBottomTab.perfil),
+      // Fase 80: "Perfil" ya no es un destino de la barra (se abre desde el
+      // avatar del dashboard) — la barra se muestra sin ninguno resaltado.
+      bottomNavigationBar: const AppBottomBar(),
       body: SafeArea(
         child: nombreAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -328,9 +334,22 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
     );
   }
 
+  /// Aviso bajo un control deshabilitado en modo local (Fase 78).
+  Widget _avisoNube(ThemeData theme, {bool centrado = false}) {
+    final texto = Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Text(
+        textoDisponibleConLaNube,
+        style: theme.textTheme.bodySmall?.copyWith(color: context.textMuted),
+      ),
+    );
+    return centrado ? Center(child: texto) : texto;
+  }
+
   Widget _construirCampos(BuildContext context, Perfil perfil) {
     final theme = Theme.of(context);
     final tema = ref.watch(temaProvider);
+    final modoLocal = ref.watch(modoLocalProvider);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -392,12 +411,15 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
           Center(
             child: Builder(
               builder: (buttonContext) => OutlinedButton.icon(
-                onPressed: () => _compartirPerfil(buttonContext, perfil.nick!),
+                onPressed: modoLocal
+                    ? null
+                    : () => _compartirPerfil(buttonContext, perfil.nick!),
                 icon: const Icon(Icons.share_outlined),
                 label: const Text('Compartir mi perfil'),
               ),
             ),
           ),
+          if (modoLocal) _avisoNube(theme, centrado: true),
         ],
         const SizedBox(height: 28),
         TextFormField(
@@ -487,6 +509,20 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
         ),
         const SizedBox(height: 32),
         const Divider(),
+        const SizedBox(height: 16),
+        // Fase 87: recordatorios locales.
+        const SeccionNotificaciones(),
+        const SizedBox(height: 16),
+        const Divider(),
+        // Fase 80: "Mis cuentas" se mudó aquí — su único acceso era el
+        // ícono de billetera del AppBar del dashboard, que se quitó.
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.account_balance_wallet_outlined),
+          title: const Text('Mis cuentas'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).pushNamed('/cuentas'),
+        ),
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.category_outlined),
@@ -496,22 +532,32 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
         ),
         ListTile(
           contentPadding: EdgeInsets.zero,
+          enabled: !modoLocal,
           leading: const Icon(Icons.bolt_outlined),
           title: const Text('Automatización'),
+          subtitle: modoLocal ? const Text(textoDisponibleConLaNube) : null,
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).pushNamed('/automatizacion'),
         ),
         ListTile(
           contentPadding: EdgeInsets.zero,
+          enabled: !modoLocal,
           leading: const Icon(Icons.people_outline),
           title: const Text('Mis amigos'),
+          subtitle: modoLocal ? const Text(textoDisponibleConLaNube) : null,
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).pushNamed('/amigos'),
         ),
         const Divider(),
+        if (modoLocal) ...[
+          const SizedBox(height: 16),
+          const ModoLocalSection(),
+          const SizedBox(height: 16),
+          const Divider(),
+        ],
         const SizedBox(height: 16),
         OutlinedButton.icon(
-          onPressed: _cerrandoSesion ? null : _cerrarSesion,
+          onPressed: (_cerrandoSesion || modoLocal) ? null : _cerrarSesion,
           icon: _cerrandoSesion
               ? SizedBox(
                   width: 18,
@@ -524,6 +570,7 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
               : const Icon(Icons.logout),
           label: const Text('Cerrar sesión'),
         ),
+        if (modoLocal) _avisoNube(theme, centrado: true),
         const SizedBox(height: 32),
         const Divider(),
         const SizedBox(height: 16),
@@ -545,7 +592,7 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
             backgroundColor: colorDanger,
             foregroundColor: colorSobreEstado,
           ),
-          onPressed: _eliminandoCuenta ? null : _eliminarCuenta,
+          onPressed: (_eliminandoCuenta || modoLocal) ? null : _eliminarCuenta,
           icon: _eliminandoCuenta
               ? const SizedBox(
                   width: 18,
@@ -558,6 +605,7 @@ class _MiPerfilScreenState extends ConsumerState<MiPerfilScreen> {
               : const Icon(Icons.delete_forever),
           label: const Text('Eliminar mi cuenta'),
         ),
+        if (modoLocal) _avisoNube(theme, centrado: true),
       ],
     );
   }

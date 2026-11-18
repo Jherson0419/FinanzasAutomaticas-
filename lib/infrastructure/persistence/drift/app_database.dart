@@ -24,6 +24,9 @@ class Cuentas extends Table {
   // Pago mínimo mensual (Fase 65) — solo aplica a tipo == credito, y ahí
   // mismo es opcional (a diferencia de lineaCredito/fechaCorte/fechaPago).
   RealColumn get pagoMinimo => real().nullable()();
+  // TCEA de la tarjeta (Fase 83), fracción anual — solo tipo == credito,
+  // opcional. `null` en toda cuenta existente.
+  RealColumn get tcea => real().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -46,7 +49,8 @@ class Categorias extends Table {
 class Transacciones extends Table {
   TextColumn get id => text()();
   TextColumn get cuentaId => text()();
-  TextColumn get categoriaId => text()();
+  // Fase 85: nullable — una transferencia no tiene categoría.
+  TextColumn get categoriaId => text().nullable()();
   RealColumn get monto => real()();
   TextColumn get moneda => text()();
   TextColumn get tipo => text()();
@@ -57,6 +61,8 @@ class Transacciones extends Table {
   TextColumn get fuenteCaptura => text()();
   TextColumn get dataRaw => text().nullable()();
   DateTimeColumn get fecha => dateTime()();
+  // Fase 85 — liga los dos movimientos de una transferencia.
+  TextColumn get transferenciaId => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -98,6 +104,15 @@ class Deudas extends Table {
   // opcional incluso para `tipoAcreedor == personaNatural` — `null` si no
   // se vinculó a ningún amigo.
   TextColumn get amigoUsuarioId => text().nullable()();
+  // Fase 82 — 'debo' (yo le debo al acreedor) o 'meDeben' (alguien me
+  // debe a mí). `DEFAULT 'debo'`: toda fila anterior queda como 'debo'.
+  TextColumn get direccion => text().withDefault(const Constant('debo'))();
+  // Fase 84 — suma de abonos a capital (solo cuotas fijas). DEFAULT 0.
+  RealColumn get montoAbonadoCapital =>
+      real().withDefault(const Constant(0.0))();
+  // Fase 84b — monto de la última cuota cuando un abono la dejó menor.
+  // `NULL` = la última cuota es la normal (toda fila anterior).
+  RealColumn get montoUltimaCuota => real().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -113,6 +128,8 @@ class PagosDeuda extends Table {
   RealColumn get montoInteres => real().nullable()();
   DateTimeColumn get fechaPago => dateTime()();
   IntColumn get numeroCuota => integer().nullable()();
+  // Fase 84 — 'cuota' (todo pago anterior) o 'abonoCapital'.
+  TextColumn get tipo => text().withDefault(const Constant('cuota'))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -124,7 +141,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.connection);
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -176,8 +193,12 @@ class AppDatabase extends _$AppDatabase {
         // compilando y siga dejando la base intermedia en el estado real
         // que tuvo en su momento, antes de que `from < 8` las elimine.
         await m.addColumn(cuentas, cuentas.lineaCredito);
-        await customStatement('ALTER TABLE cuentas ADD COLUMN dia_corte INTEGER;');
-        await customStatement('ALTER TABLE cuentas ADD COLUMN dia_pago INTEGER;');
+        await customStatement(
+          'ALTER TABLE cuentas ADD COLUMN dia_corte INTEGER;',
+        );
+        await customStatement(
+          'ALTER TABLE cuentas ADD COLUMN dia_pago INTEGER;',
+        );
       }
       if (from < 7) {
         // Últimos 4 dígitos de la cuenta (Fase 57) — nullable, solo visual.
@@ -208,6 +229,40 @@ class AppDatabase extends _$AppDatabase {
         // Pago mínimo mensual de tarjetas de crédito (Fase 65) — nullable,
         // `null` para toda cuenta ya existente hasta que se vuelva a editar.
         await m.addColumn(cuentas, cuentas.pagoMinimo);
+      }
+      if (from < 11) {
+        // Dirección de la deuda (Fase 82). `ADD COLUMN ... DEFAULT 'debo'`
+        // deja 'debo' en todas las filas existentes: se comportan igual
+        // que antes.
+        await m.addColumn(deudas, deudas.direccion);
+      }
+      if (from < 12) {
+        // TCEA de tarjetas de crédito (Fase 83) — nullable, `null` en
+        // toda cuenta existente hasta que se edite.
+        await m.addColumn(cuentas, cuentas.tcea);
+      }
+      if (from < 13) {
+        // Abono a capital (Fase 84): todo pago existente es una cuota y
+        // ninguna deuda tiene abonos todavía (DEFAULT 'cuota' / 0).
+        await m.addColumn(pagosDeuda, pagosDeuda.tipo);
+        await m.addColumn(deudas, deudas.montoAbonadoCapital);
+      }
+      if (from < 14) {
+        // Última cuota parcial tras un abono (Fase 84b) — nullable: toda
+        // deuda existente conserva su última cuota normal.
+        await m.addColumn(deudas, deudas.montoUltimaCuota);
+      }
+      if (from < 15) {
+        // Transferencias (Fase 85): `categoria_id` pasa a ser nullable
+        // (una transferencia no tiene categoría) — en SQLite eso exige
+        // recrear la tabla; `TableMigration` copia todas las filas y
+        // agrega `transferencia_id` (NULL en todo movimiento existente).
+        await m.alterTable(
+          TableMigration(
+            transacciones,
+            newColumns: [transacciones.transferenciaId],
+          ),
+        );
       }
     },
   );

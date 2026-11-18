@@ -86,6 +86,11 @@ class CuentaRepositorySupabase implements CuentaRepository {
       'fecha_pago': cuenta.fechaPago?.toIso8601String(),
       'ultimos_digitos': cuenta.ultimosDigitos,
       'pago_minimo': cuenta.pagoMinimo,
+      // Fase 83 — compatibilidad con producción mientras no se corra
+      // `fase83_tcea_cuenta.sql`: solo se envía si hay TCEA (la columna
+      // puede no existir todavía). Consecuencia: borrar la TCEA de una
+      // cuenta en la nube no la anula hasta correr el SQL y enviarla null.
+      if (cuenta.tcea != null) 'tcea': cuenta.tcea,
     };
   }
 
@@ -106,6 +111,8 @@ class CuentaRepositorySupabase implements CuentaRepository {
           : DateTime.parse(fila['fecha_pago'] as String),
       ultimosDigitos: fila['ultimos_digitos'] as String?,
       pagoMinimo: (fila['pago_minimo'] as num?)?.toDouble(),
+      // Columna ausente (producción antes del SQL) → null.
+      tcea: (fila['tcea'] as num?)?.toDouble(),
     );
   }
 }

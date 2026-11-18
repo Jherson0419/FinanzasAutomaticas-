@@ -6,6 +6,7 @@ import '../repositories/categoria_repository.dart';
 import '../repositories/cuenta_repository.dart';
 import '../repositories/deuda_repository.dart';
 import '../repositories/transaccion_repository.dart';
+import '../saldo_deuda.dart';
 import '../urgencia_deuda.dart';
 import 'dto/resumen_dashboard.dart';
 
@@ -77,24 +78,30 @@ class ObtenerResumenDashboard {
     final gastosMesPorMoneda = <Moneda, double>{};
     final gastoPorCategoriaAcumulado = <String, double>{};
     for (final t in transaccionesMes) {
-      if (t.tipo == TipoTransaccion.ingreso) {
-        ingresosMesPorMoneda.update(
-          t.moneda,
-          (v) => v + t.monto,
-          ifAbsent: () => t.monto,
-        );
-      } else {
-        gastosMesPorMoneda.update(
-          t.moneda,
-          (v) => v + t.monto,
-          ifAbsent: () => t.monto,
-        );
-        final clave = '${t.categoriaId}|${t.moneda.name}';
-        gastoPorCategoriaAcumulado.update(
-          clave,
-          (v) => v + t.monto,
-          ifAbsent: () => t.monto,
-        );
+      switch (t.tipo) {
+        case TipoTransaccion.ingreso:
+          ingresosMesPorMoneda.update(
+            t.moneda,
+            (v) => v + t.monto,
+            ifAbsent: () => t.monto,
+          );
+        case TipoTransaccion.gasto:
+          gastosMesPorMoneda.update(
+            t.moneda,
+            (v) => v + t.monto,
+            ifAbsent: () => t.monto,
+          );
+          final clave = '${t.categoriaId}|${t.moneda.name}';
+          gastoPorCategoriaAcumulado.update(
+            clave,
+            (v) => v + t.monto,
+            ifAbsent: () => t.monto,
+          );
+        // Fase 85: mover dinero entre cuentas propias no es ingreso, gasto
+        // ni categoría.
+        case TipoTransaccion.transferenciaSalida:
+        case TipoTransaccion.transferenciaEntrada:
+          break;
       }
     }
 
@@ -144,33 +151,58 @@ class ObtenerResumenDashboard {
             diasMora: d.diasMora,
             montoPagado: d.montoPagado,
             montoTotal: d.montoTotal,
+            totalAPagar: totalAPagar(d),
+            cuentaId: d.cuentaId,
             montoCuota: d.montoCuota,
             moneda: d.moneda,
             amigoUsuarioId: d.amigoUsuarioId,
             fechaVencimientoReal: fechaVencimientoReal(d),
+            direccion: d.direccion,
           ),
         )
         .toList();
     // Fase 68: vencidas y por vencer (≤3 días) primero, el resto mantiene
     // su orden original — mismo umbral que `ObtenerAlertasTarjetasCredito`.
-    final deudasActivas = ordenarDeudasActivasPorVencimiento(
+    final ordenadas = ordenarDeudasActivasPorVencimiento(
       deudasActivasSinOrdenar,
       ahora,
     );
+    // Fase 82: lo que debo y lo que me deben van por separado — nunca se
+    // suman en un mismo total.
+    final deudasActivas = [
+      for (final d in ordenadas)
+        if (d.direccion == DireccionDeuda.debo) d,
+    ];
+    final deudasMeDebenActivas = [
+      for (final d in ordenadas)
+        if (d.direccion == DireccionDeuda.meDeben) d,
+    ];
 
-    final totalAdeudadoPorMoneda = <Moneda, double>{};
-    for (final d in deudasActivasRaw) {
-      final saldo = d.montoTotal - d.montoPagado;
-      totalAdeudadoPorMoneda.update(
-        d.moneda,
-        (v) => v + saldo,
-        ifAbsent: () => saldo,
-      );
-    }
+    final totalAdeudadoPorMoneda = saldoPendientePorMoneda(
+      deudasActivasRaw,
+      DireccionDeuda.debo,
+    );
+    final totalTeDebenPorMoneda = saldoPendientePorMoneda(
+      deudasActivasRaw,
+      DireccionDeuda.meDeben,
+    );
 
-    final movimientosRecientes = movimientosRecientesRaw.map((t) {
+    // Fase 85: una transferencia es UNA fila — si su salida está en la
+    // lista, la entrada (la otra cara del mismo movimiento) no se repite.
+    final salidasRecientes = {
+      for (final t in movimientosRecientesRaw)
+        if (t.tipo == TipoTransaccion.transferenciaSalida) t.transferenciaId,
+    };
+    final movimientosRecientes = movimientosRecientesRaw
+        .where(
+          (t) =>
+              t.tipo != TipoTransaccion.transferenciaEntrada ||
+              !salidasRecientes.contains(t.transferenciaId),
+        )
+        .map((t) {
       final categoria = categoriasPorId[t.categoriaId];
       return MovimientoReciente(
+        transferenciaId: t.transferenciaId,
         id: t.id,
         concepto: t.concepto,
         monto: t.monto,
@@ -192,6 +224,8 @@ class ObtenerResumenDashboard {
       deudasActivas: deudasActivas,
       totalAdeudadoPorMoneda: totalAdeudadoPorMoneda,
       movimientosRecientes: movimientosRecientes,
+      deudasMeDebenActivas: deudasMeDebenActivas,
+      totalTeDebenPorMoneda: totalTeDebenPorMoneda,
     );
   }
 }

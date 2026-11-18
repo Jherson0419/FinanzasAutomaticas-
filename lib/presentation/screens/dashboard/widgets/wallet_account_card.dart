@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../domain/entities/cuenta.dart';
 import '../../../shared/enum_labels.dart';
+import '../../../shared/estilos.dart';
 import '../../../shared/formatters.dart';
 import '../../../shared/wallet_card_colors.dart';
 import '../../../theme/app_theme.dart';
@@ -143,6 +144,7 @@ class WalletAccountCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
+                          fontFeatures: cifrasTabulares,
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
                           fontSize: esCredito ? 12 : 15,
@@ -268,6 +270,7 @@ class WalletAccountCard extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
+                                  fontFeatures: cifrasTabulares,
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,
@@ -289,6 +292,7 @@ class WalletAccountCard extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
+                                  fontFeatures: cifrasTabulares,
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,
@@ -305,6 +309,7 @@ class WalletAccountCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
+                        fontFeatures: cifrasTabulares,
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 20,

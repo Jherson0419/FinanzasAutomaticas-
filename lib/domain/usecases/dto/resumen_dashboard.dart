@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../../entities/cuenta.dart';
 import '../../entities/deuda.dart';
 import '../../entities/transaccion.dart';
@@ -78,11 +80,33 @@ class DeudaActivaResumen {
     required this.moneda,
     this.amigoUsuarioId,
     this.fechaVencimientoReal,
-  });
+    double? totalAPagar,
+    this.cuentaId,
+    this.direccion = DireccionDeuda.debo,
+  }) : totalAPagar = totalAPagar ?? montoTotal;
 
-  double get progreso => montoTotal == 0
+  /// Fase 82 — `debo` o `meDeben`.
+  final DireccionDeuda direccion;
+
+  /// Fase 81: cuenta de crédito vinculada (deuda automática de tarjeta,
+  /// Fase 62) o `null`. El progreso de pago de "Tus deudas" la excluye: en
+  /// esas deudas `montoPagado` es el crédito disponible, no lo devuelto.
+  final String? cuentaId;
+
+  /// Lo que hay que pagar en total (Fase 79, ver `domain/saldo_deuda.dart`):
+  /// en cuotas fijas, cuota × número de cuotas (capital + interés); si no,
+  /// [montoTotal]. Opcional en el constructor solo para no romper a quien
+  /// arma este DTO a mano (fixtures/tests) — `ObtenerResumenDashboard`
+  /// siempre lo pasa.
+  final double totalAPagar;
+
+  /// `max(totalAPagar − montoPagado, 0)`.
+  double get saldoPendiente =>
+      math.max(totalAPagar - montoPagado, 0).toDouble();
+
+  double get progreso => totalAPagar == 0
       ? 0
-      : (montoPagado / montoTotal).clamp(0.0, 1.0).toDouble();
+      : (montoPagado / totalAPagar).clamp(0.0, 1.0).toDouble();
 }
 
 class MovimientoReciente {
@@ -96,6 +120,9 @@ class MovimientoReciente {
   final FuenteCaptura fuenteCaptura;
   final DateTime fecha;
 
+  /// Fase 85 — no `null` si el movimiento es una transferencia.
+  final String? transferenciaId;
+
   const MovimientoReciente({
     required this.id,
     required this.concepto,
@@ -106,6 +133,7 @@ class MovimientoReciente {
     required this.categoriaIconName,
     required this.fuenteCaptura,
     required this.fecha,
+    this.transferenciaId,
   });
 }
 
@@ -115,8 +143,21 @@ class ResumenDashboard {
   final Map<Moneda, double> ingresosMesPorMoneda;
   final Map<Moneda, double> gastosMesPorMoneda;
   final List<GastoPorCategoria> gastoPorCategoriaMes;
+
+  /// Deudas activas que YO debo (Fase 82: solo `direccion == debo`). Es
+  /// lo que alimenta "Total que debes", próximos pagos, alertas de
+  /// vencimiento y los conteos de mora/por vencer.
   final List<DeudaActivaResumen> deudasActivas;
+
+  /// Saldo pendiente de [deudasActivas] por moneda (solo `debo`).
   final Map<Moneda, double> totalAdeudadoPorMoneda;
+
+  /// Fase 82 — préstamos que hice: deudas activas con `meDeben`, ya
+  /// ordenadas como [deudasActivas]. Fuera de todo total de "lo que debo".
+  final List<DeudaActivaResumen> deudasMeDebenActivas;
+
+  /// Saldo pendiente de [deudasMeDebenActivas] por moneda.
+  final Map<Moneda, double> totalTeDebenPorMoneda;
   final List<MovimientoReciente> movimientosRecientes;
 
   const ResumenDashboard({
@@ -128,6 +169,8 @@ class ResumenDashboard {
     required this.deudasActivas,
     required this.totalAdeudadoPorMoneda,
     required this.movimientosRecientes,
+    this.deudasMeDebenActivas = const [],
+    this.totalTeDebenPorMoneda = const {},
   });
 
   int get deudasEnMoraCount => deudasActivas.where((d) => d.enMora).length;
@@ -146,5 +189,6 @@ class ResumenDashboard {
   bool get estaVacio =>
       saldosPorCuenta.isEmpty &&
       movimientosRecientes.isEmpty &&
-      deudasActivas.isEmpty;
+      deudasActivas.isEmpty &&
+      deudasMeDebenActivas.isEmpty;
 }

@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 
-/// La app está fija en modo oscuro desde la Fase 19 (`ThemeMode.dark`), así
-/// que estas funciones ya no necesitan ramificar por `Brightness` — siempre
-/// devuelven los tokens semánticos de `app_theme.dart`. Se mantiene la firma
-/// `Function(BuildContext)` para no tocar cada sitio donde se llaman.
-Color colorIngreso(BuildContext context) => colorSuccess;
+/// Color de TEXTO (y del ícono que lo acompaña) para montos de ingreso,
+/// gasto y avisos. Fase 80: resuelven a los tokens accesibles del tema
+/// activo (`successText`/`dangerText`/`warningText`) — en oscuro siguen
+/// siendo `colorSuccess`/`colorDanger`/`colorWarning`; en claro, tonos
+/// oscurecidos que sí llegan a 4.5:1. Para rellenos (barras, fondos) se
+/// usan los `colorX` de `app_theme.dart` directamente.
+Color colorIngreso(BuildContext context) => context.successText;
 
-Color colorGasto(BuildContext context) => colorDanger;
+Color colorGasto(BuildContext context) => context.dangerText;
+
+Color colorAviso(BuildContext context) => context.warningText;

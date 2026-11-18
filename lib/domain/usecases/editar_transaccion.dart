@@ -38,6 +38,13 @@ class EditarTransaccion {
     if (anterior == null) {
       throw ArgumentError('La transacción $transaccionId no existe');
     }
+    // Fase 85: una transferencia no se edita (borrar y volver a crear), y
+    // un movimiento normal no se convierte en transferencia.
+    if (anterior.esTransferencia || tipo.esTransferencia) {
+      throw StateError(
+        'Una transferencia no se puede editar: bórrala y vuelve a crearla.',
+      );
+    }
 
     final cuentaAnterior = await _cuentaRepository.obtenerPorId(
       anterior.cuentaId,

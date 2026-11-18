@@ -50,6 +50,7 @@ class CuentaRepositoryDrift implements CuentaRepository {
       fechaPago: row.fechaPago,
       ultimosDigitos: row.ultimosDigitos,
       pagoMinimo: row.pagoMinimo,
+      tcea: row.tcea,
     );
   }
 
@@ -65,6 +66,7 @@ class CuentaRepositoryDrift implements CuentaRepository {
       fechaPago: Value(cuenta.fechaPago),
       ultimosDigitos: Value(cuenta.ultimosDigitos),
       pagoMinimo: Value(cuenta.pagoMinimo),
+      tcea: Value(cuenta.tcea),
     );
   }
 }

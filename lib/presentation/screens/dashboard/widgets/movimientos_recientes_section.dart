@@ -1,186 +1,96 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../domain/entities/cuenta.dart';
 import '../../../../domain/entities/transaccion.dart';
+import '../../../../domain/movimientos.dart';
 import '../../../../domain/usecases/dto/resumen_dashboard.dart';
+import '../../../shared/app_bottom_bar.dart';
 import '../../../shared/app_card.dart';
-import '../../../shared/category_icons.dart';
-import '../../../shared/dashboard_colors.dart';
-import '../../../shared/formatters.dart';
-import '../../../shared/section_label.dart';
+import '../../../shared/fila_movimiento.dart';
+import '../../../state/providers.dart';
 
-class MovimientosRecientesSection extends StatefulWidget {
-  final List<MovimientoReciente> movimientosRecientes;
-
+/// "Movimientos recientes" del Inicio (Fase 81, 01-inicio.png): las 3
+/// últimas transacciones con [FilaMovimiento] ("Categoría · Cuenta · Hoy")
+/// y "Ver todo" hacia la pestaña Movimientos. Rediseño de la sección de la
+/// Fase 19 (ya no es un acordeón).
+///
+/// `MovimientoReciente` no trae la cuenta: el nombre se resuelve cruzando
+/// el id con `todasLasTransaccionesProvider` + `cuentasProvider`. Si esos
+/// datos no están (o fallan), la fila igual se dibuja sin la cuenta.
+class MovimientosRecientesSection extends ConsumerWidget {
   const MovimientosRecientesSection({
     super.key,
     required this.movimientosRecientes,
+    this.limite = 3,
   });
 
-  @override
-  State<MovimientosRecientesSection> createState() =>
-      _MovimientosRecientesSectionState();
-}
-
-class _MovimientosRecientesSectionState
-    extends State<MovimientosRecientesSection> {
-  bool _expandido = true;
+  final List<MovimientoReciente> movimientosRecientes;
+  final int limite;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ahora = DateTime.now();
+    final visibles = movimientosRecientes.take(limite).toList();
+    final todas =
+        ref.watch(todasLasTransaccionesProvider).valueOrNull ??
+        const <Transaccion>[];
+    final cuentaPorTransaccion = {for (final t in todas) t.id: t.cuentaId};
+    // Fase 85: para titular "Transferencia a Visa BCP".
+    final pares = cuentasDeTransferencias(todas);
+    final porId = {for (final t in todas) t.id: t};
+    final nombreCuenta = {
+      for (final c
+          in ref.watch(cuentasProvider).valueOrNull ?? const <Cuenta>[])
+        c.id: c.nombre,
+    };
 
     return AppCard(
+      padding: const EdgeInsets.fromLTRB(20, 8, 12, 8),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          InkWell(
-            onTap: () => setState(() => _expandido = !_expandido),
-            child: Row(
-              children: [
-                const SectionLabel(
-                  icon: Icons.receipt_long_outlined,
-                  label: 'Movimientos recientes',
-                ),
-                const SizedBox(width: 4),
-                AnimatedRotation(
-                  turns: _expandido ? 0.5 : 0,
-                  duration: const Duration(milliseconds: 200),
-                  child: Icon(
-                    Icons.expand_more,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
+          EncabezadoSeccion(
+            titulo: 'Movimientos recientes',
+            textoAccion: 'Ver todo',
+            etiquetaAccion: 'Ver todos los movimientos',
+            onAccion: () => irADestino(context, AppBottomTab.movimientos),
+          ),
+          if (visibles.isEmpty) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Text(
+                'Todavía no hay movimientos.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
             ),
-          ),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeInOut,
-            alignment: Alignment.topCenter,
-            child: !_expandido
-                ? const SizedBox(width: double.infinity)
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 12),
-                      if (widget.movimientosRecientes.isEmpty)
-                        Text(
-                          'Aún no tienes transacciones registradas.',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        )
-                      else ...[
-                        for (final movimiento in widget.movimientosRecientes)
-                          InkWell(
-                            onTap: () => Navigator.of(context).pushNamed(
-                              '/transacciones/nueva',
-                              arguments: movimiento.id,
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 6),
-                              child: Row(
-                                children: [
-                                  CircleAvatar(
-                                    backgroundColor:
-                                        colorScheme.surfaceContainerHighest,
-                                    foregroundColor:
-                                        colorScheme.onSurfaceVariant,
-                                    child: Icon(
-                                      movimiento.fuenteCaptura ==
-                                              FuenteCaptura.ajuste
-                                          ? Icons.tune
-                                          : iconoParaCategoria(
-                                              movimiento.categoriaIconName,
-                                            ),
-                                      size: 20,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Flexible(
-                                              child: Text(
-                                                movimiento.concepto,
-                                                overflow: TextOverflow.ellipsis,
-                                                style:
-                                                    theme.textTheme.bodyMedium,
-                                              ),
-                                            ),
-                                            if (movimiento.fuenteCaptura ==
-                                                FuenteCaptura.ajuste) ...[
-                                              const SizedBox(width: 6),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 6,
-                                                      vertical: 2,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: colorScheme
-                                                      .secondaryContainer,
-                                                  borderRadius:
-                                                      BorderRadius.circular(6),
-                                                ),
-                                                child: Text(
-                                                  'Ajuste',
-                                                  style: theme
-                                                      .textTheme
-                                                      .labelSmall
-                                                      ?.copyWith(
-                                                        color: colorScheme
-                                                            .onSecondaryContainer,
-                                                      ),
-                                                ),
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                        Text(
-                                          formatearFecha(movimiento.fecha),
-                                          style: theme.textTheme.bodySmall
-                                              ?.copyWith(
-                                                color: colorScheme
-                                                    .onSurfaceVariant,
-                                              ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Text(
-                                    '${movimiento.tipo == TipoTransaccion.ingreso ? '+' : '-'} ${formatearMonto(movimiento.monto, movimiento.moneda)}',
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                      color:
-                                          movimiento.tipo ==
-                                              TipoTransaccion.ingreso
-                                          ? colorIngreso(context)
-                                          : colorGasto(context),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: () => Navigator.of(
-                              context,
-                            ).pushNamed('/transacciones/todas'),
-                            child: const Text('Ver todos'),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-          ),
+          ],
+          for (final m in visibles) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilaMovimiento(
+                transaccionId: m.id,
+                concepto: m.concepto,
+                categoriaNombre: m.categoriaNombre,
+                categoriaIcono: m.categoriaIconName,
+                cuentaNombre: nombreCuenta[cuentaPorTransaccion[m.id]],
+                fecha: m.fecha,
+                ahora: ahora,
+                monto: m.monto,
+                moneda: m.moneda,
+                esIngreso: m.tipo == TipoTransaccion.ingreso,
+                esAjuste: m.fuenteCaptura == FuenteCaptura.ajuste,
+                transferenciaId: m.transferenciaId,
+                tituloTransferencia: m.transferenciaId == null
+                    ? null
+                    : porId[m.id] == null
+                    ? 'Transferencia'
+                    : tituloTransferencia(porId[m.id]!, pares, nombreCuenta),
+              ),
+            ),
+          ],
         ],
       ),
     );

@@ -8,8 +8,16 @@ import '../../entities/deuda.dart';
 /// le puso a la deuda.
 class DeudaParaConsejos {
   final TipoDeuda tipoDeuda;
+
+  /// Total a pagar (Fase 79): en cuotas fijas, cuota × número de cuotas
+  /// (capital + interés); si no, el `montoTotal` de la deuda. NO es el
+  /// capital — ver `domain/saldo_deuda.dart`.
   final double montoTotal;
   final double montoPagado;
+
+  /// `max(montoTotal − montoPagado, 0)`.
+  double get saldoPendiente =>
+      montoTotal - montoPagado < 0 ? 0 : montoTotal - montoPagado;
   final double? interesTotal;
   final Moneda moneda;
 

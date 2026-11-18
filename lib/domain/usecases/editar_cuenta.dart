@@ -4,6 +4,7 @@ import '../repositories/deuda_repository.dart';
 import '../repositories/pago_deuda_repository.dart';
 import '../repositories/transaccion_repository.dart';
 import '../validacion_cuenta_credito.dart';
+import 'sincronizar_deuda_tarjeta.dart';
 
 /// Edita nombre, tipo, moneda y los campos de tarjeta de crédito
 /// (`lineaCredito`/`fechaCorte`/`fechaPago`, Fase 29/62) de una cuenta.
@@ -35,7 +36,12 @@ class EditarCuenta {
     DateTime? fechaPago,
     String? ultimosDigitos,
     double? pagoMinimo,
+    // Fase 83 — fracción anual; `null` = sin TCEA (se borra si había).
+    double? tcea,
   }) async {
+    if (tcea != null && tcea < 0) {
+      throw ArgumentError('La TCEA no puede ser negativa.');
+    }
     validarCamposDeCredito(
       tipo: tipo,
       lineaCredito: lineaCredito,
@@ -76,6 +82,7 @@ class EditarCuenta {
       fechaPago: fechaPago,
       ultimosDigitos: ultimosDigitos,
       pagoMinimo: pagoMinimo,
+      tcea: tipo == TipoCuenta.credito ? tcea : null,
     );
     await _cuentaRepository.actualizar(actualizada);
 
@@ -85,7 +92,10 @@ class EditarCuenta {
     // `saldoActual` de siempre, nunca tocado aquí, para no desalinearlo del
     // nuevo `montoTotal`.
     if (tipo == TipoCuenta.credito &&
-        (actual.lineaCredito != lineaCredito || actual.nombre != nombre)) {
+        (actual.lineaCredito != lineaCredito ||
+            actual.nombre != nombre ||
+            actual.tcea != actualizada.tcea ||
+            actual.pagoMinimo != actualizada.pagoMinimo)) {
       final deudas = await _deudaRepository.obtenerTodas();
       for (final deuda in deudas) {
         if (deuda.cuentaId != cuentaId) continue;
@@ -94,10 +104,15 @@ class EditarCuenta {
             : 0.0;
         final lineaTotal = lineaCredito ?? 0.0;
         await _deudaRepository.actualizar(
-          deuda.copyWith(
-            nombreDeuda: nombre,
-            montoTotal: lineaTotal,
-            montoPagado: lineaTotal - montoUsado,
+          // Fase 83: también la TCEA (tasaInteres/tieneInteres).
+          deudaConTceaDeTarjeta(
+            deuda.copyWith(
+              nombreDeuda: nombre,
+              montoTotal: lineaTotal,
+              montoPagado: lineaTotal - montoUsado,
+            ),
+            actualizada.tcea,
+            pagoMinimo: actualizada.pagoMinimo,
           ),
         );
         break;

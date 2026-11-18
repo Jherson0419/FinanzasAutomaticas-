@@ -19,6 +19,7 @@ import '../../domain/repositories/automatizacion_repository.dart';
 import '../../domain/repositories/categoria_repository.dart';
 import '../../domain/repositories/chat_consejos_repository.dart';
 import '../../domain/repositories/cuenta_repository.dart';
+import '../../domain/repositories/datos_locales_repository.dart';
 import '../../domain/repositories/deuda_repository.dart';
 import '../../domain/repositories/notificacion_repository.dart';
 import '../../domain/repositories/pago_deuda_repository.dart';
@@ -49,8 +50,11 @@ import '../../domain/usecases/registrar_cuenta.dart';
 import '../../domain/usecases/registrar_deuda.dart';
 import '../../domain/usecases/registrar_gasto.dart';
 import '../../domain/usecases/registrar_ingreso.dart';
+import '../../domain/usecases/registrar_transferencia.dart';
+import '../../domain/usecases/registrar_adelanto_cuotas.dart';
 import '../../domain/usecases/registrar_pago_deuda.dart';
 import '../../domain/usecases/registrar_token_dispositivo.dart';
+import '../../domain/usecases/sembrar_datos_demo.dart';
 import '../../infrastructure/auth/supabase_auth_repository.dart';
 import '../../infrastructure/consejos/edge_function_consejos_repository.dart';
 import '../../infrastructure/notificaciones_push/firebase_push_notification_repository.dart';
@@ -60,6 +64,7 @@ import '../../infrastructure/persistence/drift/cuenta_repository_drift.dart';
 import '../../infrastructure/persistence/drift/deuda_repository_drift.dart';
 import '../../infrastructure/persistence/drift/pago_deuda_repository_drift.dart';
 import '../../infrastructure/persistence/drift/transaccion_repository_drift.dart';
+import '../../infrastructure/persistence/local/datos_locales_repository_local.dart';
 import '../../infrastructure/persistence/preferencias_repository_shared_prefs.dart';
 import '../../infrastructure/persistence/supabase/amistad_repository_supabase.dart';
 import '../../infrastructure/persistence/supabase/automatizacion_repository_supabase.dart';
@@ -71,6 +76,14 @@ import '../../infrastructure/persistence/supabase/pago_deuda_repository_supabase
 import '../../infrastructure/persistence/supabase/perfil_repository_supabase.dart';
 import '../../infrastructure/persistence/supabase/token_dispositivo_repository_supabase.dart';
 import '../../infrastructure/persistence/supabase/transaccion_repository_supabase.dart';
+
+/// Modo local (Fase 78) — `false` siempre en producción (`main.dart` no lo
+/// toca); solo `main_local.dart` lo sobreescribe a `true`. La UI lo lee
+/// para ocultar/deshabilitar lo que requiere la nube y mostrar la sección
+/// "Modo local" de "Mi perfil". Los adaptadores en sí NO se eligen aquí con
+/// `if (modoLocal)`: `main_local.dart` sobreescribe cada provider de
+/// repositorio con su versión local.
+final modoLocalProvider = Provider<bool>((ref) => false);
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
   final db = AppDatabase();
@@ -259,6 +272,23 @@ final registrarIngresoProvider = Provider<RegistrarIngreso>((ref) {
   );
 });
 
+/// Fase 85 — transferencias entre cuentas propias.
+final registrarTransferenciaProvider = Provider<RegistrarTransferencia>((ref) {
+  return RegistrarTransferencia(
+    cuentaRepository: ref.watch(cuentaRepositoryProvider),
+    transaccionRepository: ref.watch(transaccionRepositoryProvider),
+    deudaRepository: ref.watch(deudaRepositoryProvider),
+  );
+});
+
+final eliminarTransferenciaProvider = Provider<EliminarTransferencia>((ref) {
+  return EliminarTransferencia(
+    cuentaRepository: ref.watch(cuentaRepositoryProvider),
+    transaccionRepository: ref.watch(transaccionRepositoryProvider),
+    deudaRepository: ref.watch(deudaRepositoryProvider),
+  );
+});
+
 final registrarCuentaProvider = Provider<RegistrarCuenta>((ref) {
   return RegistrarCuenta(
     cuentaRepository: ref.watch(cuentaRepositoryProvider),
@@ -276,6 +306,18 @@ final registrarPagoDeudaProvider = Provider<RegistrarPagoDeuda>((ref) {
     deudaRepository: ref.watch(deudaRepositoryProvider),
     cuentaRepository: ref.watch(cuentaRepositoryProvider),
     amistadRepository: ref.watch(amistadRepositoryProvider),
+  );
+});
+
+/// Fase 84 — adelantar N cuotas (N pagos de cuota consecutivos).
+final registrarAdelantoCuotasProvider = Provider<RegistrarAdelantoCuotas>((
+  ref,
+) {
+  return RegistrarAdelantoCuotas(
+    deudaRepository: ref.watch(deudaRepositoryProvider),
+    pagoDeudaRepository: ref.watch(pagoDeudaRepositoryProvider),
+    cuentaRepository: ref.watch(cuentaRepositoryProvider),
+    registrarPagoDeuda: ref.watch(registrarPagoDeudaProvider),
   );
 });
 
@@ -598,9 +640,7 @@ final amigosProvider = FutureProvider<List<PerfilPublico>>((ref) {
 
 /// Notificaciones dentro de la app (Fase 63) — mismo criterio que
 /// `amistadRepositoryProvider`, siempre Supabase directo.
-final notificacionRepositoryProvider = Provider<NotificacionRepository>((
-  ref,
-) {
+final notificacionRepositoryProvider = Provider<NotificacionRepository>((ref) {
   return NotificacionRepositorySupabase(Supabase.instance.client);
 });
 
@@ -627,18 +667,17 @@ final generarNotificacionesVencimientoProvider =
 /// vez de duplicar lógica de agregación en un provider aparte. Solo se
 /// activa con datos en la nube: notificaciones es una tabla que no existe
 /// en Drift, no tiene sentido en modo local.
-final notificacionesNoLeidasProvider = StreamProvider<List<Map<String, dynamic>>>((
-  ref,
-) {
-  if (!ref.watch(datosEnLaNubeProvider)) return const Stream.empty();
-  final userId = Supabase.instance.client.auth.currentUser?.id;
-  if (userId == null) return const Stream.empty();
-  return Supabase.instance.client
-      .from('notificaciones')
-      .stream(primaryKey: ['id'])
-      .eq('usuario_id', userId)
-      .eq('leida', false);
-});
+final notificacionesNoLeidasProvider =
+    StreamProvider<List<Map<String, dynamic>>>((ref) {
+      if (!ref.watch(datosEnLaNubeProvider)) return const Stream.empty();
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return const Stream.empty();
+      return Supabase.instance.client
+          .from('notificaciones')
+          .stream(primaryKey: ['id'])
+          .eq('usuario_id', userId)
+          .eq('leida', false);
+    });
 
 /// Borrado de cuenta (Fase 22, requisito de Apple — Guideline 5.1.1(v)).
 /// Igual que `migrarDatosALaNubeProvider`, se construye aparte de los
@@ -656,6 +695,29 @@ final eliminarCuentaDeUsuarioProvider = Provider<EliminarCuentaDeUsuario>((
     transaccionRepository: ref.watch(transaccionRepositoryProvider),
     pagoDeudaRepository: ref.watch(pagoDeudaRepositoryProvider),
     authRepository: ref.watch(authRepositoryProvider),
+  );
+});
+
+/// Datos de ejemplo (Fase 78) — solo se invoca desde la sección "Modo
+/// local" de "Mi perfil". Usa los providers bifurcados normales: en modo
+/// local resuelven a Drift porque `main_local.dart` fija
+/// `datosEnLaNubeProvider` en `false`.
+final sembrarDatosDemoProvider = Provider<SembrarDatosDemo>((ref) {
+  return SembrarDatosDemo(
+    cuentaRepository: ref.watch(cuentaRepositoryProvider),
+    categoriaRepository: ref.watch(categoriaRepositoryProvider),
+    transaccionRepository: ref.watch(transaccionRepositoryProvider),
+    deudaRepository: ref.watch(deudaRepositoryProvider),
+    pagoDeudaRepository: ref.watch(pagoDeudaRepositoryProvider),
+  );
+});
+
+/// "Borrar todos los datos locales" (Fase 78). Siempre el adaptador local:
+/// no toca Supabase, y solo la sección "Modo local" lo usa.
+final datosLocalesRepositoryProvider = Provider<DatosLocalesRepository>((ref) {
+  return DatosLocalesRepositoryLocal(
+    ref.watch(appDatabaseProvider),
+    ref.watch(sharedPreferencesProvider),
   );
 });
 
@@ -690,20 +752,20 @@ final nombreUsuarioProvider = FutureProvider<String?>((ref) {
 /// siquiera sin `Firebase.initializeApp()` real (`FirebaseMessaging.
 /// instance` se resuelve perezosamente dentro de cada método, ver
 /// `FirebasePushNotificationRepository`).
-final pushNotificationRepositoryProvider = Provider<PushNotificationRepository>((
-  ref,
-) {
-  return FirebasePushNotificationRepository();
-});
+final pushNotificationRepositoryProvider = Provider<PushNotificationRepository>(
+  (ref) {
+    return FirebasePushNotificationRepository();
+  },
+);
 
 /// Token de push por dispositivo (Fase 71) — mismo criterio que
 /// `automatizacionRepositoryProvider`: siempre Supabase directo, sin
 /// bifurcar Drift/Supabase.
-final tokenDispositivoRepositoryProvider = Provider<TokenDispositivoRepository>((
-  ref,
-) {
-  return TokenDispositivoRepositorySupabase(Supabase.instance.client);
-});
+final tokenDispositivoRepositoryProvider = Provider<TokenDispositivoRepository>(
+  (ref) {
+    return TokenDispositivoRepositorySupabase(Supabase.instance.client);
+  },
+);
 
 /// Se llama desde `RootScreen` (Fase 76) tras cualquier transición de
 /// `haySesionActivaProvider` de `false` a `true` — cubre login con

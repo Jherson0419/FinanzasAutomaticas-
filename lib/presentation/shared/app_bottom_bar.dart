@@ -2,39 +2,90 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../../domain/entities/deuda.dart';
+import '../../domain/entities/transaccion.dart';
 import '../theme/app_theme.dart';
 
-/// Pestañas del [AppBottomBar] que sí representan "la pantalla actual".
-/// Gasto/Deuda son acciones (abren un formulario), no destinos, así que
-/// nunca se resaltan (Fase 19.6). `dashboard` se agrega en la Fase 32 para
-/// resaltar el botón "Inicio" cuando la barra se muestra desde el dashboard.
-enum AppBottomTab { dashboard, consejos, perfil }
+/// Destinos del [AppBottomBar] (Fase 80). Todos son pantallas, nunca
+/// acciones: las acciones (registrar gasto/ingreso/deuda) viven en la hoja
+/// del botón "+" central. "Perfil" dejó de estar en la barra: se abre desde
+/// el avatar de la cabecera del dashboard.
+enum AppBottomTab { inicio, movimientos, deudas, consejos }
 
-/// Barra inferior de 5 botones (Fase 17, ampliada a 5 con "Inicio" y estilo
-/// "glass" en la Fase 32), compartida por [DashboardScreen],
-/// `ConsejosFinancieroScreen` y `MiPerfilScreen` para que el botón de la
-/// pantalla actual se pueda resaltar (Fase 19.6). Orden: Gasto · Deuda ·
-/// Inicio · Consejos · Perfil — "Inicio" queda en el centro exacto, con un
-/// círculo elevado que sobresale del borde superior de la barra (Fase 32.2),
-/// mientras el resto conserva el estilo plano de siempre.
+/// Ruta de cada destino. Inicio es la primera ruta ('/'), así que no se
+/// empuja: se vuelve a ella.
+const _rutaDestino = {
+  AppBottomTab.movimientos: '/transacciones/todas',
+  AppBottomTab.deudas: '/deudas',
+  AppBottomTab.consejos: '/consejos',
+};
+
+/// Navega a un destino de la barra (Fase 80; pública desde la Fase 81 para
+/// los enlaces "Ver todo" del Inicio). Inicio vuelve a la primera ruta;
+/// cualquier otro destino reemplaza al destino anterior (nunca se apilan),
+/// así "atrás" desde un destino siempre vuelve al Inicio.
+void irADestino(BuildContext context, AppBottomTab destino) {
+  final navigator = Navigator.of(context);
+  if (destino == AppBottomTab.inicio) {
+    navigator.popUntil((route) => route.isFirst);
+    return;
+  }
+  navigator.pushNamedAndRemoveUntil(
+    _rutaDestino[destino]!,
+    (route) => route.isFirst,
+  );
+}
+
+/// Barra inferior (Fase 17; 5 botones y estilo "glass" en la Fase 32;
+/// rediseñada en la Fase 80): Inicio · Movimientos · [+] · Deudas ·
+/// Consejos. El "+" queda en el centro exacto, con un círculo elevado que
+/// sobresale del borde superior (mismo lenguaje que el antiguo botón
+/// "Inicio" de la Fase 32.2) y abre [mostrarHojaAgregar].
+///
+/// Accesibilidad: cada destino es un botón con `Semantics(selected:)` y su
+/// etiqueta; el destino actual se distingue por color, peso de la etiqueta
+/// Y un indicador en forma de píldora detrás del ícono (no solo color).
+/// Todos los objetivos táctiles miden al menos 48 × 48 dp.
 class AppBottomBar extends StatelessWidget {
   const AppBottomBar({super.key, this.actual});
 
-  /// Pestaña que representa la pantalla donde se está mostrando esta barra.
+  /// Destino que representa la pantalla donde se muestra esta barra;
+  /// `null` en pantallas que no son un destino (p. ej. "Mi perfil").
   final AppBottomTab? actual;
 
   static const double _alturaBarra = 72;
-  static const double _diametroInicio = 60;
-  static const double _protrusionInicio = 24;
-  static const double _alturaTotal = _alturaBarra + _protrusionInicio;
+  static const double diametroAgregar = 60;
+  static const double _protrusionAgregar = 24;
+  static const double _alturaTotal = _alturaBarra + _protrusionAgregar;
+
+  void _irA(BuildContext context, AppBottomTab destino) {
+    if (destino == actual) return;
+    irADestino(context, destino);
+  }
+
+  Widget _destino(
+    BuildContext context,
+    AppBottomTab destino,
+    IconData icono,
+    IconData iconoActivo,
+    String etiqueta,
+  ) {
+    return Expanded(
+      child: _BotonDestino(
+        icono: icono,
+        iconoActivo: iconoActivo,
+        etiqueta: etiqueta,
+        activo: actual == destino,
+        onTap: () => _irA(context, destino),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     // RepaintBoundary (Fase 32.4): el `BackdropFilter` de la barra es
     // costoso de re-pintar; aislarlo en su propia capa evita que el scroll
-    // del contenido del dashboard (que vive en un `Widget` completamente
-    // distinto, fuera de este árbol) fuerce un repintado de la barra, y
-    // viceversa.
+    // del contenido fuerce un repintado de la barra, y viceversa.
     return RepaintBoundary(
       child: SizedBox(
         height: _alturaTotal,
@@ -47,45 +98,43 @@ class AppBottomBar extends StatelessWidget {
               bottom: 0,
               child: _BarraVidrio(
                 height: _alturaBarra,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _BotonInferior(
-                      icono: Icons.remove_circle_outline,
-                      etiqueta: 'Gasto',
-                      activo: false,
-                      onTap: () => Navigator.of(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Row(
+                    children: [
+                      _destino(
                         context,
-                      ).pushNamed('/transacciones/nueva'),
-                    ),
-                    _BotonInferior(
-                      icono: Icons.credit_card,
-                      etiqueta: 'Deuda',
-                      activo: false,
-                      onTap: () =>
-                          Navigator.of(context).pushNamed('/deudas/nueva'),
-                    ),
-                    // Espaciador: el botón "Inicio" flota encima en el
-                    // `Positioned` de más abajo, pero ocupa este ancho en
-                    // la fila para quedar centrado entre Deuda y Consejos.
-                    const SizedBox(width: _diametroInicio),
-                    _BotonInferior(
-                      icono: Icons.lightbulb_outline,
-                      etiqueta: 'Consejos',
-                      activo: actual == AppBottomTab.consejos,
-                      onTap: actual == AppBottomTab.consejos
-                          ? () {}
-                          : () => Navigator.of(context).pushNamed('/consejos'),
-                    ),
-                    _BotonInferior(
-                      icono: Icons.person_outline,
-                      etiqueta: 'Perfil',
-                      activo: actual == AppBottomTab.perfil,
-                      onTap: actual == AppBottomTab.perfil
-                          ? () {}
-                          : () => Navigator.of(context).pushNamed('/perfil'),
-                    ),
-                  ],
+                        AppBottomTab.inicio,
+                        Icons.home_outlined,
+                        Icons.home_rounded,
+                        'Inicio',
+                      ),
+                      _destino(
+                        context,
+                        AppBottomTab.movimientos,
+                        Icons.notes_rounded,
+                        Icons.notes_rounded,
+                        'Movimientos',
+                      ),
+                      // Espaciador: el "+" flota encima en el `Positioned`
+                      // de más abajo, pero ocupa este ancho en la fila.
+                      const SizedBox(width: diametroAgregar + 8),
+                      _destino(
+                        context,
+                        AppBottomTab.deudas,
+                        Icons.swap_horiz_rounded,
+                        Icons.swap_horiz_rounded,
+                        'Deudas',
+                      ),
+                      _destino(
+                        context,
+                        AppBottomTab.consejos,
+                        Icons.lightbulb_outline,
+                        Icons.lightbulb,
+                        'Consejos',
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -94,21 +143,7 @@ class AppBottomBar extends StatelessWidget {
               left: 0,
               right: 0,
               child: Center(
-                child: _BotonInicio(
-                  activo: actual == AppBottomTab.dashboard,
-                  onTap: actual == AppBottomTab.dashboard
-                      ? () {}
-                      // Dashboard/Consejos/Perfil son las únicas pantallas
-                      // con esta barra, y siempre están apiladas sobre la
-                      // primera ruta ('/', el dashboard) — `popUntil` a la
-                      // primera ruta vuelve a esa instancia ya existente en
-                      // vez de apilar una nueva, sin importar cuántos
-                      // niveles de profundidad haya (p. ej. Consejos abierto
-                      // desde Perfil).
-                      : () => Navigator.of(
-                          context,
-                        ).popUntil((route) => route.isFirst),
-                ),
+                child: _BotonAgregar(onTap: () => mostrarHojaAgregar(context)),
               ),
             ),
           ],
@@ -118,11 +153,140 @@ class AppBottomBar extends StatelessWidget {
   }
 }
 
+/// Hoja inferior del "+" (Fase 80): Gasto, Ingreso y Deuda, cada una a la
+/// pantalla que ya existe para eso; "Me deben" desde la Fase 82;
+/// "Transferencia" desde la Fase 85.
+Future<void> mostrarHojaAgregar(BuildContext context) {
+  return showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    // Con texto grande (accesibilidad) o pantallas bajas el contenido puede
+    // superar el alto por defecto de la hoja: se deja crecer y desplazar.
+    isScrollControlled: true,
+    builder: (hojaContext) {
+      void abrir(String ruta, {Object? argumentos}) {
+        Navigator.of(hojaContext).pop();
+        Navigator.of(context).pushNamed(ruta, arguments: argumentos);
+      }
+
+      return SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                child: Semantics(
+                  header: true,
+                  child: Text(
+                    '¿Qué quieres registrar?',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+              _OpcionHoja(
+                icono: Icons.arrow_upward,
+                color: context.dangerText,
+                fondo: context.dangerBg,
+                titulo: 'Gasto',
+                subtitulo: 'Algo que pagaste',
+                onTap: () => abrir(
+                  '/transacciones/nueva',
+                  argumentos: TipoTransaccion.gasto,
+                ),
+              ),
+              _OpcionHoja(
+                icono: Icons.arrow_downward,
+                color: context.successText,
+                fondo: context.successBg,
+                titulo: 'Ingreso',
+                subtitulo: 'Dinero que recibiste',
+                onTap: () => abrir(
+                  '/transacciones/nueva',
+                  argumentos: TipoTransaccion.ingreso,
+                ),
+              ),
+              // Fase 85: entre cuentas propias (también pagar la tarjeta);
+              // tono neutro: no es ingreso ni gasto.
+              _OpcionHoja(
+                icono: Icons.swap_horiz,
+                color: context.textSecondary,
+                fondo: context.borderCard,
+                titulo: 'Transferencia',
+                subtitulo: 'Entre tus cuentas o para pagar tu tarjeta',
+                onTap: () => abrir('/transferencias/nueva'),
+              ),
+              _OpcionHoja(
+                icono: Icons.credit_card,
+                color: context.warningText,
+                fondo: context.warningBg,
+                titulo: 'Deuda',
+                subtitulo: 'Un préstamo, cuotas o algo que debes',
+                onTap: () =>
+                    abrir('/deudas/nueva', argumentos: DireccionDeuda.debo),
+              ),
+              // Fase 82: un préstamo que hiciste (abre el formulario ya en
+              // "Me deben").
+              _OpcionHoja(
+                icono: Icons.call_received,
+                color: context.successText,
+                fondo: context.successBg,
+                titulo: 'Me deben',
+                subtitulo: 'Dinero que le prestaste a alguien',
+                onTap: () =>
+                    abrir('/deudas/nueva', argumentos: DireccionDeuda.meDeben),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class _OpcionHoja extends StatelessWidget {
+  const _OpcionHoja({
+    required this.icono,
+    required this.color,
+    required this.fondo,
+    required this.titulo,
+    required this.subtitulo,
+    required this.onTap,
+  });
+
+  final IconData icono;
+  final Color color;
+  final Color fondo;
+  final String titulo;
+  final String subtitulo;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      minTileHeight: 56,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+      leading: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(color: fondo, shape: BoxShape.circle),
+        child: Icon(icono, color: color),
+      ),
+      title: Text(titulo, style: const TextStyle(fontWeight: FontWeight.w700)),
+      subtitle: Text(subtitulo),
+      onTap: onTap,
+    );
+  }
+}
+
 /// Fondo "vidrio esmerilado" de la barra (Fase 32.3): difumina lo que hay
 /// detrás con [BackdropFilter] y superpone un tinte semitransparente del
 /// token de superficie del tema activo, con un borde superior sutil. El
-/// `ClipRect` acota el desenfoque exactamente al área de la barra — sin él,
-/// `BackdropFilter` puede filtrar más allá de sus límites visuales.
+/// `ClipRect` acota el desenfoque exactamente al área de la barra.
 class _BarraVidrio extends StatelessWidget {
   const _BarraVidrio({required this.height, required this.child});
 
@@ -152,100 +316,128 @@ class _BarraVidrio extends StatelessWidget {
   }
 }
 
-class _BotonInferior extends StatelessWidget {
-  const _BotonInferior({
+class _BotonDestino extends StatelessWidget {
+  const _BotonDestino({
     required this.icono,
+    required this.iconoActivo,
     required this.etiqueta,
     required this.activo,
     required this.onTap,
   });
 
   final IconData icono;
+  final IconData iconoActivo;
   final String etiqueta;
   final bool activo;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final color = activo ? colorSuccess : context.textSecondary;
+    // `successText`, no `colorSuccess`: es color de TEXTO (Fase 80, A).
+    final color = activo ? context.successText : context.textSecondary;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icono, color: color, size: 22),
-            const SizedBox(height: 2),
-            Text(
-              etiqueta,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: color,
-                fontWeight: activo ? FontWeight.bold : FontWeight.normal,
-              ),
+    return Semantics(
+      container: true,
+      button: true,
+      selected: activo,
+      label: etiqueta,
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48, minWidth: 48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Indicador de selección que no depende solo del color.
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: activo ? context.successBg : Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(
+                    activo ? iconoActivo : icono,
+                    color: color,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                // `scaleDown`: con texto grande (accesibilidad) la etiqueta
+                // se achica dentro de su celda en vez de desbordar la barra.
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    etiqueta,
+                    maxLines: 1,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: color,
+                      fontWeight: activo ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// Botón "Inicio" (Fase 32.1/32.2): a propósito rompe el patrón plano de los
-/// otros 4 — círculo sólido en `colorSuccess` (nunca gris, ni siquiera
-/// inactivo) con sombra, para leerse como un FAB integrado en la barra en
-/// vez de un ícono más de la fila. Cuando está activo (en el dashboard) se
-/// refuerza con un anillo y una sombra más marcada, mismo lenguaje de
-/// "resaltado" que `_BotonInferior` usa con `colorSuccess` + negrita.
-class _BotonInicio extends StatelessWidget {
-  const _BotonInicio({required this.activo, required this.onTap});
+/// Botón "+" central (Fase 80): círculo sólido de marca (`brandAction`)
+/// elevado sobre la barra, para leerse como la acción principal. Es una
+/// acción, no un destino: nunca se marca como seleccionado.
+class _BotonAgregar extends StatelessWidget {
+  const _BotonAgregar({required this.onTap});
 
-  final bool activo;
   final VoidCallback onTap;
 
-  static const double _diametro = AppBottomBar._diametroInicio;
+  static const double _diametro = AppBottomBar.diametroAgregar;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'Inicio',
-      selected: activo,
       button: true,
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            width: _diametro,
-            height: _diametro,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: colorSuccess,
-              border: activo
-                  ? Border.all(
-                      color: colorSuccess.withValues(alpha: 0.35),
-                      width: 3,
-                    )
-                  : null,
-              boxShadow: [
-                BoxShadow(
-                  color: colorSuccess.withValues(alpha: activo ? 0.45 : 0.3),
-                  blurRadius: activo ? 16 : 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            alignment: Alignment.center,
-            child: const Icon(
-              Icons.home_rounded,
-              color: colorSobreEstado,
-              size: 28,
+      label: 'Agregar',
+      hint: 'Registrar un gasto, un ingreso o una deuda',
+      excludeSemantics: true,
+      child: Tooltip(
+        message: 'Agregar',
+        child: Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          child: InkWell(
+            onTap: onTap,
+            customBorder: const CircleBorder(),
+            child: Container(
+              width: _diametro,
+              height: _diametro,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: context.brandAction,
+                boxShadow: [
+                  BoxShadow(
+                    color: context.brandAction.withValues(alpha: 0.35),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.add_rounded,
+                color: colorSobreEstado,
+                size: 30,
+              ),
             ),
           ),
         ),

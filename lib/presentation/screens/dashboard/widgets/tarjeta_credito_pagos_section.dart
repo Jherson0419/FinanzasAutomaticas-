@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../domain/entities/cuenta.dart';
 import '../../../../domain/proxima_ocurrencia_mensual.dart';
 import '../../../shared/app_card.dart';
+import '../../../shared/estilos.dart';
 import '../../../shared/formatters.dart';
 
 enum _PestanaPago { pagoDelMes, pagoMinimo, deudaTotal }
@@ -91,6 +92,7 @@ class _TarjetaCreditoPagosSectionState
                 ? 'No configurado'
                 : formatearMonto(monto, widget.cuenta.moneda),
             style: theme.textTheme.headlineSmall?.copyWith(
+              fontFeatures: cifrasTabulares,
               fontWeight: FontWeight.bold,
             ),
           ),

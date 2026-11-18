@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/cuenta.dart';
 import '../shared/dialogos_eliminar.dart';
 import '../shared/enum_labels.dart';
+import '../shared/estilos.dart';
 import '../shared/formatters.dart';
 import '../shared/mensajes_error.dart';
 import '../state/dashboard/dashboard_providers.dart';
@@ -44,6 +45,10 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
   final _ultimosDigitosController = TextEditingController();
   final _pagoMinimoController = TextEditingController();
 
+  /// Fase 83 — TCEA en PORCENTAJE (lo que muestra el estado de cuenta);
+  /// se guarda como fracción (65 → 0.65).
+  final _tceaController = TextEditingController();
+
   TipoCuenta _tipo = TipoCuenta.efectivo;
   Moneda _moneda = Moneda.pen;
   DateTime? _fechaCorte;
@@ -63,6 +68,7 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
     _lineaCreditoController.dispose();
     _ultimosDigitosController.dispose();
     _pagoMinimoController.dispose();
+    _tceaController.dispose();
     super.dispose();
   }
 
@@ -92,6 +98,14 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
     return valor != null && valor > 0;
   }
 
+  /// Vacío = sin TCEA (opcional). Si se llena: 0–1000 %.
+  bool get _tceaValida {
+    final texto = _tceaController.text.trim();
+    if (texto.isEmpty) return true;
+    final valor = _parseDouble(texto);
+    return valor != null && valor >= 0 && valor <= 1000;
+  }
+
   bool get _camposDeCreditoValidos {
     if (!_esCredito) return true;
     final lineaCredito = _parseDouble(_lineaCreditoController.text);
@@ -99,6 +113,7 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
     if (_fechaCorte == null) return false;
     if (_fechaPago == null) return false;
     if (!_pagoMinimoValido) return false;
+    if (!_tceaValida) return false;
     return true;
   }
 
@@ -122,6 +137,9 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
     _fechaPago = cuenta.fechaPago;
     _ultimosDigitosController.text = cuenta.ultimosDigitos ?? '';
     _pagoMinimoController.text = cuenta.pagoMinimo?.toStringAsFixed(2) ?? '';
+    _tceaController.text = cuenta.tcea == null
+        ? ''
+        : (cuenta.tcea! * 100).toStringAsFixed(2);
   }
 
   Future<void> _seleccionarFechaCorte() async {
@@ -158,6 +176,10 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
       final pagoMinimo = _esCredito
           ? _parseDouble(_pagoMinimoController.text)
           : null;
+      final tceaPorcentaje = _esCredito
+          ? _parseDouble(_tceaController.text)
+          : null;
+      final tcea = tceaPorcentaje == null ? null : tceaPorcentaje / 100;
 
       if (_editando) {
         await ref.read(editarCuentaProvider)(
@@ -170,6 +192,7 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
           fechaPago: fechaPago,
           ultimosDigitos: ultimosDigitos,
           pagoMinimo: pagoMinimo,
+          tcea: tcea,
         );
         ref.invalidate(cuentaPorIdProvider(widget.cuentaId!));
       } else {
@@ -191,6 +214,7 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
           fechaPago: fechaPago,
           ultimosDigitos: ultimosDigitos,
           pagoMinimo: pagoMinimo,
+          tcea: tcea,
         );
       }
       ref.invalidate(cuentasProvider);
@@ -203,6 +227,7 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
         _lineaCreditoController.clear();
         _ultimosDigitosController.clear();
         _pagoMinimoController.clear();
+        _tceaController.clear();
         setState(() {
           _tipo = TipoCuenta.efectivo;
           _moneda = Moneda.pen;
@@ -368,6 +393,7 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
                   Text(
                     formatearMonto(cuenta.saldoActual, cuenta.moneda),
                     style: theme.textTheme.titleLarge?.copyWith(
+                      fontFeatures: cifrasTabulares,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -523,6 +549,27 @@ class _CuentaFormularioState extends ConsumerState<CuentaFormulario> {
                     errorText: _pagoMinimoValido
                         ? null
                         : 'Ingresa un monto mayor a 0.',
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 16),
+                // Fase 83: para que el plan de pago sepa cuánto cuesta la
+                // tarjeta (se copia a la deuda vinculada).
+                TextFormField(
+                  controller: _tceaController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'TCEA (%)',
+                    hintText: 'Ej. 65',
+                    helperText:
+                        'Opcional. La encuentras en tu estado de cuenta.',
+                    suffixText: '%',
+                    border: const OutlineInputBorder(),
+                    errorText: _tceaValida
+                        ? null
+                        : 'Ingresa un porcentaje entre 0 y 1000.',
                   ),
                   onChanged: (_) => setState(() {}),
                 ),
