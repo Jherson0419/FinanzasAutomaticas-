@@ -22,9 +22,17 @@
 // id que mande el body.
 //
 // Deploy (requiere Supabase CLI, no se puede hacer desde este entorno):
-//   supabase functions deploy generar-consejos
+//   ver docs/nube/despliegue.md (staging primero, luego producción).
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+// Fase 88: payload v1 y v2 (ver normalizar.ts y docs/nube/despliegue.md).
+import {
+  type CategoriaEntrada,
+  type DeudaEntrada,
+  lineaDeuda,
+  normalizarDeudas,
+  sinTransferencias,
+} from './normalizar.ts';
 
 const LIMITE_DIARIO = 15;
 // Fase 28: 'gemini-2.0-flash' quedó deprecado del lado de Google
@@ -47,19 +55,10 @@ const INSTRUCCION_SISTEMA =
   'pagar otras deudas u otros gastos — solo se puede usar crédito ' +
   'disponible para nuevas compras, nunca para pagar deudas existentes.';
 
-interface DeudaParaConsejos {
-  tipoDeuda: string;
-  montoTotal: number;
-  montoPagado: number;
-  interesTotal: number | null;
-  moneda: string;
-}
-
-interface CategoriaMontoConsejo {
-  categoriaNombre: string;
-  monto: number;
-  moneda: string;
-}
+// Fase 88: v1 = { tipoDeuda, montoTotal, montoPagado, interesTotal,
+// moneda }; v2 agrega capital, totalAPagar, saldo y direccion.
+type DeudaParaConsejos = DeudaEntrada;
+type CategoriaMontoConsejo = CategoriaEntrada;
 
 // Fase 60: el monto usado de una tarjeta es una deuda propia, nunca dinero
 // disponible — se reporta aparte de `saldoTotalPorMoneda` (que ya viene sin
@@ -72,6 +71,8 @@ interface TarjetaCreditoParaConsejos {
 }
 
 interface ResumenParaConsejos {
+  /// Fase 88: 2 en apps nuevas; ausente (v1) en las publicadas.
+  version?: number;
   deudasActivas: DeudaParaConsejos[];
   ingresosPorCategoriaMes: CategoriaMontoConsejo[];
   gastosPorCategoriaMes: CategoriaMontoConsejo[];
@@ -245,26 +246,21 @@ function construirPrimerMensaje(resumen: ResumenParaConsejos): string {
     'Hola, estas son mis deudas activas:',
   ];
 
-  if (resumen.deudasActivas.length === 0) {
+  // Fase 88: sin "me deben", con el saldo explícito si viene (v2).
+  const deudas = normalizarDeudas(resumen.deudasActivas);
+  if (deudas.length === 0) {
     lineas.push('- Ninguna');
   } else {
-    for (const deuda of resumen.deudasActivas) {
-      const pendiente = deuda.montoTotal - deuda.montoPagado;
-      const interesTexto =
-        deuda.interesTotal != null && deuda.interesTotal > 0
-          ? `, interés total: ${deuda.interesTotal.toFixed(2)}`
-          : '';
-      lineas.push(
-        `- Tipo: ${deuda.tipoDeuda}, pendiente: ${pendiente.toFixed(2)} ` +
-          `${deuda.moneda.toUpperCase()}${interesTexto}`,
-      );
+    for (const deuda of deudas) {
+      lineas.push(lineaDeuda(deuda));
     }
   }
 
+  // Fase 88: nunca transferencias entre cuentas propias.
   lineas.push('', 'Mis ingresos del mes por categoría:');
-  escribirCategorias(lineas, resumen.ingresosPorCategoriaMes);
+  escribirCategorias(lineas, sinTransferencias(resumen.ingresosPorCategoriaMes));
   lineas.push('', 'Mis gastos del mes por categoría:');
-  escribirCategorias(lineas, resumen.gastosPorCategoriaMes);
+  escribirCategorias(lineas, sinTransferencias(resumen.gastosPorCategoriaMes));
   lineas.push('', 'Mi saldo total disponible (sin tarjetas de crédito):');
 
   const monedas = Object.keys(resumen.saldoTotalPorMoneda);

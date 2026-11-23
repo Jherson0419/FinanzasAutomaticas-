@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
-import 'package:permission_handler/permission_handler.dart' as ph;
+import 'package:url_launcher/url_launcher.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -155,6 +157,39 @@ class NotificacionesLocalesPlugin implements NotificacionesLocalesRepository {
     await _plugin.cancel(id);
   }
 
+  /// Fase 89 — sin `permission_handler`:
+  /// - iOS: `app-settings:` (abre los ajustes de Finzo, donde están sus
+  ///   notificaciones) con `url_launcher`.
+  /// - Android: canal propio `finzo/ajustes` (ver `MainActivity.kt`), que
+  ///   abre `APP_NOTIFICATION_SETTINGS` de la app.
   @override
-  Future<void> abrirAjustes() => ph.openAppSettings();
+  Future<void> abrirAjustes() => abrirAjustesDelSistema();
+}
+
+/// Canal nativo de Android para abrir los ajustes de notificaciones.
+const canalAjustesAndroid = MethodChannel('finzo/ajustes');
+
+/// Abre los ajustes de notificaciones de la app en el sistema. Pública
+/// para probarla con un `launchUrl`/canal falsos. Devuelve `false` si no
+/// se pudo abrir.
+Future<bool> abrirAjustesDelSistema({
+  TargetPlatform? plataforma,
+  Future<bool> Function(Uri)? abrirUrl,
+  MethodChannel canal = canalAjustesAndroid,
+}) async {
+  switch (plataforma ?? defaultTargetPlatform) {
+    case TargetPlatform.iOS:
+      return (abrirUrl ?? launchUrl)(Uri.parse('app-settings:'));
+    case TargetPlatform.android:
+      try {
+        return await canal.invokeMethod<bool>('abrirAjustesNotificaciones') ??
+            false;
+      } on PlatformException {
+        return false;
+      } on MissingPluginException {
+        return false;
+      }
+    default:
+      return false;
+  }
 }

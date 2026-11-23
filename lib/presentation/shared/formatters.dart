@@ -2,7 +2,12 @@ import 'package:intl/intl.dart';
 
 import '../../domain/entities/cuenta.dart';
 
-final _numeroFormatter = NumberFormat('#,##0.00');
+/// Fase 89: el locale se fija EXPLÍCITO ('en_US': coma de miles, punto
+/// decimal — el formato de siempre, "S/ 1,200.00"). Así los montos no
+/// cambian aunque la app ahora use el locale 'es' para los widgets del
+/// framework (selectores de fecha, menús) o alguien fije
+/// `Intl.defaultLocale`.
+final _numeroFormatter = NumberFormat('#,##0.00', 'en_US');
 
 String simboloMoneda(Moneda moneda) {
   switch (moneda) {
@@ -34,10 +39,11 @@ String formatearMontoConSigno(
   return '${positivo ? '+' : '−'}${formatearMonto(monto.abs(), moneda)}';
 }
 
-// Fase 81 — nombres en español escritos a mano: la app nunca inicializa
-// los datos de fecha de `intl` por locale (solo usa `NumberFormat` sin
-// locale), y hacerlo exigiría tocar `main.dart`. Así funciona igual en
-// pruebas, en modo local y sin red.
+// Fase 81 — nombres en español escritos a mano (no dependen de los datos
+// de fecha de `intl`). Fase 89: aunque `main.dart`/`main_local.dart` ya
+// inicializan esos datos ('es') para los widgets del framework, estos
+// textos se quedan así: funcionan igual en pruebas, en modo local y sin
+// inicializar nada.
 const _diasSemana = [
   'lunes',
   'martes',

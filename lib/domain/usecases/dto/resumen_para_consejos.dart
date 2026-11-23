@@ -21,12 +21,17 @@ class DeudaParaConsejos {
   final double? interesTotal;
   final Moneda moneda;
 
+  /// Fase 88 — lo prestado (`Deuda.montoTotal`). Viaja aparte en el
+  /// payload v2 de `generar-consejos`; `null` si no se conoce.
+  final double? capital;
+
   const DeudaParaConsejos({
     required this.tipoDeuda,
     required this.montoTotal,
     required this.montoPagado,
     required this.interesTotal,
     required this.moneda,
+    this.capital,
   });
 }
 

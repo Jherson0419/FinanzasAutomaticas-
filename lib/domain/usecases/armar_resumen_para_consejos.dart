@@ -118,6 +118,8 @@ class ArmarResumenParaConsejos {
               montoPagado: deuda.montoPagado,
               interesTotal: deuda.interesTotal,
               moneda: deuda.moneda,
+              // Fase 88: el capital va aparte (payload v2).
+              capital: deuda.montoTotal,
             ),
       ],
       ingresosPorCategoriaMes: _aLista(ingresosAcumulado),

@@ -10,6 +10,7 @@ import '../domain/entities/mensaje_push.dart';
 import '../domain/entities/tema_app.dart';
 import '../domain/entities/transaccion.dart';
 import '../domain/parsear_deep_link_agregar_amigo.dart';
+import 'localizacion.dart';
 import 'theme/app_theme.dart';
 import 'screens/agregar_amigo_screen.dart';
 import 'screens/automatizacion_screen.dart';
@@ -205,6 +206,12 @@ class _FinanzasAutomaticasAppState
       themeMode: _aThemeMode(tema),
       theme: appThemeClaro(),
       darkTheme: appThemeOscuro(),
+      // Fase 89: widgets del framework (selectores de fecha y hora, menús,
+      // textos de accesibilidad) en español. No toca los formatos propios
+      // de montos y fechas (ver `shared/formatters.dart`).
+      locale: localeApp,
+      supportedLocales: localesSoportados,
+      localizationsDelegates: delegadosDeLocalizacion,
       initialRoute: '/',
       routes: {
         '/': (context) => const RootScreen(),

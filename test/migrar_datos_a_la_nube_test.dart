@@ -29,9 +29,11 @@ class _FakeCuentaRepository implements CuentaRepository {
     creadas.add(cuenta);
   }
 
+  /// Fase 88b: al final la migración reescribe cada cuenta con su saldo
+  /// del teléfono (anula el efecto de los triggers de producción).
+  final List<Cuenta> reescritas = [];
   @override
-  Future<void> actualizar(Cuenta cuenta) async =>
-      throw UnimplementedError('no debería llamarse durante la migración');
+  Future<void> actualizar(Cuenta cuenta) async => reescritas.add(cuenta);
   @override
   Future<void> eliminar(String id) async =>
       throw UnimplementedError('no debería llamarse durante la migración');
@@ -89,9 +91,10 @@ class _FakeDeudaRepository implements DeudaRepository {
     creadas.add(deuda);
   }
 
+  /// Fase 88b: ver `_FakeCuentaRepository.reescritas`.
+  final List<Deuda> reescritas = [];
   @override
-  Future<void> actualizar(Deuda deuda) async =>
-      throw UnimplementedError('no debería llamarse durante la migración');
+  Future<void> actualizar(Deuda deuda) async => reescritas.add(deuda);
   @override
   Future<void> eliminar(String id) async =>
       throw UnimplementedError('no debería llamarse durante la migración');
@@ -290,6 +293,10 @@ void main() {
 
       expect(etapas, isNotEmpty);
       expect(etapas.last, 'Verificando...');
+      // Fase 88b: valores finales reescritos después de los pagos.
+      expect(etapas, contains('Ajustando saldos...'));
+      expect(cuentaNube.reescritas.map((c) => c.id), ['cta-1']);
+      expect(deudaNube.reescritas.map((d) => d.id), ['deuda-1']);
     },
   );
 

@@ -7,10 +7,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config/supabase_config.dart';
 import 'infrastructure/persistence/preferencias_repository_shared_prefs.dart';
 import 'presentation/app.dart';
+import 'presentation/localizacion.dart';
 import 'presentation/state/providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Fase 89: datos de fecha de `intl` en español (widgets del framework).
+  await inicializarIdioma();
   await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);
   // Fase 71: notificaciones push — `GoogleService-Info.plist`/
   // `google-services.json` (agregados a mano) son lo único que hace falta

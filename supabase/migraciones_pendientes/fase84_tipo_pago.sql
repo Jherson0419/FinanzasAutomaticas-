@@ -2,9 +2,10 @@
 -- Fase 84 — Abonos a capital y adelanto de cuotas
 --   pagos_deuda.tipo               ('cuota' | 'abono_capital')
 --   deudas.monto_abonado_capital   (suma de los abonos a capital)
--- PENDIENTE: NO se ejecutó contra Supabase. Correr a mano en el SQL
--- Editor del proyecto. Independiente de fase82 / fase83 (el orden da
--- igual).
+-- PENDIENTE: NO se ejecutó contra Supabase. Orden y verificación en
+-- LEEME_orden.md. Va JUNTO con fase84b_ultima_cuota.sql.
+--
+-- IDEMPOTENTE (Fase 88): se puede correr varias veces. Una transacción.
 --
 -- Compatibilidad: la app ya funciona sin estas columnas
 --   - al leer, una fila sin `tipo` se interpreta como 'cuota' y una sin
@@ -22,29 +23,40 @@ begin;
 alter table public.pagos_deuda
   add column if not exists tipo text not null default 'cuota';
 
-alter table public.pagos_deuda
-  drop constraint if exists pagos_deuda_tipo_check;
-alter table public.pagos_deuda
-  add constraint pagos_deuda_tipo_check
-  check (tipo in ('cuota', 'abono_capital'));
+alter table public.deudas
+  add column if not exists monto_abonado_capital numeric not null default 0;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+     where conname = 'pagos_deuda_tipo_check'
+       and conrelid = 'public.pagos_deuda'::regclass
+  ) then
+    alter table public.pagos_deuda
+      add constraint pagos_deuda_tipo_check
+      check (tipo in ('cuota', 'abono_capital'));
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+     where conname = 'deudas_monto_abonado_capital_check'
+       and conrelid = 'public.deudas'::regclass
+  ) then
+    alter table public.deudas
+      add constraint deudas_monto_abonado_capital_check
+      check (monto_abonado_capital >= 0);
+  end if;
+end $$;
 
 comment on column public.pagos_deuda.tipo is
   'Fase 84: cuota (pago normal, usa numero_cuota en cuotas fijas) o '
   'abono_capital (pago extra a capital: no consume cuota, numero_cuota null).';
 
-alter table public.deudas
-  add column if not exists monto_abonado_capital numeric not null default 0;
-
-alter table public.deudas
-  drop constraint if exists deudas_monto_abonado_capital_check;
-alter table public.deudas
-  add constraint deudas_monto_abonado_capital_check
-  check (monto_abonado_capital >= 0);
-
 comment on column public.deudas.monto_abonado_capital is
   'Fase 84: suma de los abonos a capital (pagos_deuda.tipo = abono_capital). '
   'Total a pagar en cuotas fijas = monto_cuota * numero_cuotas_total + '
-  'monto_abonado_capital.';
+  'monto_abonado_capital (ver fase84b para la última cuota parcial).';
 
 commit;
 
@@ -65,10 +77,9 @@ commit;
 -- ---------------------------------------------------------------------
 
 -- =====================================================================
--- REVERTIR (deshacer la fase). OJO: si ya hay abonos registrados, al
--- borrar las columnas esos pagos pasarían a leerse como cuotas y el
--- total a pagar de la deuda perdería lo abonado. Revisar antes con la
--- verificación de arriba.
+-- REVERTIR. OJO: si ya hay abonos registrados, al borrar las columnas
+-- esos pagos pasarían a leerse como cuotas y el total a pagar de la deuda
+-- perdería lo abonado. Revisar antes con la verificación de arriba.
 --
 -- begin;
 -- alter table public.pagos_deuda drop constraint if exists pagos_deuda_tipo_check;
