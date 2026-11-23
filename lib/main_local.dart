@@ -8,6 +8,7 @@ import 'infrastructure/persistence/local/notificacion_repository_local.dart';
 import 'infrastructure/persistence/local/perfil_repository_local.dart';
 import 'infrastructure/persistence/local/servicios_nube_local.dart';
 import 'presentation/app.dart';
+import 'presentation/localizacion.dart';
 import 'presentation/state/dashboard/dashboard_providers.dart';
 import 'presentation/state/providers.dart';
 
@@ -21,6 +22,8 @@ import 'presentation/state/providers.dart';
 /// Ejecutar con: flutter run -t lib/main_local.dart
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Fase 89: datos de fecha de `intl` en español (widgets del framework).
+  await inicializarIdioma();
   final prefs = await SharedPreferences.getInstance();
 
   runApp(

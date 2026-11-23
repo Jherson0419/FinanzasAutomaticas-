@@ -6,8 +6,42 @@
 /// Supabase (Project Settings → API) antes de compilar contra un backend
 /// real. Con los valores de ejemplo, `Supabase.initialize` no podrá
 /// autenticar a nadie.
-const supabaseUrl = 'https://oyoxbvloqqiiasiaugzm.supabase.co';
-const supabaseAnonKey = 'sb_publishable_QhGrHcVMjCCPol9U31k2lA_fQwMS3PQ';
+///
+/// Fase 88 — staging sin tocar los entry points: ambos valores se pueden
+/// inyectar al compilar con `--dart-define` (o
+/// `--dart-define-from-file=config/staging.json`, ignorado por git):
+///
+/// ```bash
+/// flutter run --dart-define=SUPABASE_URL=https://REF.supabase.co \
+///   --dart-define=SUPABASE_ANON_KEY=PUBLISHABLE_KEY_DE_STAGING \
+///   --dart-define=FINZO_ENTORNO=staging
+/// ```
+///
+/// Sin esas variables (builds de Codemagic, `flutter run` normal) se usan
+/// los valores de siempre (producción), así que nada cambia para los
+/// builds publicados. Ver `docs/nube/staging.md`.
+const supabaseUrl = String.fromEnvironment(
+  'SUPABASE_URL',
+  defaultValue: 'https://oyoxbvloqqiiasiaugzm.supabase.co',
+);
+const supabaseAnonKey = String.fromEnvironment(
+  'SUPABASE_ANON_KEY',
+  defaultValue: 'sb_publishable_QhGrHcVMjCCPol9U31k2lA_fQwMS3PQ',
+);
+
+/// Nombre del entorno (solo informativo/diagnóstico): `produccion` salvo
+/// que se compile con `--dart-define=FINZO_ENTORNO=staging`.
+const entornoSupabase = String.fromEnvironment(
+  'FINZO_ENTORNO',
+  defaultValue: 'produccion',
+);
+
+/// `true` si la URL o la clave vinieron por `--dart-define` sin declarar el
+/// entorno: evita apuntar a un proyecto ajeno sin darse cuenta.
+const configuracionSupabaseIncoherente =
+    (bool.hasEnvironment('SUPABASE_URL') ||
+        bool.hasEnvironment('SUPABASE_ANON_KEY')) &&
+    !bool.hasEnvironment('FINZO_ENTORNO');
 
 /// Deep link al que Supabase redirige tras confirmar el correo de una
 /// cuenta nueva (Fase 54) — registrado como esquema de URL custom en
@@ -34,7 +68,8 @@ const authEmailRedirectUrl = 'finzo://login-callback';
 /// autenticación e ignora cualquier otro — así que esta app sí necesita su
 /// propia suscripción a `app_links` para este caso (ver `app.dart`,
 /// `parsearNickDesdeLinkAgregarAmigo`).
-String construirLinkAgregarAmigo(String nick) => 'finzo://agregar-amigo?nick=$nick';
+String construirLinkAgregarAmigo(String nick) =>
+    'finzo://agregar-amigo?nick=$nick';
 
 /// Deep link al que Supabase redirige tras tocar el link de recuperación de
 /// contraseña (Fase 65): mismo esquema `finzo://`, otro host, registrado

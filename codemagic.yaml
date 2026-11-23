@@ -34,11 +34,14 @@ workflows:
         XCODE_WORKSPACE: "ios/Runner.xcworkspace"
         XCODE_SCHEME: "Runner"
 
+    # Fase 89: SOLO se publica al crear una etiqueta v* (p. ej. v1.1.0) o
+    # al iniciarlo a mano desde Codemagic ("Start new build" → ios-release).
+    # Un push a cualquier rama, incluida main, ya NO publica.
     triggering:
       events:
-        - push
-      branch_patterns:
-        - pattern: main
+        - tag
+      tag_patterns:
+        - pattern: 'v*'
           include: true
 
     scripts:
@@ -179,6 +182,102 @@ workflows:
         notify:
           success: true
           failure: true
+
+  # Fase 89: validación de iOS en cada push a una rama que NO es main.
+  # Sin firma, sin certificados, sin variables secretas y sin publicar:
+  # solo comprueba que el proyecto compila.
+  ios-validar:
+    name: iOS Validar (sin firma)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: '*'
+          include: true
+        - pattern: main
+          include: false
+    scripts:
+      - name: Instalar dependencias de Flutter
+        script: flutter pub get
+      - name: flutter analyze
+        script: flutter analyze
+      - name: flutter test
+        script: flutter test
+      # Mismo motivo que en ios-release (Fase 50): el proyecto usa Swift
+      # Package Manager, no CocoaPods.
+      - name: Quitar integración de CocoaPods
+        script: |
+          cd ios
+          pod deintegrate || true
+      - name: Compilar iOS sin firma
+        script: flutter build ios --release --no-codesign
+
+  # Fase 89: validación de Android (cambios de build de la Fase 87:
+  # desugaring, permisos y receptores de notificaciones locales). Sin firma
+  # y sin publicar.
+  android-validar:
+    name: Android Validar (debug)
+    max_build_duration: 45
+    instance_type: linux_x2
+    environment:
+      flutter: stable
+      java: 17
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: '*'
+          include: true
+        - pattern: main
+          include: false
+    scripts:
+      - name: Instalar dependencias de Flutter
+        script: flutter pub get
+      - name: flutter analyze
+        script: flutter analyze
+      - name: flutter test
+        script: flutter test
+      # `android/app/google-services.json` no está en el repositorio (el
+      # plugin com.google.gms.google-services lo exige para compilar). Si
+      # existe la variable GOOGLE_SERVICES_JSON (contenido en base64, en un
+      # grupo de variables de Codemagic), se usa; si no, se escribe un
+      # archivo de RELLENO solo para compilar en debug: con él la app
+      # compila pero el push de Firebase no funciona. Nunca se publica.
+      - name: google-services.json
+        script: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            echo "$GOOGLE_SERVICES_JSON" | base64 --decode > android/app/google-services.json
+          else
+            cat > android/app/google-services.json <<'JSON'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "finzo-ci-relleno",
+              "storage_bucket": "finzo-ci-relleno.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:0000000000000000",
+                  "android_client_info": { "package_name": "com.finzoapp.movil" }
+                },
+                "api_key": [ { "current_key": "relleno-solo-ci" } ]
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON
+          fi
+      - name: Compilar APK debug
+        script: flutter build apk --debug
+    artifacts:
+      - build/app/outputs/flutter-apk/*.apk
 
 # ─────────────────────────────────────────────────────────────────────────
 # Pendientes manuales antes de que este workflow pueda correr de verdad

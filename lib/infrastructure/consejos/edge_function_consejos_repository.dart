@@ -48,7 +48,7 @@ class EdgeFunctionConsejosRepository implements ChatConsejosRepository {
         body: {
           'mensaje': mensaje,
           'esPrimerMensaje': esPrimerMensaje,
-          if (resumen != null) 'resumen': _resumenAJson(resumen),
+          if (resumen != null) 'resumen': resumenAJson(resumen),
         },
       );
     } on FunctionsHttpException catch (error) {
@@ -81,8 +81,16 @@ class EdgeFunctionConsejosRepository implements ChatConsejosRepository {
     }
   }
 
-  Map<String, dynamic> _resumenAJson(ResumenParaConsejos resumen) {
+  /// Fase 88 — payload v2, COMPATIBLE con la función ya desplegada: los
+  /// campos de v1 se mandan igual que antes (`montoTotal` = total a pagar,
+  /// el parche de la Fase 79), y se agregan `capital`, `totalAPagar`,
+  /// `saldo` y `direccion` explícitos que una función vieja ignora. Las
+  /// deudas "me deben" y las transferencias ya vienen excluidas de
+  /// [resumen] (`ArmarResumenParaConsejos`).
+  @visibleForTesting
+  Map<String, dynamic> resumenAJson(ResumenParaConsejos resumen) {
     return {
+      'version': 2,
       'deudasActivas': [
         for (final deuda in resumen.deudasActivas)
           {
@@ -91,6 +99,10 @@ class EdgeFunctionConsejosRepository implements ChatConsejosRepository {
             'montoPagado': deuda.montoPagado,
             'interesTotal': deuda.interesTotal,
             'moneda': deuda.moneda.name,
+            'capital': deuda.capital,
+            'totalAPagar': deuda.montoTotal,
+            'saldo': deuda.saldoPendiente,
+            'direccion': 'debo',
           },
       ],
       'ingresosPorCategoriaMes': _categoriasAJson(

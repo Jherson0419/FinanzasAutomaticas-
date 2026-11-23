@@ -1,8 +1,9 @@
 -- =====================================================================
 -- Fase 83 — TCEA de tarjetas de crédito (cuentas.tcea)
--- PENDIENTE: NO se ejecutó contra Supabase. Correr a mano en el SQL
--- Editor del proyecto. Independiente de fase82_direccion_deuda.sql (el
--- orden entre ambos da igual).
+-- PENDIENTE: NO se ejecutó contra Supabase. Orden y verificación en
+-- LEEME_orden.md.
+--
+-- IDEMPOTENTE (Fase 88): se puede correr varias veces. Una transacción.
 --
 -- Formato: FRACCIÓN anual (0.65 = 65 %). La app la pide en % y la divide
 -- entre 100 antes de guardarla. Solo tiene sentido en tipo = 'credito'.
@@ -13,8 +14,7 @@
 --     correr este script, GUARDAR una TCEA en la nube falla (columna
 --     inexistente); las cuentas sin TCEA siguen funcionando igual.
 --   - Limitación mientras tanto: borrar la TCEA de una cuenta no la anula
---     en la nube (no se envía la columna). Tras correr el script, si se
---     quiere poder borrarla, cambiar `aFila` para enviar `tcea` siempre.
+--     en la nube (no se envía la columna).
 -- =====================================================================
 
 begin;
@@ -22,11 +22,18 @@ begin;
 alter table public.cuentas
   add column if not exists tcea numeric;
 
-alter table public.cuentas
-  drop constraint if exists cuentas_tcea_check;
-alter table public.cuentas
-  add constraint cuentas_tcea_check
-  check (tcea is null or (tcea >= 0 and tcea <= 10));
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+     where conname = 'cuentas_tcea_check'
+       and conrelid = 'public.cuentas'::regclass
+  ) then
+    alter table public.cuentas
+      add constraint cuentas_tcea_check
+      check (tcea is null or (tcea >= 0 and tcea <= 10));
+  end if;
+end $$;
 
 comment on column public.cuentas.tcea is
   'Fase 83: TCEA de la tarjeta como fracción anual (0.65 = 65 %). Opcional; '
@@ -43,8 +50,8 @@ commit;
 -- ---------------------------------------------------------------------
 
 -- =====================================================================
--- REVERTIR (deshacer la fase). La tasa ya copiada a deudas.tasa_interes
--- de las deudas de tarjeta se conserva; si se quiere limpiar también:
+-- REVERTIR. La tasa ya copiada a deudas.tasa_interes de las deudas de
+-- tarjeta se conserva; si se quiere limpiar también:
 --   update public.deudas set tasa_interes = null, tiene_interes = false
 --    where cuenta_id is not null;
 --
