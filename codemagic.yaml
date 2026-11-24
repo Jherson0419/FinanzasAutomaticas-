@@ -12,8 +12,15 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
-      flutter: stable
-      xcode: latest
+      # Fase 89c: versión EXACTA, la misma del equipo de desarrollo
+      # (Dart 3.11.5). `stable` usaba una más nueva (3.47+) que marca
+      # material.dart como obsoleto. Al subirla, hacerlo a propósito y
+      # en los tres workflows.
+      flutter: 3.41.9
+      # Fase 89c: Xcode EXACTO (lista oficial docs.codemagic.io,
+      # specs-macos/xcode-26-4: "26.4.1 (17E202)"), en vez de `latest`,
+      # que cambia solo. Compila con el SDK de iOS 26 que exige App Store.
+      xcode: 26.4.1
       cocoapods: default
       groups:
         # Grupo de variables a crear en Codemagic → Teams → <tu equipo> →
@@ -191,8 +198,15 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
-      flutter: stable
-      xcode: latest
+      # Fase 89c: versión EXACTA, la misma del equipo de desarrollo
+      # (Dart 3.11.5). `stable` usaba una más nueva (3.47+) que marca
+      # material.dart como obsoleto. Al subirla, hacerlo a propósito y
+      # en los tres workflows.
+      flutter: 3.41.9
+      # Fase 89c: Xcode EXACTO (lista oficial docs.codemagic.io,
+      # specs-macos/xcode-26-4: "26.4.1 (17E202)"), en vez de `latest`,
+      # que cambia solo. Compila con el SDK de iOS 26 que exige App Store.
+      xcode: 26.4.1
       cocoapods: default
     triggering:
       events:
@@ -226,7 +240,11 @@ workflows:
     max_build_duration: 45
     instance_type: linux_x2
     environment:
-      flutter: stable
+      # Fase 89c: versión EXACTA, la misma del equipo de desarrollo
+      # (Dart 3.11.5). `stable` usaba una más nueva (3.47+) que marca
+      # material.dart como obsoleto. Al subirla, hacerlo a propósito y
+      # en los tres workflows.
+      flutter: 3.41.9
       java: 17
     triggering:
       events:
